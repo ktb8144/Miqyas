@@ -1,0 +1,959 @@
+"use client";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { getLevel, ETEC_LEVELS, DEMO_SUB_SKILLS } from "@/lib/demo-data";
+import { StudentSkillMap } from "@/components/student-skill-map";
+import { ClassSkillHeatmap } from "@/components/class-skill-heatmap";
+import { WorksheetModal, type WorksheetData } from "@/components/worksheet-modal";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const Q_COUNT = 10;
+const MAX_PAPERS = 40;
+const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
+const STORAGE_KEY = "miqyas_answer_key_v1";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface CapturedPaper {
+  id: string;
+  imageBase64: string; // compressed for API
+  thumbBase64: string; // tiny for UI
+}
+
+interface ScanResult {
+  paperId: string;
+  studentName: string;    // from Gemini
+  editedName: string;     // teacher-editable
+  answers: Record<string, string>;
+  score: number;
+  level: string;
+  error: boolean;
+  errorMsg?: string;
+  thumbBase64: string;
+}
+
+type Step = "key-entry" | "capture" | "processing" | "review" | "done";
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function loadAnswerKey(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    // Validate it has all 10 questions
+    const valid = Array.from({ length: Q_COUNT }, (_, i) => `q${i + 1}`).every(
+      (k) => parsed[k] && ARABIC_LETTERS.includes(parsed[k])
+    );
+    return valid ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function persistAnswerKey(key: Record<string, string>) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(key));
+}
+
+function calcScore(answers: Record<string, string>, key: Record<string, string>): number {
+  return Array.from({ length: Q_COUNT }, (_, i) => `q${i + 1}`).filter(
+    (q) => answers[q] && answers[q] === key[q]
+  ).length;
+}
+
+async function compressImage(base64: string, maxWidth: number, quality: number): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new window.Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality).split(",")[1]);
+    };
+    img.onerror = () => resolve(base64); // fallback
+    img.src = `data:image/jpeg;base64,${base64}`;
+  });
+}
+
+function sendBrowserNotification(body: string) {
+  if (!("Notification" in window)) return;
+  const show = () => new Notification("مِقياس", { body, icon: "/favicon.ico" });
+  if (Notification.permission === "granted") {
+    show();
+  } else if (Notification.permission !== "denied") {
+    Notification.requestPermission().then((p) => { if (p === "granted") show(); });
+  }
+}
+
+// ─── Answer Key Form ──────────────────────────────────────────────────────────
+
+function AnswerKeyPanel({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial: Record<string, string>;
+  onSave: (key: Record<string, string>) => void;
+  onCancel?: () => void;
+}) {
+  const [answers, setAnswers] = useState<Record<string, string>>(initial);
+  const filled = Object.keys(answers).filter((k) => k.startsWith("q")).length;
+  const isComplete = filled === Q_COUNT;
+
+  return (
+    <div dir="rtl">
+      <div className="space-y-2 mb-5 max-h-80 overflow-y-auto pl-1">
+        {Array.from({ length: Q_COUNT }, (_, i) => i + 1).map((q) => (
+          <div key={q} className="flex items-center gap-3">
+            <span className="w-6 text-sm text-gray-500 text-center flex-shrink-0 font-medium">{q}</span>
+            <div className="flex gap-1.5 flex-1">
+              {ARABIC_LETTERS.map((letter) => (
+                <button
+                  key={letter}
+                  onClick={() => setAnswers((prev) => ({ ...prev, [`q${q}`]: letter }))}
+                  className="w-11 h-10 rounded-lg font-bold text-sm border-2 transition-all hover:shadow-sm"
+                  style={
+                    answers[`q${q}`] === letter
+                      ? { background: "#1D9E75", borderColor: "#1D9E75", color: "white" }
+                      : { borderColor: "#e5e7eb", color: "#374151" }
+                  }
+                >
+                  {letter}
+                </button>
+              ))}
+            </div>
+            <span className="text-sm w-4 flex-shrink-0" style={{ color: answers[`q${q}`] ? "#1D9E75" : "transparent" }}>
+              ✓
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={() => { if (isComplete) { persistAnswerKey(answers); onSave(answers); } }}
+          disabled={!isComplete}
+          className="flex-1 py-3.5 rounded-xl text-white font-bold text-base disabled:opacity-50 hover:opacity-90 transition-all"
+          style={{ background: "#1D9E75" }}
+        >
+          {isComplete
+            ? "حفظ نموذج الإجابة والبدء بالمسح"
+            : `أكمل النموذج (${filled}/${Q_COUNT})`}
+        </button>
+        {onCancel && (
+          <button
+            onClick={onCancel}
+            className="px-5 py-3.5 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-50"
+          >
+            إلغاء
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Retake Modal (single paper in review mode) ───────────────────────────────
+
+function RetakeModal({
+  onCapture,
+  onClose,
+}: {
+  onCapture: (base64: string) => void;
+  onClose: () => void;
+}) {
+  const streamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+
+  const start = useCallback(async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1240 }, height: { ideal: 1754 }, aspectRatio: { ideal: 0.7071 } },
+      });
+      streamRef.current = s;
+      setCameraReady(true);
+      setTimeout(() => {
+        if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); }
+      }, 80);
+    } catch { onClose(); }
+  }, [onClose]);
+
+  // Auto-start camera
+  useState(() => { start(); });
+
+  const capture = async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = 1240;
+    canvas.height = 1754;
+    canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const raw = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    const compressed = await compressImage(raw, 800, 0.8);
+    onCapture(compressed);
+  };
+
+  const close = () => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" dir="rtl">
+      <div className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-sm">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+          <span className="font-bold text-gray-900">إعادة تصوير الورقة</span>
+          <button onClick={close} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+        </div>
+        <div className="relative bg-black" style={{ aspectRatio: "1 / 1.414" }}>
+          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="relative" style={{ width: "88%", height: "90%" }}>
+              <div className="absolute top-0 right-0 w-7 h-7 border-t-2 border-r-2 border-white" />
+              <div className="absolute top-0 left-0 w-7 h-7 border-t-2 border-l-2 border-white" />
+              <div className="absolute bottom-0 right-0 w-7 h-7 border-b-2 border-r-2 border-white" />
+              <div className="absolute bottom-0 left-0 w-7 h-7 border-b-2 border-l-2 border-white" />
+            </div>
+          </div>
+          <div className="absolute top-3 left-0 right-0 text-center text-white text-sm font-bold pointer-events-none" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
+            ضع الورقة داخل الإطار
+          </div>
+        </div>
+        <canvas ref={canvasRef} className="hidden" />
+        <div className="p-4 flex gap-3">
+          <button
+            onClick={capture}
+            disabled={!cameraReady}
+            className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
+            style={{ background: "#1D9E75" }}
+          >
+            📸 التقاط وتحليل
+          </button>
+          <button onClick={close} className="px-4 py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
+            إلغاء
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Per-Paper Answer Review Modal ───────────────────────────────────────────
+
+function PaperReviewModal({
+  result,
+  answerKey,
+  onSave,
+  onClose,
+}: {
+  result: ScanResult;
+  answerKey: Record<string, string>;
+  onSave: (paperId: string, answers: Record<string, string>, score: number, level: string) => void;
+  onClose: () => void;
+}) {
+  const [localAnswers, setLocalAnswers] = useState<Record<string, string>>(result.answers);
+  const currentScore = calcScore(localAnswers, answerKey);
+  const currentLevel = getLevel(currentScore, Q_COUNT);
+  const levelColor = ETEC_LEVELS[currentLevel as keyof typeof ETEC_LEVELS]?.color ?? "#374151";
+  const studentLabel = result.editedName || result.studentName || "ورقة بدون اسم";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" dir="rtl">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col" style={{ maxHeight: "90vh" }}>
+        {/* Header */}
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
+          <div>
+            <p className="font-bold text-gray-900">{studentLabel}</p>
+            <p className="text-xs text-gray-400 mt-0.5">راجع كل إجابة وصحّح إذا لزم</p>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold leading-none" style={{ color: levelColor }}>{currentScore}/{Q_COUNT}</div>
+            <div className="text-xs font-medium mt-1" style={{ color: levelColor }}>{currentLevel}</div>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-4 text-xs text-gray-500 flex-shrink-0">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded border-2 font-bold" style={{ background: "#1D9E75", borderColor: "#1D9E75", color: "white" }}>أ</span>
+            صحيح
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded border-2 font-bold" style={{ background: "#E24B4A", borderColor: "#E24B4A", color: "white" }}>أ</span>
+            خاطئ
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded border-2 font-bold" style={{ borderColor: "#1D9E75", color: "#1D9E75" }}>أ</span>
+            الإجابة الصحيحة
+          </span>
+        </div>
+
+        {/* Question rows */}
+        <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2.5">
+          {Array.from({ length: Q_COUNT }, (_, i) => i + 1).map((q) => {
+            const qKey = `q${q}`;
+            const selected = localAnswers[qKey] ?? "";
+            const correct = answerKey[qKey];
+            const isCorrect = selected === correct;
+
+            return (
+              <div key={q} className="flex items-center gap-2">
+                <span className="w-7 text-xs text-gray-500 text-center flex-shrink-0 font-medium">س{q}</span>
+                <div className="flex gap-1 flex-1">
+                  {ARABIC_LETTERS.map((letter) => {
+                    const isSelected = selected === letter;
+                    const isCorrectLetter = correct === letter;
+                    let btnStyle: React.CSSProperties;
+                    if (isSelected && isCorrectLetter) {
+                      btnStyle = { background: "#1D9E75", borderColor: "#1D9E75", color: "white" };
+                    } else if (isSelected && !isCorrectLetter) {
+                      btnStyle = { background: "#E24B4A", borderColor: "#E24B4A", color: "white" };
+                    } else if (!isSelected && isCorrectLetter) {
+                      btnStyle = { borderColor: "#1D9E75", color: "#1D9E75" };
+                    } else {
+                      btnStyle = { borderColor: "#e5e7eb", color: "#374151" };
+                    }
+                    return (
+                      <button
+                        key={letter}
+                        onClick={() => setLocalAnswers((prev) => ({ ...prev, [qKey]: letter }))}
+                        className="flex-1 h-9 rounded-lg font-bold text-sm border-2 transition-all hover:opacity-80"
+                        style={btnStyle}
+                      >
+                        {letter}
+                      </button>
+                    );
+                  })}
+                </div>
+                <span className="w-5 text-center text-sm flex-shrink-0 font-bold" style={{ color: selected ? (isCorrect ? "#1D9E75" : "#E24B4A") : "#9ca3af" }}>
+                  {selected ? (isCorrect ? "✓" : "✗") : "—"}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
+          <button
+            onClick={() => onSave(result.paperId, localAnswers, currentScore, currentLevel)}
+            className="flex-1 py-3 rounded-xl text-white font-bold text-sm hover:opacity-90 transition-all"
+            style={{ background: "#1D9E75" }}
+          >
+            تأكيد الإجابات ({currentScore}/{Q_COUNT})
+          </button>
+          <button onClick={onClose} className="px-4 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm hover:bg-gray-50">
+            إغلاق
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main BatchOMRScanner Component ──────────────────────────────────────────
+
+export function BatchOMRScanner({
+  totalStudents,
+  onComplete,
+}: {
+  totalStudents: number;
+  onComplete: (results: ScanResult[]) => void;
+}) {
+  // Start with server-safe defaults; sync from localStorage after hydration
+  const [step, setStep] = useState<Step>("key-entry");
+  const [answerKey, setAnswerKey] = useState<Record<string, string>>({});
+  const [editingKey, setEditingKey] = useState(false);
+  const [papers, setPapers] = useState<CapturedPaper[]>([]);
+  const [results, setResults] = useState<ScanResult[]>([]);
+  const [processingCount, setProcessingCount] = useState(0);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [retakingPaperId, setRetakingPaperId] = useState<string | null>(null);
+  const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null);
+  const [skillMapPaperId, setSkillMapPaperId] = useState<string | null>(null);
+  const [worksheet, setWorksheet] = useState<WorksheetData | null>(null);
+  const [worksheetLoading, setWorksheetLoading] = useState(false);
+  const [worksheetError, setWorksheetError] = useState<string | undefined>(undefined);
+
+  // Sync answer key from localStorage after hydration (avoids SSR mismatch)
+  useEffect(() => {
+    const key = loadAnswerKey();
+    if (Object.keys(key).length === Q_COUNT) {
+      setAnswerKey(key);
+      setStep("capture");
+    }
+  }, []);
+
+  const streamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // ── Camera helpers ──────────────────────────────────────────────────────────
+
+  const openCamera = useCallback(async () => {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1240 }, height: { ideal: 1754 }, aspectRatio: { ideal: 0.7071 } },
+      });
+      streamRef.current = s;
+      setCameraOpen(true);
+      setTimeout(() => {
+        if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); }
+      }, 80);
+    } catch {
+      alert("تعذّر فتح الكاميرا — تحقق من صلاحيات الكاميرا في المتصفح");
+    }
+  }, []);
+
+  const closeCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraOpen(false);
+  }, []);
+
+  const captureOne = useCallback(async () => {
+    if (papers.length >= MAX_PAPERS) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = 1240;
+    canvas.height = 1754;
+    canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
+    // Compress: API version (800px, 80%) and thumb (120px, 60%)
+    const [compressed, thumb] = await Promise.all([
+      compressImage(raw, 800, 0.8),
+      compressImage(raw, 120, 0.6),
+    ]);
+    setPapers((prev) => [...prev, { id: `p${Date.now()}`, imageBase64: compressed, thumbBase64: thumb }]);
+  }, [papers.length]);
+
+  // ── Scan a single image against the API ────────────────────────────────────
+
+  const scanImage = async (imageBase64: string, paperId: string, thumbBase64: string): Promise<ScanResult> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    try {
+      const res = await fetch("/api/scan-omr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64, totalQuestions: Q_COUNT, mimeType: "image/jpeg" }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || "scan failed");
+
+      const raw = json.results as Record<string, string>;
+      const studentName = (raw.studentName ?? "").trim();
+      const answers: Record<string, string> = {};
+      for (let i = 1; i <= Q_COUNT; i++) answers[`q${i}`] = raw[`q${i}`] ?? "unclear";
+
+      const score = calcScore(answers, answerKey);
+      return {
+        paperId, studentName, editedName: studentName,
+        answers, score, level: getLevel(score, Q_COUNT),
+        error: false, thumbBase64,
+      };
+    } catch (e) {
+      clearTimeout(timer);
+      const isTimeout = e instanceof Error && e.name === "AbortError";
+      return {
+        paperId, studentName: "", editedName: "", answers: {}, score: 0,
+        level: "دون الأساسي", error: true,
+        errorMsg: isTimeout ? "انتهت المهلة (٢٠ ثانية) — أعد التصوير" : "تعذّرت قراءة الورقة",
+        thumbBase64,
+      };
+    }
+  };
+
+  // ── Batch processing ────────────────────────────────────────────────────────
+
+  const processAll = async () => {
+    if (!papers.length) return;
+    closeCamera();
+    setStep("processing");
+    setProcessingCount(0);
+    let done = 0;
+    const allResults = await Promise.all(
+      papers.map(async (paper) => {
+        const result = await scanImage(paper.imageBase64, paper.id, paper.thumbBase64);
+        done++;
+        setProcessingCount(done);
+        return result;
+      })
+    );
+
+    setResults(allResults);
+    const successCount = allResults.filter((r) => !r.error).length;
+    sendBrowserNotification(`تمت معالجة ${successCount} ورقة بنجاح ✓`);
+    setStep("review");
+  };
+
+  // ── Retake specific paper (single scan from review) ─────────────────────────
+
+  const handleRetakeCapture = async (newBase64: string) => {
+    if (!retakingPaperId) return;
+    const thumb = await compressImage(newBase64, 120, 0.6);
+    setRetakingPaperId(null);
+    // Show scanning indicator for this row
+    setResults((prev) =>
+      prev.map((r) =>
+        r.paperId === retakingPaperId
+          ? { ...r, error: false, errorMsg: undefined, editedName: "جارٍ التحليل..." }
+          : r
+      )
+    );
+    const newResult = await scanImage(newBase64, retakingPaperId!, thumb);
+    setResults((prev) => prev.map((r) => (r.paperId === retakingPaperId ? { ...newResult, editedName: newResult.studentName } : r)));
+  };
+
+  // ── Per-question review save ────────────────────────────────────────────────
+
+  const handleReviewSave = (paperId: string, answers: Record<string, string>, score: number, level: string) => {
+    setResults((prev) =>
+      prev.map((r) => (r.paperId === paperId ? { ...r, answers, score, level } : r))
+    );
+    setReviewingPaperId(null);
+  };
+
+  // ── Worksheet generation ────────────────────────────────────────────────────
+
+  const handleGenerateWorksheet = async (weakSkills: string[], studentName?: string) => {
+    setSkillMapPaperId(null);
+    setWorksheetLoading(true);
+    setWorksheetError(undefined);
+    setWorksheet({ studentName, unit: "الكسور", exercises: [], generatedAt: new Date().toLocaleDateString("ar-SA") });
+    try {
+      const res = await fetch("/api/generate-worksheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weakSkills, unit: "الكسور", studentName }),
+      });
+      const json = await res.json();
+      if (!res.ok || json.error) throw new Error(json.error || "فشل التوليد");
+      setWorksheet({
+        studentName,
+        unit: "الكسور",
+        exercises: json.exercises,
+        generatedAt: new Date().toLocaleDateString("ar-SA"),
+      });
+    } catch (e) {
+      setWorksheetError(e instanceof Error ? e.message : "فشل التوليد");
+    } finally {
+      setWorksheetLoading(false);
+    }
+  };
+
+  // ── Review actions ──────────────────────────────────────────────────────────
+
+  const updateName = (paperId: string, name: string) =>
+    setResults((prev) => prev.map((r) => (r.paperId === paperId ? { ...r, editedName: name } : r)));
+
+  const saveAll = async () => {
+    const valid = results.filter((r) => !r.error);
+    // Attempt Supabase save silently — table may not exist in demo
+    fetch("/api/save-students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ results: valid.map((r) => ({ name: r.editedName || r.studentName, score: r.score, total: Q_COUNT, level: r.level })) }),
+    }).catch(() => null);
+    setStep("done");
+    onComplete(valid);
+  };
+
+  // ─── Derived ──────────────────────────────────────────────────────────────
+
+  const validResults = results.filter((r) => !r.error);
+  const errorResults = results.filter((r) => r.error);
+
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm" dir="rtl">
+      {/* Retake modal (camera) */}
+      {retakingPaperId && (
+        <RetakeModal
+          onCapture={handleRetakeCapture}
+          onClose={() => setRetakingPaperId(null)}
+        />
+      )}
+
+      {/* Per-question review modal */}
+      {reviewingPaperId && (() => {
+        const r = results.find((x) => x.paperId === reviewingPaperId);
+        return r ? (
+          <PaperReviewModal
+            result={r}
+            answerKey={answerKey}
+            onSave={handleReviewSave}
+            onClose={() => setReviewingPaperId(null)}
+          />
+        ) : null;
+      })()}
+
+      {/* Header */}
+      <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h3 className="font-bold text-gray-900 text-lg">📷 مسح أوراق الفصل كاملاً</h3>
+          <p className="text-gray-500 text-sm mt-0.5">
+            {step === "key-entry" && "الخطوة ١: أدخل نموذج الإجابة"}
+            {step === "capture" && "الخطوة ٢: صوّر جميع الأوراق ثم اضغط معالجة"}
+            {step === "processing" && "الخطوة ٣: جارٍ معالجة الأوراق بالتوازي..."}
+            {step === "review" && "الخطوة ٤: مراجعة النتائج وحفظها"}
+            {step === "done" && "✅ تم حفظ نتائج الفصل"}
+          </p>
+        </div>
+        <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "#e6f7f1", color: "#1D9E75" }}>
+          الذكاء الاصطناعي
+        </span>
+      </div>
+
+      <div className="p-5">
+
+        {/* ── Key entry ── */}
+        {(step === "key-entry" || editingKey) && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="font-bold text-gray-900">
+                {editingKey ? "تعديل نموذج الإجابة" : "أدخل نموذج الإجابة أولاً"}
+              </h4>
+              {editingKey && (
+                <button onClick={() => setEditingKey(false)} className="text-sm text-gray-500 hover:text-gray-700">
+                  إلغاء
+                </button>
+              )}
+            </div>
+            <AnswerKeyPanel
+              initial={answerKey}
+              onSave={(key) => { setAnswerKey(key); setEditingKey(false); setStep("capture"); }}
+              onCancel={editingKey ? () => setEditingKey(false) : undefined}
+            />
+          </div>
+        )}
+
+        {/* ── Capture ── */}
+        {step === "capture" && !editingKey && (
+          <div>
+            {/* Saved key summary */}
+            <div className="flex items-start justify-between mb-5 p-3 rounded-xl gap-3" style={{ background: "#f0fdf8", border: "1px solid #86efac" }}>
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="text-green-500 font-bold text-sm">✓ نموذج الإجابة محفوظ</span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {Array.from({ length: Q_COUNT }, (_, i) => (
+                    <span key={i} className="text-xs font-bold px-1.5 py-0.5 rounded text-white" style={{ background: "#1D9E75" }}>
+                      س{i + 1}: {answerKey[`q${i + 1}`]}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button onClick={() => setEditingKey(true)} className="text-xs text-gray-500 hover:text-gray-700 underline flex-shrink-0">
+                تعديل
+              </button>
+            </div>
+
+            {/* Camera view */}
+            {cameraOpen ? (
+              <div className="mb-4">
+                <div className="relative rounded-xl overflow-hidden border-4 mb-3 bg-black" style={{ borderColor: "#1D9E75", aspectRatio: "1 / 1.414" }}>
+                  <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="relative" style={{ width: "88%", height: "90%" }}>
+                      <div className="absolute top-0 right-0 w-7 h-7 border-t-2 border-r-2 border-white" />
+                      <div className="absolute top-0 left-0 w-7 h-7 border-t-2 border-l-2 border-white" />
+                      <div className="absolute bottom-0 right-0 w-7 h-7 border-b-2 border-r-2 border-white" />
+                      <div className="absolute bottom-0 left-0 w-7 h-7 border-b-2 border-l-2 border-white" />
+                    </div>
+                  </div>
+                  <div className="absolute top-3 left-0 right-0 text-center text-white text-sm font-bold pointer-events-none" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
+                    ضع الورقة داخل الإطار
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 py-1.5 text-white text-xs text-center" style={{ background: "rgba(0,0,0,0.55)" }}>
+                    تم تصوير {papers.length} / ٤٠ ورقة
+                  </div>
+                </div>
+                <canvas ref={canvasRef} className="hidden" />
+                <div className="flex gap-3 mb-3">
+                  <button
+                    onClick={captureOne}
+                    disabled={papers.length >= MAX_PAPERS}
+                    className="flex-1 py-3 rounded-xl text-white font-bold text-sm shadow-md hover:opacity-90 disabled:opacity-50"
+                    style={{ background: "#1D9E75" }}
+                  >
+                    📸 التقاط ورقة
+                  </button>
+                  <button onClick={closeCamera} className="px-5 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm hover:bg-gray-50">
+                    إغلاق
+                  </button>
+                </div>
+                {papers.length > 0 && (
+                  <button onClick={processAll} className="w-full py-3.5 rounded-xl text-white font-bold text-base shadow-md hover:opacity-90" style={{ background: "#1D9E75" }}>
+                    بدء تصحيح {papers.length} ورقة
+                  </button>
+                )}
+              </div>
+            ) : papers.length >= MAX_PAPERS ? (
+              <div className="text-center py-5 mb-5 rounded-xl border border-amber-200" style={{ background: "#fffbeb" }}>
+                <p className="text-amber-700 font-bold mb-1">وصلت للحد الأقصى ٤٠ ورقة</p>
+                <p className="text-amber-600 text-sm">اضغط بدء التصحيح لمعالجة الأوراق</p>
+              </div>
+            ) : (
+              <div className="text-center py-6 mb-5 border-2 border-dashed border-gray-200 rounded-xl">
+                <div className="text-4xl mb-2">📷</div>
+                <button onClick={openCamera} className="px-8 py-3 rounded-xl text-white font-bold shadow-md hover:opacity-90 mb-2" style={{ background: "#1D9E75" }}>
+                  تصوير ورقة
+                </button>
+                <p className="text-gray-400 text-sm">
+                  {papers.length === 0 ? `صوّر أوراق الـ ${totalStudents} طالب` : `تم تصوير ${papers.length} / ٤٠ ورقة — يمكنك إضافة المزيد`}
+                </p>
+              </div>
+            )}
+
+            {/* Thumbnails */}
+            {papers.length > 0 && (
+              <div className="mb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    تم تصوير <span className="font-bold" style={{ color: "#1D9E75" }}>{papers.length}</span> / <span className="font-bold">٤٠</span> ورقة
+                  </span>
+                  {totalStudents > 0 && papers.length < totalStudents && papers.length < MAX_PAPERS && (
+                    <span className="text-xs text-amber-600 font-medium">
+                      ⚠️ {totalStudents - papers.length} ورقة متبقية
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-5 gap-2 mb-4">
+                  {papers.map((p, i) => (
+                    <div key={p.id} className="relative group rounded-lg overflow-hidden border-2 border-gray-200" style={{ aspectRatio: "3/4" }}>
+                      <img src={`data:image/jpeg;base64,${p.thumbBase64}`} alt={`ورقة ${i + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <button onClick={() => setPapers((prev) => prev.filter((pp) => pp.id !== p.id))} className="w-7 h-7 rounded-full bg-red-500 text-white text-lg leading-none flex items-center justify-center">
+                          ×
+                        </button>
+                      </div>
+                      <div className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-xs rounded px-1 leading-4">
+                        {i + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Start grading button — always visible once papers exist and camera is closed */}
+                {!cameraOpen && (
+                  <button onClick={processAll} className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:opacity-90" style={{ background: "#1D9E75" }}>
+                    بدء تصحيح {papers.length} ورقة
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Processing ── */}
+        {step === "processing" && (
+          <div className="py-10 text-center">
+            <div className="relative w-20 h-20 mx-auto mb-5">
+              <div className="w-20 h-20 rounded-full border-4 border-gray-200" />
+              <div className="absolute top-0 left-0 w-20 h-20 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: "#7F77DD", borderTopColor: "transparent" }} />
+            </div>
+            <p className="font-bold text-gray-900 text-lg mb-1">
+              جارٍ تحليل الأوراق... {processingCount}/{papers.length}
+            </p>
+            <p className="text-gray-500 text-sm mb-5">
+              {processingCount < papers.length
+                ? "جارٍ تحليل الصورة... (قد يستغرق 10-15 ثانية لكل ورقة)"
+                : "اكتملت المعالجة — جارٍ تجميع النتائج..."}
+            </p>
+            <div className="w-full max-w-xs mx-auto bg-gray-100 rounded-full h-3 mb-2">
+              <div
+                className="h-3 rounded-full transition-all duration-500"
+                style={{ width: `${papers.length ? (processingCount / papers.length) * 100 : 0}%`, background: "#7F77DD" }}
+              />
+            </div>
+            <p className="text-xs text-gray-400">يعالج جميع الأوراق في نفس الوقت بالتوازي</p>
+          </div>
+        )}
+
+        {/* ── Review ── */}
+        {step === "review" && (
+          <div>
+            {/* Level summary cards */}
+            <div className="grid grid-cols-4 gap-2 mb-5">
+              {(["متقدم", "متمكن", "أساسي", "دون الأساسي"] as const).map((lvl) => {
+                const cfg = ETEC_LEVELS[lvl];
+                const count = validResults.filter((r) => r.level === lvl).length;
+                return (
+                  <div key={lvl} className="rounded-xl p-3 text-center border" style={{ borderColor: cfg.color + "40", background: cfg.color + "12" }}>
+                    <div className="text-2xl font-bold" style={{ color: cfg.color }}>{count}</div>
+                    <div className="text-xs font-medium text-gray-600 mt-0.5">{lvl}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Error banner */}
+            {errorResults.length > 0 && (
+              <div className="mb-4 p-3 rounded-xl text-sm flex items-start gap-2" style={{ background: "#fff5f5", border: "1px solid #fecaca", color: "#b91c1c" }}>
+                <span>⚠️</span>
+                <span>{errorResults.length} ورقة لم تتم قراءتها — اضغط أعد التصوير لكل ورقة فاشلة</span>
+              </div>
+            )}
+
+            {/* Results table */}
+            <div className="rounded-xl border border-gray-200 overflow-hidden mb-5">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">#</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">اسم الطالب</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الدرجة</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">المستوى</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">إجراء</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {results.map((r, i) => {
+                    const cfg = !r.error && r.level ? ETEC_LEVELS[r.level as keyof typeof ETEC_LEVELS] : null;
+                    return (
+                      <tr key={r.paperId} className={r.error ? "bg-red-50/40" : "hover:bg-gray-50"}>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-1.5">
+                            {r.thumbBase64 && (
+                              <img src={`data:image/jpeg;base64,${r.thumbBase64}`} alt="" className="w-7 h-9 object-cover rounded border border-gray-200" />
+                            )}
+                            <span className="text-gray-400 text-sm">{i + 1}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">
+                          {r.error ? (
+                            <span className="text-red-400 text-sm italic">{r.errorMsg ?? "تعذّرت القراءة"}</span>
+                          ) : (
+                            <div>
+                              <input
+                                className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right w-full focus:outline-none focus:ring-1 max-w-[180px]"
+                                style={{ "--tw-ring-color": "#1D9E75" } as React.CSSProperties}
+                                value={r.editedName}
+                                onChange={(e) => updateName(r.paperId, e.target.value)}
+                                placeholder="أدخل اسم الطالب"
+                              />
+                              {r.studentName && r.studentName !== r.editedName && (
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  الذكاء الاصطناعي: {r.studentName}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-sm font-bold text-gray-900">
+                          {r.error ? "—" : `${r.score}/${Q_COUNT}`}
+                        </td>
+                        <td className="px-3 py-3">
+                          {cfg && !r.error ? (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: cfg.color + "22", color: cfg.color }}>
+                              {r.level}
+                            </span>
+                          ) : "—"}
+                        </td>
+                        <td className="px-3 py-3">
+                          {r.error ? (
+                            <button
+                              onClick={() => setRetakingPaperId(r.paperId)}
+                              className="text-xs border rounded-lg px-2 py-1.5 hover:bg-red-50 transition-all"
+                              style={{ borderColor: "#fca5a5", color: "#b91c1c" }}
+                            >
+                              ⟳ أعد التصوير
+                            </button>
+                          ) : (
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={() => setReviewingPaperId(r.paperId)}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-all"
+                                style={{ color: "#7F77DD" }}
+                              >
+                                ✏️ مراجعة
+                              </button>
+                              <button
+                                onClick={() => setSkillMapPaperId(r.paperId)}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-all"
+                                style={{ color: "#1D9E75" }}
+                              >
+                                📊 تشخيص
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <button
+              onClick={saveAll}
+              className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90"
+              style={{ background: "#1D9E75" }}
+            >
+              💾 حفظ نتائج {validResults.length} طالب في الفصل
+            </button>
+
+            {/* Class skill heatmap */}
+            {validResults.length > 0 && (
+              <ClassSkillHeatmap
+                results={validResults}
+                answerKey={answerKey}
+                subSkills={DEMO_SUB_SKILLS}
+                onGenerateClassWorksheet={(weakSkills) => handleGenerateWorksheet(weakSkills)}
+              />
+            )}
+          </div>
+        )}
+
+        {/* ── Student skill map modal ── */}
+        {skillMapPaperId && (() => {
+          const r = results.find((x) => x.paperId === skillMapPaperId);
+          if (!r) return null;
+          return (
+            <StudentSkillMap
+              studentName={r.editedName || r.studentName || `ورقة ${results.indexOf(r) + 1}`}
+              answers={r.answers}
+              answerKey={answerKey}
+              subSkills={DEMO_SUB_SKILLS}
+              onGenerateWorksheet={(weakSkills) =>
+                handleGenerateWorksheet(weakSkills, r.editedName || r.studentName)
+              }
+              onClose={() => setSkillMapPaperId(null)}
+            />
+          );
+        })()}
+
+        {/* ── Worksheet modal ── */}
+        {(worksheet || worksheetLoading) && (
+          <WorksheetModal
+            worksheet={worksheet}
+            loading={worksheetLoading}
+            error={worksheetError}
+            onClose={() => { setWorksheet(null); setWorksheetLoading(false); setWorksheetError(undefined); }}
+          />
+        )}
+
+        {/* ── Done ── */}
+        {step === "done" && (
+          <div className="text-center py-10">
+            <div className="text-6xl mb-4">🎉</div>
+            <p className="text-2xl font-bold text-gray-900 mb-2">
+              تم حفظ نتائج {validResults.length} طالب بنجاح
+            </p>
+            <p className="text-gray-500 text-sm">يمكنك الآن مراجعة النتائج في جدول الطلاب</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
