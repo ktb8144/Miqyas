@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { FormEvent, useState } from "react";
 import {
   BarChart3,
   Bot,
@@ -17,6 +20,14 @@ import {
   UsersRound,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+
+const initialTrialForm = {
+  name: "",
+  school_name: "",
+  phone: "",
+  email: "",
+  message: "",
+};
 
 const navLinks = [
   { label: "الرئيسية", href: "#home" },
@@ -197,6 +208,44 @@ function DashboardMockup() {
 }
 
 export default function LandingPage() {
+  const [trialForm, setTrialForm] = useState(initialTrialForm);
+  const [trialState, setTrialState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [trialMessage, setTrialMessage] = useState("");
+
+  function updateTrialField(field: keyof typeof initialTrialForm, value: string) {
+    setTrialForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleTrialSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setTrialState("loading");
+    setTrialMessage("");
+
+    try {
+      const res = await fetch("/api/trial-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(trialForm),
+      });
+      const json = await res.json();
+
+      if (!res.ok || !json.success) {
+        console.error("trial request API failed", json);
+        const details = [json.error, json.code, json.details, json.hint].filter(Boolean).join(" - ");
+        throw new Error(details || "تعذر إرسال الطلب");
+      }
+
+      setTrialForm(initialTrialForm);
+      setTrialState("success");
+      setTrialMessage("تم إرسال طلبك بنجاح، سيتواصل معك فريق مقياس قريبًا");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "تعذر إرسال الطلب";
+      console.error("trial request submit failed", error);
+      setTrialState("error");
+      setTrialMessage(message);
+    }
+  }
+
   return (
     <main id="home" className="min-h-screen bg-white text-[#0b2447]" dir="rtl">
       <nav className="sticky top-0 z-50 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
@@ -418,26 +467,71 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <form className="grid gap-4 rounded-[1.5rem] border border-slate-100 bg-white p-5 md:grid-cols-2">
-            {[
-              ["الاسم", "text"],
-              ["اسم المدرسة", "text"],
-              ["رقم الجوال", "tel"],
-              ["البريد الإلكتروني", "email"],
-            ].map(([label, type]) => (
-              <label key={label} className="block">
-                <span className="mb-2 block text-sm font-extrabold text-slate-500">{label}</span>
-                <input
-                  type={type}
-                  className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
-                />
-              </label>
-            ))}
+          <form onSubmit={handleTrialSubmit} className="grid gap-4 rounded-[1.5rem] border border-slate-100 bg-white p-5 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-extrabold text-slate-500">الاسم</span>
+              <input
+                required
+                type="text"
+                value={trialForm.name}
+                onChange={(event) => updateTrialField("name", event.target.value)}
+                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-extrabold text-slate-500">اسم المدرسة</span>
+              <input
+                required
+                type="text"
+                value={trialForm.school_name}
+                onChange={(event) => updateTrialField("school_name", event.target.value)}
+                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-extrabold text-slate-500">رقم الجوال</span>
+              <input
+                required
+                type="tel"
+                value={trialForm.phone}
+                onChange={(event) => updateTrialField("phone", event.target.value)}
+                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-extrabold text-slate-500">البريد الإلكتروني</span>
+              <input
+                required
+                type="email"
+                value={trialForm.email}
+                onChange={(event) => updateTrialField("email", event.target.value)}
+                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+              />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-sm font-extrabold text-slate-500">ملاحظة</span>
+              <textarea
+                rows={4}
+                value={trialForm.message}
+                onChange={(event) => updateTrialField("message", event.target.value)}
+                className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+              />
+            </label>
+            {trialMessage && (
+              <div className={`rounded-xl border px-4 py-3 text-sm font-bold md:col-span-2 ${
+                trialState === "success"
+                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                  : "border-rose-100 bg-rose-50 text-rose-700"
+              }`}>
+                {trialMessage}
+              </div>
+            )}
             <button
-              type="button"
-              className="rounded-xl bg-[#159f91] px-6 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] md:col-span-2"
+              type="submit"
+              disabled={trialState === "loading"}
+              className="rounded-xl bg-[#159f91] px-6 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-60 md:col-span-2"
             >
-              إرسال الطلب
+              {trialState === "loading" ? "جارٍ الإرسال..." : "إرسال الطلب"}
             </button>
           </form>
         </div>

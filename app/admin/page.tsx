@@ -27,7 +27,7 @@ import {
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
 
-type Tab = "overview" | "schools" | "users" | "questions" | "reports";
+type Tab = "overview" | "schools" | "users" | "questions" | "trialRequests" | "reports";
 type ModalType = "school" | "user" | "question";
 
 type OverviewData = {
@@ -50,6 +50,7 @@ type AdminSchool = {
   id: string;
   name: string;
   city: string;
+  school_type?: string;
   principal: string;
   teachers: number;
   students: number;
@@ -60,6 +61,7 @@ type AdminSchool = {
 type SchoolFormData = {
   name: string;
   city: string;
+  school_type?: string;
 };
 
 type AdminUser = {
@@ -112,6 +114,17 @@ type QuestionFormData = {
   option_d: string;
   correct_option: string;
   status: string;
+};
+
+type AdminTrialRequest = {
+  id: string;
+  name: string;
+  school_name: string;
+  phone: string;
+  email: string;
+  message: string;
+  status: string;
+  created_at: string;
 };
 
 const fallbackOverview: OverviewData = {
@@ -168,6 +181,7 @@ const navItems = [
   { id: "schools", label: "المدارس", icon: Building2 },
   { id: "users", label: "المستخدمون", icon: UsersRound },
   { id: "questions", label: "الأسئلة الأسبوعية", icon: BookOpenCheck },
+  { id: "trialRequests", label: "طلبات التجربة", icon: ClipboardList },
   { id: "reports", label: "التقارير", icon: BarChart3 },
 ] satisfies { id: Tab; label: string; icon: typeof LayoutDashboard }[];
 
@@ -178,15 +192,15 @@ function formatNumber(value: number) {
 function StatusBadge({ status }: { status: string }) {
   const tone =
     status === "نشطة" || status === "نشط" || status === "مفعل"
-    || status === "active"
+    || status === "active" || status === "contacted"
       ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-      : status === "تجريبية" || status === "دعوة مرسلة" || status === "مسودة" || status === "draft"
+      : status === "تجريبية" || status === "دعوة مرسلة" || status === "مسودة" || status === "draft" || status === "new"
         ? "border-amber-100 bg-amber-50 text-amber-700"
         : "border-rose-100 bg-rose-50 text-rose-700";
 
   return (
     <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${tone}`}>
-      {status === "active" ? "مفعل" : status === "draft" ? "مسودة" : status === "archived" ? "مؤرشف" : status}
+      {status === "active" ? "مفعل" : status === "draft" ? "مسودة" : status === "archived" ? "مؤرشف" : status === "new" ? "جديد" : status === "contacted" ? "تم التواصل" : status === "closed" ? "مغلق" : status}
     </span>
   );
 }
@@ -340,12 +354,14 @@ function AdminModal({
   onSubmit?: (payload: SchoolFormData | UserFormData | QuestionFormData | Record<string, string>) => Promise<void> | void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const config = {
     school: {
       title: initialValues ? "تعديل مدرسة" : "إضافة مدرسة",
       fields: [
         { name: "name", label: "اسم المدرسة", type: "text" },
         { name: "city", label: "المدينة", type: "text" },
+        { name: "school_type", label: "نوع المدرسة", type: "schoolType" },
       ],
     },
     user: {
@@ -382,6 +398,7 @@ function AdminModal({
     const payload = Object.fromEntries(formData.entries()) as Record<string, string>;
 
     try {
+      setFormError(null);
       setSubmitting(true);
       if (onSubmit) {
         await onSubmit(payload);
@@ -390,8 +407,11 @@ function AdminModal({
       }
       onClose();
     } catch (error) {
-      if (!(error instanceof Error && error.message === "School name is required")) {
-        window.alert("حدث خطأ");
+      const message = error instanceof Error ? error.message : "حدث خطأ غير معروف";
+      console.error("admin modal submit failed", { type, message, error });
+      setFormError(message);
+      if (!(error instanceof Error && error.message === "اسم المدرسة مطلوب")) {
+        window.alert(message);
       }
     } finally {
       setSubmitting(false);
@@ -416,6 +436,12 @@ function AdminModal({
                   <option value="admin">admin</option>
                   <option value="principal">principal</option>
                   <option value="teacher">teacher</option>
+                </select>
+              ) : field.type === "schoolType" ? (
+                <select name={field.name} defaultValue={initialValues?.[field.name] ?? "حكومية"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
+                  <option value="حكومية">حكومية</option>
+                  <option value="أهلية">أهلية</option>
+                  <option value="عالمية">عالمية</option>
                 </select>
               ) : field.type === "school" ? (
                 <select name={field.name} defaultValue={initialValues?.[field.name] ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
@@ -446,10 +472,15 @@ function AdminModal({
               ) : field.type === "textarea" ? (
                 <textarea name={field.name} required={type === "question" && field.name === "question_text"} defaultValue={initialValues?.[field.name]} rows={4} className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
               ) : (
-                <input name={field.name} required={(type === "school" && field.name === "name") || (type === "user" && ["name", "email"].includes(field.name)) || (type === "question" && ["subject", "grade"].includes(field.name))} defaultValue={initialValues?.[field.name]} type={field.type} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
+                <input name={field.name} required={(type === "school" && ["name", "city"].includes(field.name)) || (type === "user" && ["name", "email"].includes(field.name)) || (type === "question" && ["subject", "grade"].includes(field.name))} defaultValue={initialValues?.[field.name]} type={field.type} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
               )}
             </label>
           ))}
+          {formError && (
+            <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+              {formError}
+            </div>
+          )}
           <button disabled={submitting} className="w-full rounded-xl bg-[#159f91] py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-60">
             {submitting ? "جارٍ الحفظ..." : "حفظ"}
           </button>
@@ -819,6 +850,84 @@ function QuestionsTab({
   );
 }
 
+function TrialRequestsTab({
+  requests,
+  loading,
+  busyTrialRequestId,
+  onUpdateStatus,
+}: {
+  requests: AdminTrialRequest[];
+  loading: boolean;
+  busyTrialRequestId: string | null;
+  onUpdateStatus: (request: AdminTrialRequest, status: string) => void;
+}) {
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        title="طلبات التجربة"
+        description="متابعة طلبات المدارس القادمة من الصفحة الرئيسية وتحديث حالة التواصل معها."
+        action={
+          <SoftButton>
+            <ClipboardList className="h-4 w-4" />
+            {loading ? "جارٍ تحميل الطلبات..." : `${formatNumber(requests.length)} طلب`}
+          </SoftButton>
+        }
+      />
+
+      <div className="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50/70 text-slate-400">
+                <th className="px-5 py-4 text-right font-extrabold">الاسم</th>
+                <th className="px-5 py-4 text-right font-extrabold">المدرسة</th>
+                <th className="px-5 py-4 text-right font-extrabold">الجوال</th>
+                <th className="px-5 py-4 text-right font-extrabold">الإيميل</th>
+                <th className="px-5 py-4 text-right font-extrabold">الحالة</th>
+                <th className="px-5 py-4 text-right font-extrabold">التاريخ</th>
+                <th className="px-5 py-4 text-right font-extrabold">تحديث الحالة</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {requests.map((request) => (
+                <tr key={request.id} className="transition hover:bg-slate-50/70">
+                  <td className="px-5 py-4 font-extrabold text-[#0b2447]">{request.name}</td>
+                  <td className="px-5 py-4 font-bold text-slate-500">{request.school_name}</td>
+                  <td className="px-5 py-4 font-bold text-slate-500">{request.phone}</td>
+                  <td className="px-5 py-4 font-bold text-slate-500">{request.email}</td>
+                  <td className="px-5 py-4"><StatusBadge status={request.status} /></td>
+                  <td className="px-5 py-4 font-bold text-slate-500">
+                    {request.created_at ? new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(request.created_at)) : "—"}
+                  </td>
+                  <td className="px-5 py-4">
+                    <select
+                      value={request.status}
+                      disabled={busyTrialRequestId === request.id}
+                      onChange={(event) => onUpdateStatus(request, event.target.value)}
+                      className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-extrabold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white disabled:opacity-60"
+                    >
+                      <option value="new">new</option>
+                      <option value="contacted">contacted</option>
+                      <option value="closed">closed</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
+              {!loading && requests.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-sm font-extrabold text-slate-400">
+                    لا توجد طلبات تجربة حتى الآن
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReportsTab() {
   return (
     <div className="space-y-8">
@@ -867,12 +976,15 @@ export default function AdminPage() {
   const [schoolRows, setSchoolRows] = useState<AdminSchool[]>(fallbackSchools);
   const [userRows, setUserRows] = useState<AdminUser[]>(fallbackUsers);
   const [questionRows, setQuestionRows] = useState<AdminQuestion[]>(fallbackQuestions);
+  const [trialRequestRows, setTrialRequestRows] = useState<AdminTrialRequest[]>([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [trialRequestsLoading, setTrialRequestsLoading] = useState(false);
   const [busySchoolId, setBusySchoolId] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [busyQuestionId, setBusyQuestionId] = useState<string | null>(null);
+  const [busyTrialRequestId, setBusyTrialRequestId] = useState<string | null>(null);
   const [overview, setOverview] = useState<OverviewData>(fallbackOverview);
   const [apiState, setApiState] = useState<ApiState>("idle");
   const [loggingOut, setLoggingOut] = useState(false);
@@ -918,6 +1030,20 @@ export default function AdminPage() {
       console.error("load admin questions failed", error);
     } finally {
       setQuestionsLoading(false);
+    }
+  }, []);
+
+  const loadTrialRequests = useCallback(async () => {
+    setTrialRequestsLoading(true);
+    try {
+      const res = await fetch("/api/admin/trial-requests", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل تحميل طلبات التجربة");
+      setTrialRequestRows(json.data);
+    } catch (error) {
+      console.error("load admin trial requests failed", error);
+    } finally {
+      setTrialRequestsLoading(false);
     }
   }, []);
 
@@ -970,7 +1096,10 @@ export default function AdminPage() {
     if (activeTab === "questions") {
       void loadQuestions();
     }
-  }, [activeTab, loadSchools, loadQuestions, loadUsers]);
+    if (activeTab === "trialRequests") {
+      void loadTrialRequests();
+    }
+  }, [activeTab, loadSchools, loadQuestions, loadTrialRequests, loadUsers]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -1011,9 +1140,12 @@ export default function AdminPage() {
   async function handleSchoolSubmit(payload: SchoolFormData | Record<string, string>) {
     const name = payload.name?.trim();
     const city = payload.city?.trim() ?? "";
+    const school_type = payload.school_type?.trim() || "حكومية";
     if (!name) {
-      window.alert("اسم المدرسة مطلوب");
-      throw new Error("School name is required");
+      throw new Error("اسم المدرسة مطلوب");
+    }
+    if (!city) {
+      throw new Error("المدينة مطلوبة");
     }
 
     const endpoint = editingSchool ? `/api/admin/schools/${editingSchool.id}` : "/api/admin/schools";
@@ -1023,10 +1155,14 @@ export default function AdminPage() {
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, city }),
+        body: JSON.stringify({ name, city, school_type }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "فشل حفظ المدرسة");
+      if (!res.ok || !json.success) {
+        console.error("save school API failed", json);
+        const details = [json.error, json.code, json.details, json.hint].filter(Boolean).join(" - ");
+        throw new Error(details || "فشل حفظ المدرسة");
+      }
 
       if (editingSchool) {
         setSchoolRows((prev) => prev.map((school) => (school.id === editingSchool.id ? json.data : school)));
@@ -1053,12 +1189,16 @@ export default function AdminPage() {
         body: JSON.stringify({ status: "موقوفة" }),
       });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "فشل تعطيل المدرسة");
+      if (!res.ok || !json.success) {
+        console.error("disable school API failed", json);
+        const details = [json.error, json.code, json.details, json.hint].filter(Boolean).join(" - ");
+        throw new Error(details || "فشل تعطيل المدرسة");
+      }
       setSchoolRows((prev) => prev.map((item) => (item.id === school.id ? json.data : item)));
       window.alert("تم التعطيل");
     } catch (error) {
       console.error("disable school failed", error);
-      window.alert("حدث خطأ");
+      window.alert(error instanceof Error ? error.message : "حدث خطأ");
     } finally {
       setBusySchoolId(null);
     }
@@ -1210,6 +1350,28 @@ export default function AdminPage() {
     }
   }
 
+  async function handleTrialRequestStatus(request: AdminTrialRequest, status: string) {
+    setBusyTrialRequestId(request.id);
+    setTrialRequestRows((prev) => prev.map((item) => (item.id === request.id ? { ...item, status } : item)));
+
+    try {
+      const res = await fetch(`/api/admin/trial-requests/${request.id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل تحديث حالة طلب التجربة");
+      setTrialRequestRows((prev) => prev.map((item) => (item.id === request.id ? json.data : item)));
+    } catch (error) {
+      console.error("update trial request status failed", error);
+      setTrialRequestRows((prev) => prev.map((item) => (item.id === request.id ? request : item)));
+      window.alert(error instanceof Error ? error.message : "حدث خطأ");
+    } finally {
+      setBusyTrialRequestId(null);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
       {modalType && (
@@ -1217,7 +1379,7 @@ export default function AdminPage() {
           type={modalType}
           initialValues={
             modalType === "school" && editingSchool
-              ? { name: editingSchool.name, city: editingSchool.city }
+              ? { name: editingSchool.name, city: editingSchool.city, school_type: editingSchool.school_type ?? "حكومية" }
               : modalType === "user" && editingUser
                 ? { name: editingUser.name, email: editingUser.email, role: editingUser.role, school_id: editingUser.school_id ?? "" }
                 : modalType === "question" && editingQuestion
@@ -1352,6 +1514,14 @@ export default function AdminPage() {
               onAddQuestion={openAddQuestionModal}
               onEditQuestion={openEditQuestionModal}
               onToggleQuestionStatus={handleToggleQuestionStatus}
+            />
+          )}
+          {activeTab === "trialRequests" && (
+            <TrialRequestsTab
+              requests={trialRequestRows}
+              loading={trialRequestsLoading}
+              busyTrialRequestId={busyTrialRequestId}
+              onUpdateStatus={handleTrialRequestStatus}
             />
           )}
           {activeTab === "reports" && <ReportsTab />}
