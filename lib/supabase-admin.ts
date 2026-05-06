@@ -221,16 +221,17 @@ export async function registerSchool(data: SchoolRegistration) {
   const { data: result, error } = await db
     .from("schools")
     .insert({
-      principal_name: data.principal_name,
-      school_name: data.school_name,
+      name: data.school_name,
       city: data.city,
-      school_type: data.school_type,
-      phone: data.phone,
-      trial_start: new Date().toISOString(),
-      trial_end: new Date(
+      region: null,
+      type: data.school_type,
+      subscription_type: "trial",
+      subscription_start: new Date().toISOString().slice(0, 10),
+      subscription_end: new Date(
         Date.now() + 60 * 24 * 60 * 60 * 1000 // 60 days free trial
-      ).toISOString(),
-      status: "trial",
+      ).toISOString().slice(0, 10),
+      active: true,
+      trial: true,
     })
     .select()
     .single();

@@ -50,7 +50,8 @@ type AdminSchool = {
   id: string;
   name: string;
   city: string;
-  school_type?: string;
+  region?: string | null;
+  type?: string;
   principal: string;
   teachers: number;
   students: number;
@@ -61,7 +62,7 @@ type AdminSchool = {
 type SchoolFormData = {
   name: string;
   city: string;
-  school_type?: string;
+  type?: string;
 };
 
 type AdminUser = {
@@ -361,7 +362,7 @@ function AdminModal({
       fields: [
         { name: "name", label: "اسم المدرسة", type: "text" },
         { name: "city", label: "المدينة", type: "text" },
-        { name: "school_type", label: "نوع المدرسة", type: "schoolType" },
+        { name: "type", label: "نوع المدرسة", type: "schoolType" },
       ],
     },
     user: {
@@ -1140,7 +1141,7 @@ export default function AdminPage() {
   async function handleSchoolSubmit(payload: SchoolFormData | Record<string, string>) {
     const name = payload.name?.trim();
     const city = payload.city?.trim() ?? "";
-    const school_type = payload.school_type?.trim() || "حكومية";
+    const type = payload.type?.trim() || "حكومية";
     if (!name) {
       throw new Error("اسم المدرسة مطلوب");
     }
@@ -1155,12 +1156,12 @@ export default function AdminPage() {
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, city, school_type }),
+        body: JSON.stringify({ name, city, region: null, type, active: true, trial: true }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
         console.error("save school API failed", json);
-        const details = [json.error, json.code, json.details, json.hint].filter(Boolean).join(" - ");
+        const details = [json.error, json.details, json.hint].filter(Boolean).join(" - ");
         throw new Error(details || "فشل حفظ المدرسة");
       }
 
@@ -1186,12 +1187,12 @@ export default function AdminPage() {
       const res = await fetch(`/api/admin/schools/${school.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "موقوفة" }),
+        body: JSON.stringify({ active: false }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
         console.error("disable school API failed", json);
-        const details = [json.error, json.code, json.details, json.hint].filter(Boolean).join(" - ");
+        const details = [json.error, json.details, json.hint].filter(Boolean).join(" - ");
         throw new Error(details || "فشل تعطيل المدرسة");
       }
       setSchoolRows((prev) => prev.map((item) => (item.id === school.id ? json.data : item)));
@@ -1379,7 +1380,7 @@ export default function AdminPage() {
           type={modalType}
           initialValues={
             modalType === "school" && editingSchool
-              ? { name: editingSchool.name, city: editingSchool.city, school_type: editingSchool.school_type ?? "حكومية" }
+              ? { name: editingSchool.name, city: editingSchool.city, type: editingSchool.type ?? "حكومية" }
               : modalType === "user" && editingUser
                 ? { name: editingUser.name, email: editingUser.email, role: editingUser.role, school_id: editingUser.school_id ?? "" }
                 : modalType === "question" && editingQuestion

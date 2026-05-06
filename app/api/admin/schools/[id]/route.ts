@@ -12,32 +12,22 @@ type Params = {
 function normalizeSchool(row: Record<string, unknown>) {
   return {
     id: String(row.id),
-    name: String(row.school_name ?? row.name ?? ""),
+    name: String(row.name ?? ""),
     city: String(row.city ?? ""),
-    school_type: String(row.school_type ?? ""),
-    principal: String(row.principal_name ?? row.principal ?? "—"),
+    region: row.region === null ? null : String(row.region ?? ""),
+    type: String(row.type ?? ""),
+    principal: "—",
     teachers: Number(row.teachers ?? 0),
     students: Number(row.students ?? 0),
-    status: normalizeStatus(row.status),
+    status: normalizeSchoolStatus(row.active, row.trial),
     score: String(row.score ?? "—"),
   };
 }
 
-function normalizeStatus(status: unknown) {
-  const value = typeof status === "string" ? status : "";
-  if (value === "active") return "نشطة";
-  if (value === "trial") return "تجريبية";
-  if (value === "inactive" || value === "disabled") return "موقوفة";
-  return value || "تجريبية";
-}
-
-function toDatabaseStatus(status: string) {
-  if (status === "نشطة" || status === "active") return "active";
-  if (status === "تجريبية" || status === "trial") return "trial";
-  if (status === "موقوفة" || status === "inactive" || status === "disabled") {
-    return "inactive";
-  }
-  return status;
+function normalizeSchoolStatus(active: unknown, trial: unknown) {
+  if (active === false) return "موقوفة";
+  if (trial === true) return "تجريبية";
+  return "نشطة";
 }
 
 function logSchoolError(action: string, err: unknown) {
@@ -56,17 +46,25 @@ function logSchoolError(action: string, err: unknown) {
 
 function errorResponse(err: unknown) {
   const message = err instanceof Error ? err.message : "Unknown error";
+  const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
   const details =
     err && typeof err === "object"
       ? {
-          code: "code" in err ? err.code : undefined,
+          code,
           details: "details" in err ? err.details : undefined,
           hint: "hint" in err ? err.hint : undefined,
         }
       : {};
 
   return NextResponse.json(
-    { success: false, error: message, ...details },
+    {
+      success: false,
+      error:
+        code === "PGRST204"
+          ? "تعذر حفظ المدرسة بسبب عدم تطابق أعمدة جدول schools في Supabase."
+          : message,
+      ...details,
+    },
     { status: 500 }
   );
 }
@@ -88,12 +86,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   try {
     const body = await req.json();
-    const updates: Record<string, string> = {};
+    const updates: {
+      name?: string;
+      city?: string;
+      region?: string | null;
+      type?: string;
+      subscription_type?: string;
+      subscription_start?: string;
+      subscription_end?: string;
+      active?: boolean;
+      trial?: boolean;
+    } = {};
 
-    if (typeof body.name === "string") updates.school_name = body.name.trim();
+    if (typeof body.name === "string") updates.name = body.name.trim();
     if (typeof body.city === "string") updates.city = body.city.trim();
-    if (typeof body.school_type === "string") updates.school_type = body.school_type.trim();
-    if (typeof body.status === "string") updates.status = toDatabaseStatus(body.status.trim());
+    if (typeof body.region === "string") updates.region = body.region.trim() || null;
+    if (body.region === null) updates.region = null;
+    if (typeof body.type === "string") updates.type = body.type.trim();
+    if (typeof body.subscription_type === "string") updates.subscription_type = body.subscription_type.trim();
+    if (typeof body.subscription_start === "string") updates.subscription_start = body.subscription_start.trim();
+    if (typeof body.subscription_end === "string") updates.subscription_end = body.subscription_end.trim();
+    if (typeof body.active === "boolean") updates.active = body.active;
+    if (typeof body.trial === "boolean") updates.trial = body.trial;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
@@ -139,7 +153,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   try {
     const { data, error } = await getAdminClient()
       .from("schools")
-      .update({ status: "inactive" })
+      .update({ active: false })
       .eq("id", params.id)
       .select("*")
       .single();
