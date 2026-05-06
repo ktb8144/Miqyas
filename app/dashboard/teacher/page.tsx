@@ -686,6 +686,9 @@ export default function TeacherDashboard() {
             {/* Batch OMR Scanner */}
             <BatchOMRScanner
               totalStudents={activeStudents.length}
+              subject={activeClass.subject}
+              grade={activeClass.grade}
+              weekNumber={5}
               onComplete={handleScanComplete}
             />
           </>

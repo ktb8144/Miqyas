@@ -23,7 +23,9 @@ interface ScanResult {
   answers: Record<string, string>;
   score: number;
   total: number;
+  percentage: number;
   level: string;
+  weakSkills: { question: string; skill: string }[];
   error: boolean;
   errorMsg?: string;
   thumbBase64: string;
@@ -246,9 +248,15 @@ function PaperReviewModal({
 
 export function BatchOMRScanner({
   totalStudents,
+  subject,
+  grade,
+  weekNumber,
   onComplete,
 }: {
   totalStudents: number;
+  subject: string;
+  grade: string | number;
+  weekNumber: number;
   onComplete: (results: ScanResult[]) => void;
 }) {
   const [step, setStep] = useState<Step>("capture");
@@ -333,7 +341,7 @@ export function BatchOMRScanner({
       const res = await fetch("/api/scan-omr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64, totalQuestions: Q_COUNT, mimeType: "image/jpeg" }),
+        body: JSON.stringify({ imageBase64, mimeType: "image/jpeg", subject, grade, weekNumber }),
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -345,7 +353,9 @@ export function BatchOMRScanner({
         answers?: Record<string, string>;
         score?: number;
         total?: number;
+        percentage?: number;
         level?: string;
+        weakSkills?: { question: string; skill: string }[];
       };
       const studentName = (result.studentName ?? "").trim();
 
@@ -354,7 +364,9 @@ export function BatchOMRScanner({
         answers: result.answers ?? {},
         score: result.score ?? 0,
         total: result.total ?? Q_COUNT,
+        percentage: result.percentage ?? 0,
         level: result.level ?? "دون الأساسي",
+        weakSkills: result.weakSkills ?? [],
         error: false, thumbBase64,
       };
     } catch (e) {
@@ -362,8 +374,8 @@ export function BatchOMRScanner({
       const isTimeout = e instanceof Error && e.name === "AbortError";
       return {
         paperId, studentName: "", editedName: "", answers: {}, score: 0,
-        total: Q_COUNT, level: "دون الأساسي", error: true,
-        errorMsg: isTimeout ? "انتهت المهلة (٢٠ ثانية) — أعد التصوير" : "تعذّرت قراءة الورقة",
+        total: Q_COUNT, percentage: 0, level: "دون الأساسي", weakSkills: [], error: true,
+        errorMsg: isTimeout ? "انتهت المهلة (٢٠ ثانية) — أعد التصوير" : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
         thumbBase64,
       };
     }
@@ -417,15 +429,15 @@ export function BatchOMRScanner({
       const res = await fetch("/api/scan-omr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentAnswers: answers }),
+        body: JSON.stringify({ studentAnswers: answers, subject, grade, weekNumber }),
       });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || "regrade failed");
-      const graded = json.result as { answers: Record<string, string>; score: number; total: number; level: string };
+      const graded = json.result as { answers: Record<string, string>; score: number; total: number; percentage: number; level: string; weakSkills: { question: string; skill: string }[] };
       setResults((prev) =>
         prev.map((r) =>
           r.paperId === paperId
-            ? { ...r, answers: graded.answers, score: graded.score, total: graded.total, level: graded.level }
+            ? { ...r, answers: graded.answers, score: graded.score, total: graded.total, percentage: graded.percentage, level: graded.level, weakSkills: graded.weakSkills }
             : r
         )
       );

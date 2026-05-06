@@ -10,16 +10,15 @@ type AnswerKey = Record<string, string>;
 type ScanBody = {
   imageBase64?: string;
   studentAnswers?: Record<string, string>;
-  totalQuestions?: number;
   mimeType?: string;
   subject?: string;
-  grade?: string;
+  grade?: string | number;
   weekNumber?: number;
-  assessmentDate?: string;
 };
 
 type QuestionRow = {
   id: string;
+  skill?: string | null;
   question_options?: { option_label: string; is_correct: boolean }[];
 };
 
@@ -85,35 +84,39 @@ async function requireTeacher(req: NextRequest) {
   return { ok: true as const, user, profile };
 }
 
-async function loadAnswerKey(body: ScanBody, profile: { school_id?: string | null; grade?: string | number | null; subject?: string | null }) {
+async function loadAssessmentQuestions(body: ScanBody, profile: { school_id?: string | null; grade?: string | number | null; subject?: string | null }) {
   const db = getAdminClient();
   const subject = body.subject?.trim() || profile.subject || "رياضيات";
   const grade = normalizeGrade(body.grade) || normalizeGrade(profile.grade) || "الثالث";
+  const weekNumber = Number(body.weekNumber || 0);
 
   let query = db
     .from("weekly_questions")
-    .select("id, question_options(option_label, is_correct)")
+    .select("id, school_id, skill, question_options(option_label, is_correct)")
     .eq("is_active", true)
+    .eq("status", "active")
     .eq("subject", subject)
     .eq("grade", grade)
     .order("sort_order", { ascending: true });
 
   if (profile.school_id) {
-    query = query.eq("school_id", profile.school_id);
+    query = query.or(`school_id.eq.${profile.school_id},school_id.is.null`);
+  } else {
+    query = query.is("school_id", null);
   }
 
-  if (typeof body.weekNumber === "number") {
-    query = query.eq("week_number", body.weekNumber);
-  }
-
-  if (body.assessmentDate) {
-    query = query.eq("assessment_date", body.assessmentDate);
+  if (weekNumber > 0) {
+    query = query.eq("week_number", weekNumber);
   }
 
   const { data, error } = await query;
   if (error) throw error;
 
   const rows = (data ?? []) as QuestionRow[];
+  if (rows.length === 0) {
+    return { rows, answerKey: {} as AnswerKey };
+  }
+
   const answerKey: AnswerKey = {};
 
   rows.forEach((question, index) => {
@@ -123,30 +126,38 @@ async function loadAnswerKey(body: ScanBody, profile: { school_id?: string | nul
     }
   });
 
-  if (Object.keys(answerKey).length === 0) {
-    throw new Error("No active answer key was found for this teacher and assessment");
-  }
-
-  return answerKey;
+  return { rows, answerKey };
 }
 
-function gradeAnswers(studentAnswers: Record<string, string>, answerKey: AnswerKey) {
+function gradeAnswers(studentAnswers: Record<string, string>, answerKey: AnswerKey, questions: QuestionRow[]) {
   const total = Object.keys(answerKey).length;
   const answers: Record<string, string> = {};
+  const weakSkills: { question: string; skill: string }[] = [];
   let score = 0;
 
   for (let i = 1; i <= total; i++) {
     const qKey = `q${i}`;
     const answer = normalizeAnswer(studentAnswers[qKey]);
     answers[qKey] = answer;
-    if (answer === answerKey[qKey]) score++;
+    if (answer === answerKey[qKey]) {
+      score++;
+    } else {
+      weakSkills.push({
+        question: qKey,
+        skill: questions[i - 1]?.skill || `السؤال ${i}`,
+      });
+    }
   }
+
+  const percentage = total ? Math.round((score / total) * 100) : 0;
 
   return {
     answers,
     score,
     total,
+    percentage,
     level: getLevel(score, total),
+    weakSkills,
   };
 }
 
@@ -164,11 +175,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "imageBase64 or studentAnswers is required" }, { status: 400 });
     }
 
-    const answerKey = await loadAnswerKey(body, auth.profile);
+    const { rows, answerKey } = await loadAssessmentQuestions(body, auth.profile);
+    if (rows.length === 0 || Object.keys(answerKey).length === 0) {
+      return NextResponse.json(
+        { error: "لا توجد أسئلة مفعّلة لهذا الصف/المادة/الأسبوع." },
+        { status: 404 }
+      );
+    }
+
     const totalQuestions = Object.keys(answerKey).length;
     const scanned = studentAnswers ?? await scanAnswerSheet(imageBase64!, totalQuestions, mimeType);
     const studentName = typeof scanned.studentName === "string" ? scanned.studentName.trim() : "";
-    const graded = gradeAnswers(scanned, answerKey);
+    const graded = gradeAnswers(scanned, answerKey, rows);
 
     return NextResponse.json({
       success: true,
@@ -177,7 +195,9 @@ export async function POST(req: NextRequest) {
         answers: graded.answers,
         score: graded.score,
         total: graded.total,
+        percentage: graded.percentage,
         level: graded.level,
+        weakSkills: graded.weakSkills,
       },
     });
   } catch (err) {
