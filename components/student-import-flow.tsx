@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 
 type Step =
   | "choice"
@@ -12,13 +12,52 @@ type Step =
 
 interface Props {
   onSave: (names: string[]) => void;
+  initialNames?: string[];
 }
 
-export function StudentImportFlow({ onSave }: Props) {
+type MergeInfo = {
+  added: number;
+  duplicates: number;
+};
+
+function normalizeName(name: string) {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function cleanName(name: string) {
+  return name.trim().replace(/\s+/g, " ");
+}
+
+function mergeNames(current: string[], incoming: string[]) {
+  const merged = current.map(cleanName).filter(Boolean);
+  const seen = new Set(merged.map(normalizeName));
+  let added = 0;
+  let duplicates = 0;
+
+  incoming.map(cleanName).filter(Boolean).forEach((name) => {
+    const key = normalizeName(name);
+    if (seen.has(key)) {
+      duplicates++;
+      return;
+    }
+    seen.add(key);
+    merged.push(name);
+    added++;
+  });
+
+  return { merged, added, duplicates };
+}
+
+function uniqueCleanNames(names: string[]) {
+  return mergeNames([], names).merged;
+}
+
+export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
   const [step, setStep] = useState<Step>("choice");
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [editableNames, setEditableNames] = useState<string[]>([]);
+  const [editableNames, setEditableNames] = useState<string[]>(() => uniqueCleanNames(initialNames));
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [mergeInfo, setMergeInfo] = useState<MergeInfo | null>(null);
   const [manualText, setManualText] = useState("");
   const [savedCount, setSavedCount] = useState(0);
 
@@ -30,6 +69,7 @@ export function StudentImportFlow({ onSave }: Props) {
 
   const openCamera = async () => {
     setExtractError(null);
+    setMergeInfo(null);
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 960 } },
@@ -53,7 +93,7 @@ export function StudentImportFlow({ onSave }: Props) {
     streamRef.current = null;
   };
 
-  const capturePhoto = useCallback(() => {
+  const capturePhoto = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -66,7 +106,7 @@ export function StudentImportFlow({ onSave }: Props) {
     setCapturedImage(base64);
     stopCamera();
     runExtraction(base64);
-  }, []);
+  };
 
   // ── Gemini extraction ────────────────────────────────────────────────────────
 
@@ -90,11 +130,15 @@ export function StudentImportFlow({ onSave }: Props) {
         setExtractError(
           "لم يتم التعرف على أسماء — تأكد من وضوح الصورة والإضاءة الجيدة"
         );
-        setStep("choice");
+        setStep(editableNames.length > 0 ? "review" : "choice");
         return;
       }
 
-      setEditableNames(names);
+      setEditableNames((prev) => {
+        const result = mergeNames(prev, names);
+        setMergeInfo({ added: result.added, duplicates: result.duplicates });
+        return result.merged;
+      });
       setStep("review");
     } catch {
       setExtractError(
@@ -118,7 +162,7 @@ export function StudentImportFlow({ onSave }: Props) {
   // ── Save ─────────────────────────────────────────────────────────────────────
 
   const confirmSave = async () => {
-    const cleaned = editableNames.map((n) => n.trim()).filter(Boolean);
+    const cleaned = uniqueCleanNames(editableNames);
     if (!cleaned.length) return;
     setStep("saving");
 
@@ -140,10 +184,15 @@ export function StudentImportFlow({ onSave }: Props) {
   const handleManualSave = () => {
     const names = manualText
       .split("\n")
-      .map((n) => n.trim())
+      .map(cleanName)
       .filter(Boolean);
     if (!names.length) return;
-    setEditableNames(names);
+    setEditableNames((prev) => {
+      const result = mergeNames(prev, names);
+      setMergeInfo({ added: result.added, duplicates: result.duplicates });
+      return result.merged;
+    });
+    setManualText("");
     setStep("review");
   };
 
@@ -155,7 +204,11 @@ export function StudentImportFlow({ onSave }: Props) {
         <span className="text-2xl">👥</span>
         <div>
           <h3 className="font-bold text-gray-900 text-lg">إضافة طلاب الفصل</h3>
-          <p className="text-gray-500 text-sm">لم يتم إضافة طلاب بعد — ابدأ الآن</p>
+          <p className="text-gray-500 text-sm">
+            {editableNames.length > 0
+              ? `القائمة الحالية تحتوي ${editableNames.length} اسم — يمكنك إضافة صفحات أخرى`
+              : "لم يتم إضافة طلاب بعد — ابدأ الآن"}
+          </p>
         </div>
       </div>
 
@@ -180,7 +233,7 @@ export function StudentImportFlow({ onSave }: Props) {
               <div>
                 <div className="font-bold text-gray-900 text-lg">تصوير كشف الأسماء</div>
                 <div className="text-gray-500 text-sm mt-1">
-                  صوّر ورقة الكشف وسيقرأ الذكاء الاصطناعي الأسماء تلقائياً
+                  صوّر صفحة من الكشف وسيتم دمج الأسماء مع القائمة الحالية
                 </div>
               </div>
               <span
@@ -294,15 +347,23 @@ export function StudentImportFlow({ onSave }: Props) {
                 {editableNames.filter(n => n.trim()).length} اسم
               </span>
             </div>
-            {capturedImage && (
-              <button
-                onClick={() => setStep("choice")}
-                className="text-sm text-gray-500 hover:text-gray-700 underline"
-              >
-                ↩ التقاط من جديد
-              </button>
-            )}
+            <button
+              onClick={openCamera}
+              className="text-sm font-bold text-[#1D9E75] hover:opacity-80"
+            >
+              + إضافة صفحة أخرى بالكاميرا
+            </button>
           </div>
+
+          {mergeInfo && (
+            <div
+              className="mb-4 rounded-xl border px-4 py-3 text-sm"
+              style={{ background: "#f0fdfa", borderColor: "#99f6e4", color: "#0f766e" }}
+            >
+              تمت إضافة <b>{mergeInfo.added}</b> اسم جديد
+              {mergeInfo.duplicates > 0 && <>، وتم تجاهل <b>{mergeInfo.duplicates}</b> اسم مكرر</>}
+            </div>
+          )}
 
           {editableNames.filter(n => n.trim()).length < 5 && (
             <div

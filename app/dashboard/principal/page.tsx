@@ -13,18 +13,18 @@ const TABS = ["لوحة القيادة", "مسار نافس", "أداء المع
 
 function StatusBadge({ status, overdueDays }: { status: string; overdueDays?: number }) {
   if (status === "completed") return (
-    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700 border border-green-200">
-      ✅ مكتمل
+    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-sm font-extrabold text-emerald-700">
+      مكتمل
     </span>
   );
   if (status === "overdue") return (
-    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-700 border border-red-200">
-      ❌ متأخر {overdueDays} {overdueDays === 1 ? "يوم" : "أيام"}
+    <span className="inline-flex items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-3 py-1 text-sm font-extrabold text-rose-700">
+      متأخر {overdueDays} {overdueDays === 1 ? "يوم" : "أيام"}
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-700 border border-amber-200">
-      ⚠️ لم يُبدأ
+    <span className="inline-flex items-center gap-1 rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-sm font-extrabold text-amber-700">
+      لم يبدأ
     </span>
   );
 }
@@ -33,15 +33,15 @@ function NafisBar({ name, score }: { name: string; score: number }) {
   const color = score >= 90 ? "#7F77DD" : score >= 70 ? "#1D9E75" : score >= 50 ? "#BA7517" : "#E24B4A";
   const label = score >= 90 ? "متقدم" : score >= 70 ? "متمكن" : score >= 50 ? "أساسي" : "دون الأساسي";
   return (
-    <div className="mb-3">
+    <div className="mb-4">
       <div className="flex justify-between items-center mb-1">
-        <span className="text-sm font-medium text-gray-700">{name}</span>
+        <span className="text-sm font-extrabold text-[#0b2447]">{name}</span>
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold" style={{ color }}>{score}%</span>
           <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ background: color }}>{label}</span>
         </div>
       </div>
-      <div className="w-full bg-gray-100 rounded-full h-2.5">
+      <div className="h-2.5 w-full rounded-full bg-slate-100">
         <div className="h-2.5 rounded-full transition-all" style={{ width: `${score}%`, background: color }} />
       </div>
     </div>
@@ -55,11 +55,11 @@ function TeacherCard({ teacher }: { teacher: typeof teachers[0] }) {
     : { label: "يحتاج دعم", color: "#E24B4A", bg: "#fff5f5" };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all">
+    <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)] transition-all hover:-translate-y-0.5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="font-bold text-gray-900">{teacher.name}</div>
-          <div className="text-sm text-gray-500">{teacher.grade} — {teacher.subject}</div>
+          <div className="font-black text-[#0b2447]">{teacher.name}</div>
+          <div className="text-sm font-bold text-slate-400">{teacher.grade} — {teacher.subject}</div>
         </div>
         <span className="px-3 py-1 rounded-full text-sm font-bold" style={{ color: badge.color, background: badge.bg }}>
           {badge.label}
@@ -73,9 +73,9 @@ function TeacherCard({ teacher }: { teacher: typeof teachers[0] }) {
           { label: "دون الأساسي", value: `${teacher.belowBasic}%`, good: teacher.belowBasic <= 20 },
           { label: "السرعة", value: teacher.speed, good: teacher.speed === "سريع" },
         ].map((kpi, i) => (
-          <div key={i} className="text-center p-2 rounded-lg bg-gray-50">
+          <div key={i} className="rounded-xl bg-slate-50/80 p-2 text-center">
             <div className={`text-sm font-bold ${kpi.good ? "text-green-600" : "text-red-500"}`}>{kpi.value}</div>
-            <div className="text-xs text-gray-500 mt-0.5">{kpi.label}</div>
+            <div className="mt-0.5 text-xs font-bold text-slate-400">{kpi.label}</div>
           </div>
         ))}
       </div>
@@ -94,22 +94,22 @@ export default function PrincipalDashboard() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
+    <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
       <DemoBanner />
 
       {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
           <BrandLogo
             size="sm"
             contextTitle="لوحة مدير المدرسة"
             contextSubtitle={school.name}
           />
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">👨‍💼 {school.principal}</span>
+            <span className="hidden rounded-full bg-slate-50 px-4 py-2 text-sm font-extrabold text-slate-500 sm:inline-flex">{school.principal}</span>
             <button
               onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
-              className="text-sm text-gray-500 hover:text-gray-700 border rounded-lg px-3 py-1.5"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
             >
               خروج
             </button>
@@ -117,17 +117,16 @@ export default function PrincipalDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
+        <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-5 pb-3 lg:px-8">
           {TABS.map((tab, i) => (
             <button
               key={i}
               onClick={() => setActiveTab(i)}
-              className={`px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
+              className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-extrabold transition-all ${
                 activeTab === i
-                  ? "border-b-2 text-green-700 font-bold"
-                  : "border-transparent text-gray-600 hover:text-gray-900"
+                  ? "bg-[#159f91] text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)]"
+                  : "bg-slate-50 text-slate-500 hover:text-[#0b2447]"
               }`}
-              style={activeTab === i ? { borderColor: "#1D9E75", color: "#1D9E75" } : {}}
             >
               {tab}
             </button>
@@ -135,7 +134,7 @@ export default function PrincipalDashboard() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
 
         {/* TAB 1: لوحة القيادة */}
         {activeTab === 0 && (
@@ -148,25 +147,25 @@ export default function PrincipalDashboard() {
                 { label: "طلاب دون الأساسي", value: "٤", sub: "يحتاجون تدخلاً", color: "#E24B4A", icon: "⚠️" },
                 { label: "مهارات دون ٥٠٪", value: "٠", sub: "لا توجد الآن", color: "#1D9E75", icon: "✅" },
               ].map((m, i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                <div key={i} className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-2xl">{m.icon}</span>
-                    <span className="text-xs text-gray-500">{m.sub}</span>
+                    <span className="text-xs font-bold text-slate-400">{m.sub}</span>
                   </div>
-                  <div className="text-3xl font-bold mb-1" style={{ color: m.color }}>{m.value}</div>
-                  <div className="text-sm text-gray-600">{m.label}</div>
+                  <div className="mb-1 text-3xl font-black" style={{ color: m.color }}>{m.value}</div>
+                  <div className="text-sm font-bold text-slate-500">{m.label}</div>
                 </div>
               ))}
             </div>
 
             {/* Assessments Table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-100">
-                <h3 className="font-bold text-gray-900">تقييمات هذا الأسبوع</h3>
+            <div className="overflow-hidden rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+              <div className="border-b border-slate-100 p-5">
+                <h3 className="font-black text-[#0b2447]">تقييمات هذا الأسبوع</h3>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-gray-50 border-b border-gray-100">
+                  <thead className="border-b border-slate-100 bg-slate-50/70">
                     <tr>
                       <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">المهارة</th>
                       <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">الصف</th>
@@ -189,11 +188,11 @@ export default function PrincipalDashboard() {
             </div>
 
             {/* NAFIS Score */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-gray-900 text-lg">جاهزية نافس</h3>
-                  <p className="text-gray-500 text-sm">بناءً على التقييمات الأسبوعية</p>
+                  <h3 className="text-lg font-black text-[#0b2447]">جاهزية نافس</h3>
+                  <p className="text-sm font-bold text-slate-400">بناءً على التقييمات الأسبوعية</p>
                 </div>
                 <div className="text-center">
                   <div className="text-5xl font-bold" style={{ color: "#BA7517" }}>٦٩٪</div>

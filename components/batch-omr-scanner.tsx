@@ -1,16 +1,12 @@
 "use client";
-import { useState, useRef, useCallback, useEffect } from "react";
-import { getLevel, ETEC_LEVELS, DEMO_SUB_SKILLS } from "@/lib/demo-data";
-import { StudentSkillMap } from "@/components/student-skill-map";
-import { ClassSkillHeatmap } from "@/components/class-skill-heatmap";
-import { WorksheetModal, type WorksheetData } from "@/components/worksheet-modal";
+import { useState, useRef, useCallback } from "react";
+import { ETEC_LEVELS } from "@/lib/demo-data";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const Q_COUNT = 10;
 const MAX_PAPERS = 40;
 const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
-const STORAGE_KEY = "miqyas_answer_key_v1";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,41 +22,16 @@ interface ScanResult {
   editedName: string;     // teacher-editable
   answers: Record<string, string>;
   score: number;
+  total: number;
   level: string;
   error: boolean;
   errorMsg?: string;
   thumbBase64: string;
 }
 
-type Step = "key-entry" | "capture" | "processing" | "review" | "done";
+type Step = "capture" | "processing" | "review" | "done";
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
-
-function loadAnswerKey(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    // Validate it has all 10 questions
-    const valid = Array.from({ length: Q_COUNT }, (_, i) => `q${i + 1}`).every(
-      (k) => parsed[k] && ARABIC_LETTERS.includes(parsed[k])
-    );
-    return valid ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function persistAnswerKey(key: Record<string, string>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(key));
-}
-
-function calcScore(answers: Record<string, string>, key: Record<string, string>): number {
-  return Array.from({ length: Q_COUNT }, (_, i) => `q${i + 1}`).filter(
-    (q) => answers[q] && answers[q] === key[q]
-  ).length;
-}
 
 async function compressImage(base64: string, maxWidth: number, quality: number): Promise<string> {
   return new Promise((resolve) => {
@@ -86,73 +57,6 @@ function sendBrowserNotification(body: string) {
   } else if (Notification.permission !== "denied") {
     Notification.requestPermission().then((p) => { if (p === "granted") show(); });
   }
-}
-
-// ─── Answer Key Form ──────────────────────────────────────────────────────────
-
-function AnswerKeyPanel({
-  initial,
-  onSave,
-  onCancel,
-}: {
-  initial: Record<string, string>;
-  onSave: (key: Record<string, string>) => void;
-  onCancel?: () => void;
-}) {
-  const [answers, setAnswers] = useState<Record<string, string>>(initial);
-  const filled = Object.keys(answers).filter((k) => k.startsWith("q")).length;
-  const isComplete = filled === Q_COUNT;
-
-  return (
-    <div dir="rtl">
-      <div className="space-y-2 mb-5 max-h-80 overflow-y-auto pl-1">
-        {Array.from({ length: Q_COUNT }, (_, i) => i + 1).map((q) => (
-          <div key={q} className="flex items-center gap-3">
-            <span className="w-6 text-sm text-gray-500 text-center flex-shrink-0 font-medium">{q}</span>
-            <div className="flex gap-1.5 flex-1">
-              {ARABIC_LETTERS.map((letter) => (
-                <button
-                  key={letter}
-                  onClick={() => setAnswers((prev) => ({ ...prev, [`q${q}`]: letter }))}
-                  className="w-11 h-10 rounded-lg font-bold text-sm border-2 transition-all hover:shadow-sm"
-                  style={
-                    answers[`q${q}`] === letter
-                      ? { background: "#1D9E75", borderColor: "#1D9E75", color: "white" }
-                      : { borderColor: "#e5e7eb", color: "#374151" }
-                  }
-                >
-                  {letter}
-                </button>
-              ))}
-            </div>
-            <span className="text-sm w-4 flex-shrink-0" style={{ color: answers[`q${q}`] ? "#1D9E75" : "transparent" }}>
-              ✓
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-3">
-        <button
-          onClick={() => { if (isComplete) { persistAnswerKey(answers); onSave(answers); } }}
-          disabled={!isComplete}
-          className="flex-1 py-3.5 rounded-xl text-white font-bold text-base disabled:opacity-50 hover:opacity-90 transition-all"
-          style={{ background: "#1D9E75" }}
-        >
-          {isComplete
-            ? "حفظ نموذج الإجابة والبدء بالمسح"
-            : `أكمل النموذج (${filled}/${Q_COUNT})`}
-        </button>
-        {onCancel && (
-          <button
-            onClick={onCancel}
-            className="px-5 py-3.5 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-50"
-          >
-            إلغاء
-          </button>
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ─── Retake Modal (single paper in review mode) ───────────────────────────────
@@ -247,19 +151,17 @@ function RetakeModal({
 
 function PaperReviewModal({
   result,
-  answerKey,
   onSave,
   onClose,
 }: {
   result: ScanResult;
-  answerKey: Record<string, string>;
-  onSave: (paperId: string, answers: Record<string, string>, score: number, level: string) => void;
+  onSave: (paperId: string, answers: Record<string, string>) => Promise<void>;
   onClose: () => void;
 }) {
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>(result.answers);
-  const currentScore = calcScore(localAnswers, answerKey);
-  const currentLevel = getLevel(currentScore, Q_COUNT);
-  const levelColor = ETEC_LEVELS[currentLevel as keyof typeof ETEC_LEVELS]?.color ?? "#374151";
+  const [saving, setSaving] = useState(false);
+  const total = result.total || Q_COUNT;
+  const levelColor = ETEC_LEVELS[result.level as keyof typeof ETEC_LEVELS]?.color ?? "#374151";
   const studentLabel = result.editedName || result.studentName || "ورقة بدون اسم";
 
   return (
@@ -269,37 +171,23 @@ function PaperReviewModal({
         <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <p className="font-bold text-gray-900">{studentLabel}</p>
-            <p className="text-xs text-gray-400 mt-0.5">راجع كل إجابة وصحّح إذا لزم</p>
+            <p className="text-xs text-gray-400 mt-0.5">راجع قراءة الطالب فقط، نموذج التصحيح مركزي</p>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold leading-none" style={{ color: levelColor }}>{currentScore}/{Q_COUNT}</div>
-            <div className="text-xs font-medium mt-1" style={{ color: levelColor }}>{currentLevel}</div>
+            <div className="text-3xl font-bold leading-none" style={{ color: levelColor }}>{result.score}/{total}</div>
+            <div className="text-xs font-medium mt-1" style={{ color: levelColor }}>{result.level}</div>
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center gap-4 text-xs text-gray-500 flex-shrink-0">
-          <span className="flex items-center gap-1.5">
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded border-2 font-bold" style={{ background: "#1D9E75", borderColor: "#1D9E75", color: "white" }}>أ</span>
-            صحيح
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded border-2 font-bold" style={{ background: "#E24B4A", borderColor: "#E24B4A", color: "white" }}>أ</span>
-            خاطئ
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="inline-flex items-center justify-center w-5 h-5 rounded border-2 font-bold" style={{ borderColor: "#1D9E75", color: "#1D9E75" }}>أ</span>
-            الإجابة الصحيحة
-          </span>
+        <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 flex-shrink-0">
+          الإجابات الصحيحة لا تظهر في واجهة المعلم.
         </div>
 
         {/* Question rows */}
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2.5">
-          {Array.from({ length: Q_COUNT }, (_, i) => i + 1).map((q) => {
+          {Array.from({ length: total }, (_, i) => i + 1).map((q) => {
             const qKey = `q${q}`;
             const selected = localAnswers[qKey] ?? "";
-            const correct = answerKey[qKey];
-            const isCorrect = selected === correct;
 
             return (
               <div key={q} className="flex items-center gap-2">
@@ -307,31 +195,24 @@ function PaperReviewModal({
                 <div className="flex gap-1 flex-1">
                   {ARABIC_LETTERS.map((letter) => {
                     const isSelected = selected === letter;
-                    const isCorrectLetter = correct === letter;
-                    let btnStyle: React.CSSProperties;
-                    if (isSelected && isCorrectLetter) {
-                      btnStyle = { background: "#1D9E75", borderColor: "#1D9E75", color: "white" };
-                    } else if (isSelected && !isCorrectLetter) {
-                      btnStyle = { background: "#E24B4A", borderColor: "#E24B4A", color: "white" };
-                    } else if (!isSelected && isCorrectLetter) {
-                      btnStyle = { borderColor: "#1D9E75", color: "#1D9E75" };
-                    } else {
-                      btnStyle = { borderColor: "#e5e7eb", color: "#374151" };
-                    }
                     return (
                       <button
                         key={letter}
                         onClick={() => setLocalAnswers((prev) => ({ ...prev, [qKey]: letter }))}
                         className="flex-1 h-9 rounded-lg font-bold text-sm border-2 transition-all hover:opacity-80"
-                        style={btnStyle}
+                        style={
+                          isSelected
+                            ? { background: "#1D9E75", borderColor: "#1D9E75", color: "white" }
+                            : { borderColor: "#e5e7eb", color: "#374151" }
+                        }
                       >
                         {letter}
                       </button>
                     );
                   })}
                 </div>
-                <span className="w-5 text-center text-sm flex-shrink-0 font-bold" style={{ color: selected ? (isCorrect ? "#1D9E75" : "#E24B4A") : "#9ca3af" }}>
-                  {selected ? (isCorrect ? "✓" : "✗") : "—"}
+                <span className="w-5 text-center text-sm flex-shrink-0 font-bold" style={{ color: selected ? "#1D9E75" : "#9ca3af" }}>
+                  {selected ? "✓" : "—"}
                 </span>
               </div>
             );
@@ -341,11 +222,16 @@ function PaperReviewModal({
         {/* Footer */}
         <div className="p-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
           <button
-            onClick={() => onSave(result.paperId, localAnswers, currentScore, currentLevel)}
-            className="flex-1 py-3 rounded-xl text-white font-bold text-sm hover:opacity-90 transition-all"
+            onClick={async () => {
+              setSaving(true);
+              await onSave(result.paperId, localAnswers);
+              setSaving(false);
+            }}
+            disabled={saving}
+            className="flex-1 py-3 rounded-xl text-white font-bold text-sm hover:opacity-90 transition-all disabled:opacity-60"
             style={{ background: "#1D9E75" }}
           >
-            تأكيد الإجابات ({currentScore}/{Q_COUNT})
+            {saving ? "جارٍ إعادة التصحيح..." : "تأكيد القراءة وإعادة التصحيح"}
           </button>
           <button onClick={onClose} className="px-4 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm hover:bg-gray-50">
             إغلاق
@@ -365,29 +251,17 @@ export function BatchOMRScanner({
   totalStudents: number;
   onComplete: (results: ScanResult[]) => void;
 }) {
-  // Start with server-safe defaults; sync from localStorage after hydration
-  const [step, setStep] = useState<Step>("key-entry");
-  const [answerKey, setAnswerKey] = useState<Record<string, string>>({});
-  const [editingKey, setEditingKey] = useState(false);
+  const [step, setStep] = useState<Step>("capture");
   const [papers, setPapers] = useState<CapturedPaper[]>([]);
   const [results, setResults] = useState<ScanResult[]>([]);
   const [processingCount, setProcessingCount] = useState(0);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [captureBusy, setCaptureBusy] = useState(false);
+  const [captureFlash, setCaptureFlash] = useState(false);
+  const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
+  const [captureMessage, setCaptureMessage] = useState<string | null>(null);
   const [retakingPaperId, setRetakingPaperId] = useState<string | null>(null);
   const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null);
-  const [skillMapPaperId, setSkillMapPaperId] = useState<string | null>(null);
-  const [worksheet, setWorksheet] = useState<WorksheetData | null>(null);
-  const [worksheetLoading, setWorksheetLoading] = useState(false);
-  const [worksheetError, setWorksheetError] = useState<string | undefined>(undefined);
-
-  // Sync answer key from localStorage after hydration (avoids SSR mismatch)
-  useEffect(() => {
-    const key = loadAnswerKey();
-    if (Object.keys(key).length === Q_COUNT) {
-      setAnswerKey(key);
-      setStep("capture");
-    }
-  }, []);
 
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -417,21 +291,38 @@ export function BatchOMRScanner({
   }, []);
 
   const captureOne = useCallback(async () => {
-    if (papers.length >= MAX_PAPERS) return;
+    if (papers.length >= MAX_PAPERS || captureBusy) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
-    canvas.width = 1240;
-    canvas.height = 1754;
-    canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
-    // Compress: API version (800px, 80%) and thumb (120px, 60%)
-    const [compressed, thumb] = await Promise.all([
-      compressImage(raw, 800, 0.8),
-      compressImage(raw, 120, 0.6),
-    ]);
-    setPapers((prev) => [...prev, { id: `p${Date.now()}`, imageBase64: compressed, thumbBase64: thumb }]);
-  }, [papers.length]);
+    setCaptureBusy(true);
+    setCaptureFlash(true);
+    setCaptureMessage("تم التقاط الصورة");
+    if ("vibrate" in navigator) navigator.vibrate?.(35);
+
+    try {
+      canvas.width = 1240;
+      canvas.height = 1754;
+      canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
+      const [compressed, thumb] = await Promise.all([
+        compressImage(raw, 800, 0.8),
+        compressImage(raw, 360, 0.75),
+      ]);
+      setCapturedPreview(thumb);
+      setPapers((prev) => [...prev, { id: `p${Date.now()}`, imageBase64: compressed, thumbBase64: thumb }]);
+      window.setTimeout(() => {
+        setCapturedPreview(null);
+        setCaptureMessage(null);
+        setCaptureBusy(false);
+      }, 1000);
+      window.setTimeout(() => setCaptureFlash(false), 180);
+    } catch {
+      setCaptureMessage("تعذّر التقاط الصورة، حاول مرة أخرى");
+      setCaptureFlash(false);
+      setCaptureBusy(false);
+    }
+  }, [captureBusy, papers.length]);
 
   // ── Scan a single image against the API ────────────────────────────────────
 
@@ -449,15 +340,21 @@ export function BatchOMRScanner({
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || "scan failed");
 
-      const raw = json.results as Record<string, string>;
-      const studentName = (raw.studentName ?? "").trim();
-      const answers: Record<string, string> = {};
-      for (let i = 1; i <= Q_COUNT; i++) answers[`q${i}`] = raw[`q${i}`] ?? "unclear";
+      const result = json.result as {
+        studentName?: string;
+        answers?: Record<string, string>;
+        score?: number;
+        total?: number;
+        level?: string;
+      };
+      const studentName = (result.studentName ?? "").trim();
 
-      const score = calcScore(answers, answerKey);
       return {
         paperId, studentName, editedName: studentName,
-        answers, score, level: getLevel(score, Q_COUNT),
+        answers: result.answers ?? {},
+        score: result.score ?? 0,
+        total: result.total ?? Q_COUNT,
+        level: result.level ?? "دون الأساسي",
         error: false, thumbBase64,
       };
     } catch (e) {
@@ -465,7 +362,7 @@ export function BatchOMRScanner({
       const isTimeout = e instanceof Error && e.name === "AbortError";
       return {
         paperId, studentName: "", editedName: "", answers: {}, score: 0,
-        level: "دون الأساسي", error: true,
+        total: Q_COUNT, level: "دون الأساسي", error: true,
         errorMsg: isTimeout ? "انتهت المهلة (٢٠ ثانية) — أعد التصوير" : "تعذّرت قراءة الورقة",
         thumbBase64,
       };
@@ -515,38 +412,26 @@ export function BatchOMRScanner({
 
   // ── Per-question review save ────────────────────────────────────────────────
 
-  const handleReviewSave = (paperId: string, answers: Record<string, string>, score: number, level: string) => {
-    setResults((prev) =>
-      prev.map((r) => (r.paperId === paperId ? { ...r, answers, score, level } : r))
-    );
-    setReviewingPaperId(null);
-  };
-
-  // ── Worksheet generation ────────────────────────────────────────────────────
-
-  const handleGenerateWorksheet = async (weakSkills: string[], studentName?: string) => {
-    setSkillMapPaperId(null);
-    setWorksheetLoading(true);
-    setWorksheetError(undefined);
-    setWorksheet({ studentName, unit: "الكسور", exercises: [], generatedAt: new Date().toLocaleDateString("ar-SA") });
+  const handleReviewSave = async (paperId: string, answers: Record<string, string>) => {
     try {
-      const res = await fetch("/api/generate-worksheet", {
+      const res = await fetch("/api/scan-omr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weakSkills, unit: "الكسور", studentName }),
+        body: JSON.stringify({ studentAnswers: answers }),
       });
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || "فشل التوليد");
-      setWorksheet({
-        studentName,
-        unit: "الكسور",
-        exercises: json.exercises,
-        generatedAt: new Date().toLocaleDateString("ar-SA"),
-      });
-    } catch (e) {
-      setWorksheetError(e instanceof Error ? e.message : "فشل التوليد");
-    } finally {
-      setWorksheetLoading(false);
+      if (!res.ok || json.error) throw new Error(json.error || "regrade failed");
+      const graded = json.result as { answers: Record<string, string>; score: number; total: number; level: string };
+      setResults((prev) =>
+        prev.map((r) =>
+          r.paperId === paperId
+            ? { ...r, answers: graded.answers, score: graded.score, total: graded.total, level: graded.level }
+            : r
+        )
+      );
+      setReviewingPaperId(null);
+    } catch {
+      alert("تعذّرت إعادة التصحيح — حاول مرة أخرى");
     }
   };
 
@@ -561,7 +446,7 @@ export function BatchOMRScanner({
     fetch("/api/save-students", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ results: valid.map((r) => ({ name: r.editedName || r.studentName, score: r.score, total: Q_COUNT, level: r.level })) }),
+      body: JSON.stringify({ results: valid.map((r) => ({ name: r.editedName || r.studentName, score: r.score, total: r.total, level: r.level })) }),
     }).catch(() => null);
     setStep("done");
     onComplete(valid);
@@ -590,7 +475,6 @@ export function BatchOMRScanner({
         return r ? (
           <PaperReviewModal
             result={r}
-            answerKey={answerKey}
             onSave={handleReviewSave}
             onClose={() => setReviewingPaperId(null)}
           />
@@ -602,10 +486,9 @@ export function BatchOMRScanner({
         <div>
           <h3 className="font-bold text-gray-900 text-lg">📷 مسح أوراق الفصل كاملاً</h3>
           <p className="text-gray-500 text-sm mt-0.5">
-            {step === "key-entry" && "الخطوة ١: أدخل نموذج الإجابة"}
-            {step === "capture" && "الخطوة ٢: صوّر جميع الأوراق ثم اضغط معالجة"}
-            {step === "processing" && "الخطوة ٣: جارٍ معالجة الأوراق بالتوازي..."}
-            {step === "review" && "الخطوة ٤: مراجعة النتائج وحفظها"}
+            {step === "capture" && "صوّر أوراق الطلاب، وسيتم التصحيح بنموذج مركزي من مدير النظام"}
+            {step === "processing" && "جارٍ معالجة الأوراق بالتوازي..."}
+            {step === "review" && "مراجعة النتائج وحفظها"}
             {step === "done" && "✅ تم حفظ نتائج الفصل"}
           </p>
         </div>
@@ -616,54 +499,37 @@ export function BatchOMRScanner({
 
       <div className="p-5">
 
-        {/* ── Key entry ── */}
-        {(step === "key-entry" || editingKey) && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h4 className="font-bold text-gray-900">
-                {editingKey ? "تعديل نموذج الإجابة" : "أدخل نموذج الإجابة أولاً"}
-              </h4>
-              {editingKey && (
-                <button onClick={() => setEditingKey(false)} className="text-sm text-gray-500 hover:text-gray-700">
-                  إلغاء
-                </button>
-              )}
-            </div>
-            <AnswerKeyPanel
-              initial={answerKey}
-              onSave={(key) => { setAnswerKey(key); setEditingKey(false); setStep("capture"); }}
-              onCancel={editingKey ? () => setEditingKey(false) : undefined}
-            />
-          </div>
-        )}
-
         {/* ── Capture ── */}
-        {step === "capture" && !editingKey && (
+        {step === "capture" && (
           <div>
-            {/* Saved key summary */}
-            <div className="flex items-start justify-between mb-5 p-3 rounded-xl gap-3" style={{ background: "#f0fdf8", border: "1px solid #86efac" }}>
+            <div className="flex items-start justify-between mb-5 p-3 rounded-xl gap-3" style={{ background: "#f0fdfa", border: "1px solid #99f6e4" }}>
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="text-green-500 font-bold text-sm">✓ نموذج الإجابة محفوظ</span>
+                  <span className="text-teal-700 font-bold text-sm">نموذج التصحيح مُدار من مدير النظام</span>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {Array.from({ length: Q_COUNT }, (_, i) => (
-                    <span key={i} className="text-xs font-bold px-1.5 py-0.5 rounded text-white" style={{ background: "#1D9E75" }}>
-                      س{i + 1}: {answerKey[`q${i + 1}`]}
-                    </span>
-                  ))}
-                </div>
+                <p className="text-xs text-slate-500">المعلم يصوّر أوراق الطلاب فقط، ولا تظهر الإجابات الصحيحة في هذه الواجهة.</p>
               </div>
-              <button onClick={() => setEditingKey(true)} className="text-xs text-gray-500 hover:text-gray-700 underline flex-shrink-0">
-                تعديل
-              </button>
             </div>
 
             {/* Camera view */}
             {cameraOpen ? (
               <div className="mb-4">
-                <div className="relative rounded-xl overflow-hidden border-4 mb-3 bg-black" style={{ borderColor: "#1D9E75", aspectRatio: "1 / 1.414" }}>
+                <div
+                  className={`relative rounded-xl overflow-hidden border-4 mb-3 bg-black transition-all duration-150 ${captureFlash ? "scale-[0.99] ring-4 ring-teal-200" : ""}`}
+                  style={{ borderColor: "#1D9E75", aspectRatio: "1 / 1.414" }}
+                >
                   <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+                  {captureFlash && <div className="absolute inset-0 bg-white/45 pointer-events-none" />}
+                  {capturedPreview && (
+                    <div className="absolute inset-0 z-10 bg-black/70 flex items-center justify-center p-4">
+                      <div className="relative h-full max-h-full rounded-xl overflow-hidden border-2 border-white/70 bg-black shadow-xl" style={{ aspectRatio: "1 / 1.414" }}>
+                        <img src={`data:image/jpeg;base64,${capturedPreview}`} alt="معاينة الصورة الملتقطة" className="h-full w-full object-cover" />
+                        <div className="absolute top-3 left-3 right-3 rounded-full bg-white/95 px-3 py-2 text-center text-sm font-bold text-teal-700 shadow-sm">
+                          ✓ تم التقاط الصورة
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="relative" style={{ width: "88%", height: "90%" }}>
                       <div className="absolute top-0 right-0 w-7 h-7 border-t-2 border-r-2 border-white" />
@@ -676,18 +542,18 @@ export function BatchOMRScanner({
                     ضع الورقة داخل الإطار
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 py-1.5 text-white text-xs text-center" style={{ background: "rgba(0,0,0,0.55)" }}>
-                    تم تصوير {papers.length} / ٤٠ ورقة
+                    {captureMessage ?? `تم تصوير ${papers.length} / ٤٠ ورقة`}
                   </div>
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
                 <div className="flex gap-3 mb-3">
                   <button
                     onClick={captureOne}
-                    disabled={papers.length >= MAX_PAPERS}
-                    className="flex-1 py-3 rounded-xl text-white font-bold text-sm shadow-md hover:opacity-90 disabled:opacity-50"
+                    disabled={papers.length >= MAX_PAPERS || captureBusy}
+                    className={`flex-1 py-3 rounded-xl text-white font-bold text-sm shadow-md hover:opacity-90 disabled:opacity-50 transition-all ${captureBusy ? "animate-pulse" : ""}`}
                     style={{ background: "#1D9E75" }}
                   >
-                    📸 التقاط ورقة
+                    {captureBusy ? "جارٍ تثبيت الصورة..." : "📸 التقاط ورقة"}
                   </button>
                   <button onClick={closeCamera} className="px-5 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm hover:bg-gray-50">
                     إغلاق
@@ -851,7 +717,7 @@ export function BatchOMRScanner({
                           )}
                         </td>
                         <td className="px-3 py-3 text-sm font-bold text-gray-900">
-                          {r.error ? "—" : `${r.score}/${Q_COUNT}`}
+                          {r.error ? "—" : `${r.score}/${r.total}`}
                         </td>
                         <td className="px-3 py-3">
                           {cfg && !r.error ? (
@@ -878,13 +744,6 @@ export function BatchOMRScanner({
                               >
                                 ✏️ مراجعة
                               </button>
-                              <button
-                                onClick={() => setSkillMapPaperId(r.paperId)}
-                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-all"
-                                style={{ color: "#1D9E75" }}
-                              >
-                                📊 تشخيص
-                              </button>
                             </div>
                           )}
                         </td>
@@ -902,45 +761,7 @@ export function BatchOMRScanner({
             >
               💾 حفظ نتائج {validResults.length} طالب في الفصل
             </button>
-
-            {/* Class skill heatmap */}
-            {validResults.length > 0 && (
-              <ClassSkillHeatmap
-                results={validResults}
-                answerKey={answerKey}
-                subSkills={DEMO_SUB_SKILLS}
-                onGenerateClassWorksheet={(weakSkills) => handleGenerateWorksheet(weakSkills)}
-              />
-            )}
           </div>
-        )}
-
-        {/* ── Student skill map modal ── */}
-        {skillMapPaperId && (() => {
-          const r = results.find((x) => x.paperId === skillMapPaperId);
-          if (!r) return null;
-          return (
-            <StudentSkillMap
-              studentName={r.editedName || r.studentName || `ورقة ${results.indexOf(r) + 1}`}
-              answers={r.answers}
-              answerKey={answerKey}
-              subSkills={DEMO_SUB_SKILLS}
-              onGenerateWorksheet={(weakSkills) =>
-                handleGenerateWorksheet(weakSkills, r.editedName || r.studentName)
-              }
-              onClose={() => setSkillMapPaperId(null)}
-            />
-          );
-        })()}
-
-        {/* ── Worksheet modal ── */}
-        {(worksheet || worksheetLoading) && (
-          <WorksheetModal
-            worksheet={worksheet}
-            loading={worksheetLoading}
-            error={worksheetError}
-            onClose={() => { setWorksheet(null); setWorksheetLoading(false); setWorksheetError(undefined); }}
-          />
         )}
 
         {/* ── Done ── */}

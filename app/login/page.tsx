@@ -60,81 +60,103 @@ export default function LoginPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center bg-gray-50 px-4"
+      className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-[#0b2447]"
       dir="rtl"
     >
-      <div className="w-full max-w-md">
-        {/* Logo */}
-        <div className="mb-8 flex justify-center">
-          <BrandLogo size="lg" centered />
-        </div>
+      <div className="absolute left-10 top-24 h-96 w-96 rounded-full bg-teal-50/80 blur-3xl" />
+      <div className="absolute right-1/4 bottom-16 h-80 w-80 rounded-full bg-cyan-50/70 blur-3xl" />
 
-        {/* Login form */}
-        <div className="bg-white rounded-2xl shadow-md p-8">
-          <h2 className="text-xl font-bold text-gray-800 text-center mb-6">
-            تسجيل الدخول
-          </h2>
+      <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center justify-center">
+        <div className="grid w-full items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+          <div className="hidden lg:block">
+            <div className="mb-7 inline-flex rounded-full border border-teal-100 bg-teal-50/80 px-4 py-2 text-xs font-extrabold text-[#159f91]">
+              دخول آمن لمنصة مقياس
+            </div>
+            <h1 className="text-5xl font-black leading-tight tracking-normal text-[#0b2447]">
+              تابع القياس والتحليل من لوحة واحدة.
+            </h1>
+            <p className="mt-6 max-w-xl text-lg leading-9 text-slate-500">
+              سجّل الدخول للوصول إلى لوحة مدير المدرسة أو المعلم أو مدير النظام حسب صلاحيات حسابك.
+            </p>
+            <div className="mt-8 grid max-w-lg grid-cols-3 gap-3">
+              {["جلسة محمية", "تحليل فوري", "تقارير واضحة"].map((item) => (
+                <div key={item} className="rounded-2xl border border-slate-100 bg-white/80 p-4 text-center text-sm font-extrabold text-slate-500 shadow-[0_10px_34px_rgba(15,35,55,0.03)]">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                البريد الإلكتروني
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="example@school.sa"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 text-right"
-                style={{ "--tw-ring-color": "#1D9E75" } as React.CSSProperties}
-              />
+          <div className="mx-auto w-full max-w-md">
+            <div className="mb-8 flex justify-center">
+              <BrandLogo size="lg" centered />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                كلمة المرور
-              </label>
-              <div className="relative">
-                <input
-                  type={showPass ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 text-right"
-                  style={
-                    { "--tw-ring-color": "#1D9E75" } as React.CSSProperties
-                  }
-                />
+            <div className="rounded-[2rem] border border-slate-100 bg-white/95 p-8 shadow-[0_22px_70px_rgba(15,35,55,0.07)]">
+              <h2 className="mb-2 text-center text-2xl font-black tracking-normal text-[#0b2447]">
+                تسجيل الدخول
+              </h2>
+              <p className="mb-7 text-center text-sm leading-7 text-slate-400">
+                أدخل بيانات حسابك للمتابعة إلى لوحة العمل.
+              </p>
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-extrabold text-slate-500">
+                    البريد الإلكتروني
+                  </label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    placeholder="example@school.sa"
+                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-right text-sm font-semibold text-[#0b2447] outline-none transition placeholder:text-slate-300 focus:border-[#159f91]/40 focus:bg-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-extrabold text-slate-500">
+                    كلمة المرور
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPass ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 pl-16 text-right text-sm font-semibold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(!showPass)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-bold text-slate-400 transition hover:bg-white hover:text-[#159f91]"
+                    >
+                      {showPass ? "إخفاء" : "إظهار"}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                    {error}
+                  </div>
+                )}
+
                 <button
-                  type="button"
-                  onClick={() => setShowPass(!showPass)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-500 hover:text-gray-700"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-[#159f91] py-3.5 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-[#10877b] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {showPass ? "إخفاء" : "إظهار"}
+                  {loading ? "جارٍ الدخول..." : "دخول"}
                 </button>
-              </div>
+              </form>
+
+              <p className="mt-6 text-center text-xs font-semibold text-slate-400">
+                ليس لديك حساب؟ تواصل مع مدير مقياس في مدرستك
+              </p>
             </div>
-
-            {error && (
-              <div className="px-4 py-3 rounded-xl text-sm" style={{ background: "#FCEBEB", color: "#A32D2D" }}>
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 rounded-xl text-white font-bold text-base hover:opacity-90 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{ background: "#1D9E75" }}
-            >
-              {loading ? "جارٍ الدخول..." : "دخول"}
-            </button>
-          </form>
-
-          <p className="text-center mt-6 text-xs text-gray-400">
-            ليس لديك حساب؟ تواصل مع مدير مِقياس
-          </p>
+          </div>
         </div>
       </div>
     </div>

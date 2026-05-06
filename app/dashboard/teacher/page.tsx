@@ -260,6 +260,8 @@ export default function TeacherDashboard() {
     return Math.round(scored.reduce((acc, s) => acc + (s.score / s.total) * 100, 0) / scored.length);
   };
 
+  const normalizeStudentName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+
   // ── Report generation ────────────────────────────────────────────────────────
   const generateReport = async () => {
     setReportOpen(true);
@@ -293,10 +295,19 @@ export default function TeacherDashboard() {
   // ── Student handlers ─────────────────────────────────────────────────────────
   const handleImportSave = (names: string[]) => {
     if (!activeClassId) return;
-    setClassStudents((prev) => ({
-      ...prev,
-      [activeClassId]: names.map((name, i) => ({ id: i + 1, name, score: 0, total: 10 })),
-    }));
+    setClassStudents((prev) => {
+      const existing = prev[activeClassId] ?? [];
+      const existingByName = new Map(existing.map((student) => [normalizeStudentName(student.name), student]));
+      const nextStudents: Student[] = names
+        .map((name) => name.trim().replace(/\s+/g, " "))
+        .filter(Boolean)
+        .map((name, index) => {
+          const existingStudent = existingByName.get(normalizeStudentName(name));
+          return existingStudent ?? { id: Date.now() + index, name, score: 0, total: 10 };
+        });
+
+      return { ...prev, [activeClassId]: nextStudents };
+    });
     setShowAddStudents(false);
     setAddStudentMode("choice");
   };
@@ -362,7 +373,7 @@ export default function TeacherDashboard() {
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50" dir="rtl">
+    <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
       <DemoBanner />
 
       {reportOpen && (
@@ -377,8 +388,8 @@ export default function TeacherDashboard() {
       )}
 
       {/* ── Header ─────────────────────────────────────────────────────────────── */}
-      <header className="bg-white border-b sticky top-0 z-40">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 lg:px-8">
           <BrandLogo
             size="sm"
             contextTitle="لوحة المعلم"
@@ -386,14 +397,14 @@ export default function TeacherDashboard() {
           />
           <button
             onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
-            className="text-sm text-gray-500 hover:text-gray-700 border rounded-lg px-3 py-1.5"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
           >
             خروج
           </button>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      <main className="mx-auto max-w-6xl space-y-8 px-5 py-8 lg:px-8">
 
         {/* ══════════════════════════════════════════════════════════════════════
             VIEW: CLASSES LIST
@@ -402,30 +413,32 @@ export default function TeacherDashboard() {
           <>
             {/* ── SECTION 1: هذا الأسبوع ──────────────────────────────────────── */}
             <section>
-              <h2 className="text-lg font-bold text-gray-800 mb-3">هذا الأسبوع</h2>
-              <div className="bg-white rounded-xl border-2 shadow-sm p-6" style={{ borderColor: "#1D9E75" }}>
+              <div className="mb-4">
+                <p className="text-sm font-extrabold text-[#159f91]">هذا الأسبوع</p>
+                <h2 className="mt-2 text-2xl font-black tracking-normal text-[#0b2447]">مهمة التقييم الحالية</h2>
+              </div>
+              <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
                 <div className="flex items-center justify-between flex-wrap gap-4">
                   <div>
-                    <div className="text-sm text-gray-500 mb-1">مهمة هذا الأسبوع</div>
-                    <h3 className="text-2xl font-bold text-gray-900">الكسور</h3>
+                    <div className="text-sm font-bold text-slate-400 mb-1">مهمة هذا الأسبوع</div>
+                    <h3 className="text-3xl font-black text-[#0b2447]">الكسور</h3>
                     <div className="flex items-center gap-3 mt-2">
-                      <span className="text-sm text-gray-600">📚 الثالث ابتدائي</span>
-                      <span className="text-sm text-gray-600">📐 الرياضيات</span>
+                      <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">الثالث ابتدائي</span>
+                      <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">الرياضيات</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className="px-4 py-2 rounded-full text-sm font-bold bg-green-100 text-green-700 border border-green-200">
-                      ✅ مكتمل
+                    <span className="rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700">
+                      مكتمل
                     </span>
                     <button
                       onClick={generateReport}
-                      className="px-4 py-2 rounded-lg text-white text-sm font-bold hover:opacity-90 flex items-center gap-2"
-                      style={{ background: "#7F77DD" }}
+                      className="flex items-center gap-2 rounded-xl bg-[#0b2447] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
                     >
-                      🤖 توليد تقرير الفصل
+                      توليد تقرير الفصل
                     </button>
-                    <button className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50" onClick={() => window.print()}>
-                      🖨️ طباعة
+                    <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
+                      طباعة
                     </button>
                   </div>
                 </div>
@@ -434,7 +447,7 @@ export default function TeacherDashboard() {
 
             {/* ── SECTION 2: فصولي ──────────────────────────────────────────────── */}
             <section>
-              <h2 className="text-lg font-bold text-gray-800 mb-3">فصولي</h2>
+              <h2 className="mb-4 text-2xl font-black tracking-normal text-[#0b2447]">فصولي</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {classes.map((cls) => {
@@ -443,17 +456,17 @@ export default function TeacherDashboard() {
                   return (
                     <div
                       key={cls.id}
-                      className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-4"
+                      className="flex flex-col gap-5 rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]"
                     >
                       {/* Class header */}
                       <div className="flex items-start justify-between">
                         <div>
-                          <div className="font-bold text-gray-900 text-lg">{cls.name}</div>
-                          <div className="text-sm text-gray-500 mt-0.5">{cls.subject}</div>
+                          <div className="text-xl font-black text-[#0b2447]">{cls.name}</div>
+                          <div className="mt-1 text-sm font-bold text-slate-400">{cls.subject}</div>
                         </div>
                         <button
                           title="إعدادات الفصل"
-                          className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100"
+                          className="rounded-xl p-2 text-slate-300 transition hover:bg-slate-50 hover:text-[#159f91]"
                         >
                           ⚙️
                         </button>
@@ -462,22 +475,22 @@ export default function TeacherDashboard() {
                       {/* Stats */}
                       <div className="flex items-center gap-4">
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-gray-900">{students.length}</div>
-                          <div className="text-xs text-gray-500">طالب</div>
+                          <div className="text-2xl font-black text-[#0b2447]">{students.length}</div>
+                          <div className="text-xs font-bold text-slate-400">طالب</div>
                         </div>
-                        <div className="w-px h-10 bg-gray-200" />
+                        <div className="h-10 w-px bg-slate-100" />
                         <div className="text-center">
                           {avg !== null ? (
                             <>
                               <div className="text-2xl font-bold" style={{ color: avg >= 70 ? "#1D9E75" : avg >= 50 ? "#BA7517" : "#E24B4A" }}>
                                 {avg}٪
                               </div>
-                              <div className="text-xs text-gray-500">متوسط هذا الأسبوع</div>
+                              <div className="text-xs font-bold text-slate-400">متوسط هذا الأسبوع</div>
                             </>
                           ) : (
                             <>
-                              <div className="text-2xl font-bold text-gray-300">—</div>
-                              <div className="text-xs text-gray-400">لا توجد درجات</div>
+                              <div className="text-2xl font-black text-slate-300">—</div>
+                              <div className="text-xs font-bold text-slate-400">لا توجد درجات</div>
                             </>
                           )}
                         </div>
@@ -486,8 +499,7 @@ export default function TeacherDashboard() {
                       {/* Actions */}
                       <button
                         onClick={() => handleViewStudents(cls.id)}
-                        className="w-full py-2.5 rounded-lg text-white text-sm font-bold hover:opacity-90"
-                        style={{ background: "#1D9E75" }}
+                        className="w-full rounded-xl bg-[#159f91] py-3 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-[#10877b]"
                       >
                         عرض الطلاب
                       </button>
@@ -499,8 +511,7 @@ export default function TeacherDashboard() {
               {/* Add class button */}
               <button
                 onClick={() => setShowAddClass(true)}
-                className="mt-4 w-full py-3 rounded-xl border-2 border-dashed text-sm font-bold hover:bg-green-50 transition-colors"
-                style={{ borderColor: "#1D9E75", color: "#1D9E75" }}
+                className="mt-5 w-full rounded-[1.25rem] border border-dashed border-[#159f91]/40 bg-white py-4 text-sm font-extrabold text-[#159f91] transition hover:bg-teal-50/50"
               >
                 + إضافة فصل جديد
               </button>
@@ -517,49 +528,47 @@ export default function TeacherDashboard() {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleBackToClasses}
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 flex items-center gap-1 border rounded-lg px-3 py-1.5 hover:bg-gray-50"
+                className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
               >
                 ← فصولي
               </button>
-              <h2 className="text-xl font-bold text-gray-900">{activeClass.name}</h2>
-              <span className="text-sm text-gray-500">{activeClass.subject}</span>
+              <h2 className="text-2xl font-black text-[#0b2447]">{activeClass.name}</h2>
+              <span className="text-sm font-bold text-slate-400">{activeClass.subject}</span>
             </div>
 
             {/* Report / print actions */}
-            <div className="bg-white rounded-xl border-2 shadow-sm p-5" style={{ borderColor: "#1D9E75" }}>
+            <div className="rounded-[1.5rem] border border-teal-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <div className="text-sm text-gray-500 mb-0.5">مهمة هذا الأسبوع</div>
-                  <div className="font-bold text-gray-900">الكسور — الرياضيات</div>
+                  <div className="text-sm font-bold text-slate-400 mb-0.5">مهمة هذا الأسبوع</div>
+                  <div className="font-black text-[#0b2447]">الكسور — الرياضيات</div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <button
                     onClick={generateReport}
                     disabled={activeStudents.every((s) => s.score === 0)}
-                    className="px-4 py-2 rounded-lg text-white text-sm font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
-                    style={{ background: "#7F77DD" }}
+                    className="flex items-center gap-2 rounded-xl bg-[#0b2447] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f] disabled:opacity-50"
                   >
-                    🤖 توليد تقرير الفصل
+                    توليد تقرير الفصل
                   </button>
-                  <button className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50" onClick={() => window.print()}>
-                    🖨️ طباعة
+                  <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
+                    طباعة
                   </button>
                 </div>
               </div>
             </div>
 
             {/* Student table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="overflow-hidden rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-gray-900">قائمة الطلاب</h3>
-                  <p className="text-sm text-gray-500 mt-0.5">{activeStudents.length} طالب</p>
+                  <h3 className="font-black text-[#0b2447]">قائمة الطلاب</h3>
+                  <p className="mt-0.5 text-sm font-bold text-slate-400">{activeStudents.length} طالب</p>
                 </div>
                 {/* Add students button */}
                 <button
                   onClick={() => { setShowAddStudents(true); setAddStudentMode("choice"); }}
-                  className="px-3 py-1.5 rounded-lg text-white text-sm font-bold hover:opacity-90"
-                  style={{ background: "#1D9E75" }}
+                  className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b]"
                 >
                   + إضافة طلاب
                 </button>
@@ -610,7 +619,7 @@ export default function TeacherDashboard() {
 
             {/* Add students panel */}
             {showAddStudents && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+              <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-bold text-gray-900">إضافة طلاب</h3>
                   <button onClick={() => { setShowAddStudents(false); setAddStudentMode("choice"); setManualNames(""); }} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
@@ -636,7 +645,10 @@ export default function TeacherDashboard() {
                 )}
 
                 {addStudentMode === "import" && (
-                  <StudentImportFlow onSave={handleImportSave} />
+                  <StudentImportFlow
+                    initialNames={activeStudents.map((student) => student.name)}
+                    onSave={handleImportSave}
+                  />
                 )}
 
                 {addStudentMode === "manual" && (
