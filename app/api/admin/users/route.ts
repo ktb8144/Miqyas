@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-const VALID_ROLES = new Set(["admin", "principal", "teacher"]);
+const userCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  email: z.string().trim().email(),
+  role: z.enum(["admin", "principal", "teacher"]),
+  school_id: z.string().uuid().nullable().optional(),
+});
 
 function normalizeUser(row: Record<string, unknown>) {
   const school = row.schools as { name?: string } | null | undefined;
@@ -37,7 +43,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await getAdminClient()
       .from("users")
-      .select("id, auth_id, name, email, role, school_id, status, schools(name)")
+      .select("id, auth_id, name, email, role, school_id, schools(name)")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -47,9 +53,9 @@ export async function GET(req: NextRequest) {
       data: (data ?? []).map((row) => normalizeUser(row)),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin users list failed", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "تعذر تحميل المستخدمين" },
       { status: 500 }
     );
   }
@@ -66,22 +72,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-    const role = typeof body.role === "string" ? body.role.trim() : "";
-    const schoolId = typeof body.school_id === "string" && body.school_id.trim() ? body.school_id.trim() : null;
-
-    if (!name || !email || !VALID_ROLES.has(role)) {
+    const parsed = userCreateSchema.safeParse(await req.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: "name, email and valid role are required" },
+        { success: false, error: "تحقق من بيانات المستخدم المطلوبة" },
         { status: 400 }
       );
     }
 
+    const { name, role } = parsed.data;
+    const email = parsed.data.email.toLowerCase();
+    const schoolId = parsed.data.school_id ?? null;
     if (role !== "admin" && !schoolId) {
       return NextResponse.json(
-        { success: false, error: "school_id is required for principal and teacher users" },
+        { success: false, error: "يجب ربط المدير أو المعلم بمدرسة" },
         { status: 400 }
       );
     }
@@ -105,9 +109,8 @@ export async function POST(req: NextRequest) {
         email,
         role,
         school_id: role === "admin" ? null : schoolId,
-        status: "نشط",
       })
-      .select("id, auth_id, name, email, role, school_id, status, schools(name)")
+      .select("id, auth_id, name, email, role, school_id, schools(name)")
       .single();
 
     if (error) throw error;
@@ -121,9 +124,9 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin user create failed", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "تعذر إنشاء المستخدم" },
       { status: 500 }
     );
   }

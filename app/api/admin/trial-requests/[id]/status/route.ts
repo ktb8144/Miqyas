@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,9 @@ type Params = {
   };
 };
 
-const allowedStatuses = new Set(["new", "contacted", "closed"]);
+const statusSchema = z.object({
+  status: z.enum(["new", "contacted", "closed"]),
+});
 
 function normalizeTrialRequest(row: Record<string, unknown>) {
   return {
@@ -38,19 +41,9 @@ function logTrialRequestError(action: string, err: unknown) {
   console.error(`admin trial requests ${action} failed`, details);
 }
 
-function errorResponse(err: unknown) {
-  const message = err instanceof Error ? err.message : "Unknown error";
-  const details =
-    err && typeof err === "object"
-      ? {
-          code: "code" in err ? err.code : undefined,
-          details: "details" in err ? err.details : undefined,
-          hint: "hint" in err ? err.hint : undefined,
-        }
-      : {};
-
+function errorResponse() {
   return NextResponse.json(
-    { success: false, error: message, ...details },
+    { success: false, error: "تعذر تحديث حالة طلب التجربة" },
     { status: 500 }
   );
 }
@@ -71,15 +64,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json();
-    const status = typeof body.status === "string" ? body.status.trim() : "";
-
-    if (!allowedStatuses.has(status)) {
+    const parsed = statusSchema.safeParse(await req.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: "Invalid status" },
+        { success: false, error: "حالة طلب التجربة غير صحيحة" },
         { status: 400 }
       );
     }
+    const { status } = parsed.data;
 
     const { data, error } = await getAdminClient()
       .from("trial_requests")
@@ -96,6 +88,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
   } catch (err) {
     logTrialRequestError("status", err);
-    return errorResponse(err);
+    return errorResponse();
   }
 }

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { z } from "zod";
 import { scanAnswerSheet } from "@/lib/gemini";
 import { getLevel } from "@/lib/demo-data";
-import { getAdminClient } from "@/lib/supabase-admin";
+import { getAdminClient, requireUserRole } from "@/lib/supabase-admin";
 
 const VALID_ANSWERS = new Set(["أ", "ب", "ج", "د"]);
 
@@ -21,6 +21,17 @@ type QuestionRow = {
   skill?: string | null;
   question_options?: { option_label: string; is_correct: boolean }[];
 };
+
+const scanSchema = z.object({
+  imageBase64: z.string().min(100).optional(),
+  studentAnswers: z.record(z.string()).optional(),
+  mimeType: z.string().trim().min(1).default("image/jpeg"),
+  subject: z.string().trim().optional(),
+  grade: z.union([z.string().trim().min(1), z.number()]).optional(),
+  weekNumber: z.coerce.number().int().min(0).optional(),
+}).refine((value) => value.imageBase64 || value.studentAnswers, {
+  message: "imageBase64 or studentAnswers is required",
+});
 
 function normalizeAnswer(value: unknown) {
   return typeof value === "string" && VALID_ANSWERS.has(value) ? value : value === "blank" ? "blank" : "unclear";
@@ -41,49 +52,6 @@ function normalizeGrade(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
-async function requireTeacher(req: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll();
-        },
-        setAll() {
-          // This route only needs to read the incoming auth cookies.
-        },
-      },
-    }
-  );
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return { ok: false as const, status: 401, error: "Unauthorized" };
-  }
-
-  const db = getAdminClient();
-  const { data: profile, error: profileError } = await db
-    .from("users")
-    .select("role, school_id, grade, subject")
-    .eq("auth_id", user.id)
-    .single();
-
-  if (profileError || !profile) {
-    return { ok: false as const, status: 403, error: "Teacher profile not found" };
-  }
-
-  if (profile.role !== "teacher") {
-    return { ok: false as const, status: 403, error: "Only teachers can scan OMR sheets" };
-  }
-
-  return { ok: true as const, user, profile };
-}
-
 async function loadAssessmentQuestions(body: ScanBody, profile: { school_id?: string | null; grade?: string | number | null; subject?: string | null }) {
   const db = getAdminClient();
   const subject = body.subject?.trim() || profile.subject || "رياضيات";
@@ -93,7 +61,6 @@ async function loadAssessmentQuestions(body: ScanBody, profile: { school_id?: st
   let query = db
     .from("weekly_questions")
     .select("id, school_id, skill, question_options(option_label, is_correct)")
-    .eq("is_active", true)
     .eq("status", "active")
     .eq("subject", subject)
     .eq("grade", grade)
@@ -163,18 +130,18 @@ function gradeAnswers(studentAnswers: Record<string, string>, answerKey: AnswerK
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await requireTeacher(req);
+    const auth = await requireUserRole(req, ["teacher"]);
     if (!auth.ok) {
-      return NextResponse.json({ error: auth.error }, { status: auth.status });
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
 
-    const body = (await req.json()) as ScanBody;
-    const { imageBase64, studentAnswers, mimeType = "image/jpeg" } = body;
-
-    if (!imageBase64 && !studentAnswers) {
-      return NextResponse.json({ error: "imageBase64 or studentAnswers is required" }, { status: 400 });
+    const parsed = scanSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json({ success: false, error: "يرجى إرفاق صورة الورقة وبيانات الاختبار" }, { status: 400 });
     }
 
+    const body = parsed.data;
+    const { imageBase64, studentAnswers, mimeType } = body;
     const { rows, answerKey } = await loadAssessmentQuestions(body, auth.profile);
     if (rows.length === 0 || Object.keys(answerKey).length === 0) {
       return NextResponse.json(
@@ -201,7 +168,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("scan OMR failed", err);
+    return NextResponse.json({ success: false, error: "تعذر تصحيح الورقة حاليًا" }, { status: 500 });
   }
 }

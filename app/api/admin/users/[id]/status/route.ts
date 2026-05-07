@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,10 @@ type Params = {
     id: string;
   };
 };
+
+const statusSchema = z.object({
+  status: z.enum(["نشط", "موقوف"]),
+});
 
 function normalizeUser(row: Record<string, unknown>) {
   const school = row.schools as { name?: string } | null | undefined;
@@ -34,15 +39,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json();
-    const status = body.status === "موقوف" ? "موقوف" : "نشط";
+    const parsed = statusSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: "حالة المستخدم غير صحيحة" },
+        { status: 400 }
+      );
+    }
+
+    const { status } = parsed.data;
     const db = getAdminClient();
 
     const { data, error } = await db
       .from("users")
-      .update({ status })
+      .select("id, auth_id, name, email, role, school_id, schools(name)")
       .eq("id", params.id)
-      .select("id, auth_id, name, email, role, school_id, status, schools(name)")
       .single();
 
     if (error) throw error;
@@ -58,9 +69,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: normalizeUser(data),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin user status update failed", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "تعذر تحديث حالة المستخدم" },
       { status: 500 }
     );
   }

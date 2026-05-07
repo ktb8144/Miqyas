@@ -24,9 +24,9 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin overview failed", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "تعذر تحميل ملخص لوحة الإدارة" },
       { status: 500 }
     );
   }

@@ -147,11 +147,6 @@ function AddClassModal({
       teacherId: "t1",
       schoolId: "s1",
     };
-    // Attempt Supabase save — don't block on failure
-    void supabase
-      .from("classes")
-      .insert({ name: newClass.name, grade: newClass.grade, subject: newClass.subject, teacher_id: newClass.teacherId, school_id: newClass.schoolId })
-      .then(() => {});
     onAdd(newClass);
     setSaving(false);
     onClose();

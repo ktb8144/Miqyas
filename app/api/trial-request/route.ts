@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-function cleanText(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
-}
+const trialRequestSchema = z.object({
+  name: z.string().trim().min(1),
+  school_name: z.string().trim().min(1),
+  phone: z.string().trim().min(1),
+  email: z.string().trim().email(),
+  message: z.string().trim().optional(),
+});
 
 function logTrialRequestError(err: unknown) {
   const details =
@@ -21,46 +26,31 @@ function logTrialRequestError(err: unknown) {
   console.error("trial request create failed", details);
 }
 
-function errorResponse(err: unknown) {
-  const message = err instanceof Error ? err.message : "Unknown error";
-  const details =
-    err && typeof err === "object"
-      ? {
-          code: "code" in err ? err.code : undefined,
-          details: "details" in err ? err.details : undefined,
-          hint: "hint" in err ? err.hint : undefined,
-        }
-      : {};
-
+function errorResponse() {
   return NextResponse.json(
-    { success: false, error: message, ...details },
+    { success: false, error: "تعذر إرسال طلب التجربة حاليًا" },
     { status: 500 }
   );
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const name = cleanText(body.name);
-    const schoolName = cleanText(body.school_name);
-    const phone = cleanText(body.phone);
-    const email = cleanText(body.email).toLowerCase();
-    const message = cleanText(body.message);
-
-    if (!name || !schoolName || !phone || !email) {
+    const parsed = trialRequestSchema.safeParse(await req.json());
+    if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: "name, school_name, phone and email are required" },
+        { success: false, error: "تحقق من بيانات طلب التجربة" },
         { status: 400 }
       );
     }
 
+    const { name, school_name: schoolName, phone, email, message } = parsed.data;
     const { data, error } = await getAdminClient()
       .from("trial_requests")
       .insert({
         name,
         school_name: schoolName,
         phone,
-        email,
+        email: email.toLowerCase(),
         message: message || null,
         status: "new",
       })
@@ -75,6 +65,6 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     logTrialRequestError(err);
-    return errorResponse(err);
+    return errorResponse();
   }
 }

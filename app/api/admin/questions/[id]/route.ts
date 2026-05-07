@@ -31,7 +31,7 @@ function normalizeQuestion(row: QuestionRow) {
     }))
     .sort((a, b) => OPTION_LABELS.indexOf(a.option_label) - OPTION_LABELS.indexOf(b.option_label));
 
-  const status = String(row.status ?? (row.is_active ? "active" : "draft"));
+  const status = String(row.status ?? "draft");
 
   return {
     id: String(row.id),
@@ -42,7 +42,6 @@ function normalizeQuestion(row: QuestionRow) {
     question_text: String(row.question_text ?? ""),
     week_number: Number(row.week_number ?? 0),
     status,
-    is_active: status === "active",
     options,
     correct_option: options.find((option) => option.is_correct)?.option_label ?? "",
   };
@@ -84,7 +83,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (body.week_number !== undefined) updates.week_number = Number(body.week_number || 0);
     if (VALID_STATUSES.has(body.status)) {
       updates.status = body.status;
-      updates.is_active = body.status === "active";
     }
 
     const db = getAdminClient();
@@ -126,9 +124,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: normalizeQuestion(data as QuestionRow),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin question update failed", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "تعذر تحديث السؤال" },
       { status: 500 }
     );
   }

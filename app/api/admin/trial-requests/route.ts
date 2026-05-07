@@ -30,19 +30,9 @@ function logTrialRequestError(action: string, err: unknown) {
   console.error(`admin trial requests ${action} failed`, details);
 }
 
-function errorResponse(err: unknown) {
-  const message = err instanceof Error ? err.message : "Unknown error";
-  const details =
-    err && typeof err === "object"
-      ? {
-          code: "code" in err ? err.code : undefined,
-          details: "details" in err ? err.details : undefined,
-          hint: "hint" in err ? err.hint : undefined,
-        }
-      : {};
-
+function errorResponse() {
   return NextResponse.json(
-    { success: false, error: message, ...details },
+    { success: false, error: "تعذر تحميل طلبات التجربة" },
     { status: 500 }
   );
 }
@@ -76,6 +66,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     logTrialRequestError("list", err);
-    return errorResponse(err);
+    return errorResponse();
   }
 }

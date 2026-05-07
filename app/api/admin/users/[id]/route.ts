@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
 
-const VALID_ROLES = new Set(["admin", "principal", "teacher"]);
+const userUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  email: z.string().trim().email().optional(),
+  role: z.enum(["admin", "principal", "teacher"]).optional(),
+  school_id: z.string().uuid().nullable().optional(),
+});
 
 type Params = {
   params: {
@@ -36,16 +42,30 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json();
+    const parsed = userUpdateSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: "تحقق من بيانات المستخدم" },
+        { status: 400 }
+      );
+    }
+
+    const body = parsed.data;
     const updates: Record<string, string | null> = {};
 
-    if (typeof body.name === "string") updates.name = body.name.trim();
-    if (typeof body.email === "string") updates.email = body.email.trim().toLowerCase();
-    if (typeof body.role === "string" && VALID_ROLES.has(body.role.trim())) updates.role = body.role.trim();
-    if (typeof body.school_id === "string") updates.school_id = body.school_id.trim() || null;
+    if (body.name) updates.name = body.name;
+    if (body.email) updates.email = body.email.toLowerCase();
+    if (body.role) updates.role = body.role;
+    if (body.school_id !== undefined) updates.school_id = body.school_id;
 
     if (updates.role === "admin") {
       updates.school_id = null;
+    }
+    if (updates.role && updates.role !== "admin" && updates.school_id === null) {
+      return NextResponse.json(
+        { success: false, error: "يجب ربط المدير أو المعلم بمدرسة" },
+        { status: 400 }
+      );
     }
 
     if (Object.keys(updates).length === 0) {
@@ -79,7 +99,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .from("users")
       .update(updates)
       .eq("id", params.id)
-      .select("id, auth_id, name, email, role, school_id, status, schools(name)")
+      .select("id, auth_id, name, email, role, school_id, schools(name)")
       .single();
 
     if (error) throw error;
@@ -89,9 +109,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       data: normalizeUser(data),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin user update failed", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "تعذر تحديث المستخدم" },
       { status: 500 }
     );
   }

@@ -91,6 +91,48 @@ export async function requireAdmin(req: NextRequest) {
   return { ok: true as const, user };
 }
 
+export async function requireUserRole(
+  req: NextRequest,
+  roles: Array<"admin" | "principal" | "teacher">
+) {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return req.cookies.getAll();
+        },
+        setAll() {
+          // API guards only need to read the incoming session cookie.
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError || !user) {
+    return { ok: false as const, status: 401, error: "يرجى تسجيل الدخول أولًا" };
+  }
+
+  const db = getAdminClient();
+  const { data: profile, error: profileError } = await db
+    .from("users")
+    .select("id, auth_id, name, email, role, school_id, grade, subject")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (profileError || !profile || !roles.includes(profile.role)) {
+    return { ok: false as const, status: 403, error: "ليست لديك صلاحية لتنفيذ هذا الإجراء" };
+  }
+
+  return { ok: true as const, user, profile };
+}
+
 // ─── Admin overview ───────────────────────────────────────────────────────────
 
 async function countRows(

@@ -25,7 +25,7 @@ function normalizeQuestion(row: QuestionRow) {
     }))
     .sort((a, b) => OPTION_LABELS.indexOf(a.option_label) - OPTION_LABELS.indexOf(b.option_label));
 
-  const status = String(row.status ?? (row.is_active ? "active" : "draft"));
+  const status = String(row.status ?? "draft");
 
   return {
     id: String(row.id),
@@ -36,7 +36,6 @@ function normalizeQuestion(row: QuestionRow) {
     question_text: String(row.question_text ?? ""),
     week_number: Number(row.week_number ?? 0),
     status,
-    is_active: status === "active",
     options,
     correct_option: options.find((option) => option.is_correct)?.option_label ?? "",
   };
@@ -89,9 +88,9 @@ export async function GET(req: NextRequest) {
       data: ((data ?? []) as QuestionRow[]).map((row) => normalizeQuestion(row)),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin questions list failed", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "تعذر تحميل الأسئلة" },
       { status: 500 }
     );
   }
@@ -137,7 +136,6 @@ export async function POST(req: NextRequest) {
         question_text: questionText,
         week_number: weekNumber,
         status,
-        is_active: status === "active",
         created_by: createdBy,
       })
       .select("*")
@@ -167,9 +165,9 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("admin question create failed", err);
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: "تعذر حفظ السؤال" },
       { status: 500 }
     );
   }

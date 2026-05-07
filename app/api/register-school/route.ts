@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { registerSchool } from "@/lib/supabase-admin";
+
+const registerSchoolSchema = z.object({
+  principalName: z.string().trim().min(1),
+  schoolName: z.string().trim().min(1),
+  city: z.string().trim().min(1),
+  schoolType: z.string().trim().min(1).default("حكومية"),
+  phone: z.string().trim().min(1),
+});
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { principalName, schoolName, city, schoolType, phone } = body;
-
-    if (!principalName || !schoolName || !city || !phone) {
+    const parsed = registerSchoolSchema.safeParse(await req.json());
+    if (!parsed.success) {
       return NextResponse.json({ error: "جميع الحقول مطلوبة" }, { status: 400 });
     }
 
+    const { principalName, schoolName, city, schoolType, phone } = parsed.data;
     const result = await registerSchool({
       principal_name: principalName,
       school_name: schoolName,
@@ -20,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true, school: result });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "خطأ في الخادم";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("register school failed", err);
+    return NextResponse.json({ error: "تعذر إرسال طلب التسجيل حاليًا" }, { status: 500 });
   }
 }

@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
+
+const schoolCreateSchema = z.object({
+  name: z.string().trim().min(1),
+  city: z.string().trim().min(1),
+  region: z.string().trim().min(1).nullable().optional(),
+  type: z.string().trim().min(1).default("حكومية"),
+  subscription_type: z.string().trim().min(1).default("trial"),
+  subscription_start: z.string().trim().min(1).optional(),
+  subscription_end: z.string().trim().min(1).optional(),
+  active: z.boolean().default(true),
+  trial: z.boolean().default(true),
+});
 
 function normalizeSchool(row: Record<string, unknown>) {
   return {
@@ -39,16 +52,7 @@ function logSchoolError(action: string, err: unknown) {
 }
 
 function errorResponse(err: unknown) {
-  const message = err instanceof Error ? err.message : "Unknown error";
   const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
-  const details =
-    err && typeof err === "object"
-      ? {
-          code,
-          details: "details" in err ? err.details : undefined,
-          hint: "hint" in err ? err.hint : undefined,
-        }
-      : {};
 
   return NextResponse.json(
     {
@@ -56,8 +60,7 @@ function errorResponse(err: unknown) {
       error:
         code === "PGRST204"
           ? "تعذر حفظ المدرسة بسبب عدم تطابق أعمدة جدول schools في Supabase."
-          : message,
-      ...details,
+          : "تعذر تنفيذ العملية على المدارس",
     },
     { status: 500 }
   );
@@ -112,44 +115,26 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const body = await req.json();
-    const name = typeof body.name === "string" ? body.name.trim() : "";
-    const city = typeof body.city === "string" ? body.city.trim() : "";
-    const region =
-      typeof body.region === "string" && body.region.trim()
-        ? body.region.trim()
-        : null;
-    const type =
-      typeof body.type === "string" && body.type.trim()
-        ? body.type.trim()
-        : "حكومية";
-    const subscriptionType =
-      typeof body.subscription_type === "string" && body.subscription_type.trim()
-        ? body.subscription_type.trim()
-        : "trial";
-    const subscriptionStart =
-      typeof body.subscription_start === "string" && body.subscription_start.trim()
-        ? body.subscription_start.trim()
-        : new Date().toISOString().slice(0, 10);
-    const subscriptionEnd =
-      typeof body.subscription_end === "string" && body.subscription_end.trim()
-        ? body.subscription_end.trim()
-        : new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    const active = typeof body.active === "boolean" ? body.active : true;
-    const trial = typeof body.trial === "boolean" ? body.trial : true;
+    const parsed = schoolCreateSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: "تحقق من بيانات المدرسة المطلوبة" },
+        { status: 400 }
+      );
+    }
 
-    if (!name) {
-      return NextResponse.json(
-        { success: false, error: "name is required" },
-        { status: 400 }
-      );
-    }
-    if (!city) {
-      return NextResponse.json(
-        { success: false, error: "city is required" },
-        { status: 400 }
-      );
-    }
+    const {
+      name,
+      city,
+      region = null,
+      type,
+      subscription_type: subscriptionType,
+      active,
+      trial,
+    } = parsed.data;
+    const subscriptionStart = parsed.data.subscription_start ?? new Date().toISOString().slice(0, 10);
+    const subscriptionEnd =
+      parsed.data.subscription_end ?? new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
     const { data, error } = await getAdminClient()
       .from("schools")

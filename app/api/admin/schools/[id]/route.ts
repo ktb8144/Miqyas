@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,18 @@ type Params = {
     id: string;
   };
 };
+
+const schoolUpdateSchema = z.object({
+  name: z.string().trim().min(1).optional(),
+  city: z.string().trim().min(1).optional(),
+  region: z.string().trim().min(1).nullable().optional(),
+  type: z.string().trim().min(1).optional(),
+  subscription_type: z.string().trim().min(1).optional(),
+  subscription_start: z.string().trim().min(1).optional(),
+  subscription_end: z.string().trim().min(1).optional(),
+  active: z.boolean().optional(),
+  trial: z.boolean().optional(),
+});
 
 function normalizeSchool(row: Record<string, unknown>) {
   return {
@@ -45,16 +58,7 @@ function logSchoolError(action: string, err: unknown) {
 }
 
 function errorResponse(err: unknown) {
-  const message = err instanceof Error ? err.message : "Unknown error";
   const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
-  const details =
-    err && typeof err === "object"
-      ? {
-          code,
-          details: "details" in err ? err.details : undefined,
-          hint: "hint" in err ? err.hint : undefined,
-        }
-      : {};
 
   return NextResponse.json(
     {
@@ -62,8 +66,7 @@ function errorResponse(err: unknown) {
       error:
         code === "PGRST204"
           ? "تعذر حفظ المدرسة بسبب عدم تطابق أعمدة جدول schools في Supabase."
-          : message,
-      ...details,
+          : "تعذر تنفيذ العملية على المدرسة",
     },
     { status: 500 }
   );
@@ -85,7 +88,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const body = await req.json();
+    const parsed = schoolUpdateSchema.safeParse(await req.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { success: false, error: "تحقق من بيانات المدرسة" },
+        { status: 400 }
+      );
+    }
+
+    const body = parsed.data;
     const updates: {
       name?: string;
       city?: string;
@@ -98,14 +109,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       trial?: boolean;
     } = {};
 
-    if (typeof body.name === "string") updates.name = body.name.trim();
-    if (typeof body.city === "string") updates.city = body.city.trim();
-    if (typeof body.region === "string") updates.region = body.region.trim() || null;
+    if (body.name) updates.name = body.name;
+    if (body.city) updates.city = body.city;
+    if (typeof body.region === "string") updates.region = body.region;
     if (body.region === null) updates.region = null;
-    if (typeof body.type === "string") updates.type = body.type.trim();
-    if (typeof body.subscription_type === "string") updates.subscription_type = body.subscription_type.trim();
-    if (typeof body.subscription_start === "string") updates.subscription_start = body.subscription_start.trim();
-    if (typeof body.subscription_end === "string") updates.subscription_end = body.subscription_end.trim();
+    if (body.type) updates.type = body.type;
+    if (body.subscription_type) updates.subscription_type = body.subscription_type;
+    if (body.subscription_start) updates.subscription_start = body.subscription_start;
+    if (body.subscription_end) updates.subscription_end = body.subscription_end;
     if (typeof body.active === "boolean") updates.active = body.active;
     if (typeof body.trial === "boolean") updates.trial = body.trial;
 
