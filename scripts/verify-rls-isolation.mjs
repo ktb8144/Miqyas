@@ -1,4 +1,27 @@
 import { createClient } from "@supabase/supabase-js";
+import { existsSync, readFileSync } from "node:fs";
+
+function loadEnvFile(path) {
+  if (!existsSync(path)) return;
+
+  readFileSync(path, "utf8")
+    .split(/\r?\n/)
+    .forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) return;
+      const separatorIndex = trimmed.indexOf("=");
+      if (separatorIndex === -1) return;
+
+      const key = trimmed.slice(0, separatorIndex).trim();
+      const rawValue = trimmed.slice(separatorIndex + 1).trim();
+      if (!key || process.env[key]) return;
+
+      process.env[key] = rawValue.replace(/^['"]|['"]$/g, "");
+    });
+}
+
+loadEnvFile(".env.local");
+loadEnvFile(".env");
 
 const {
   NEXT_PUBLIC_SUPABASE_URL,

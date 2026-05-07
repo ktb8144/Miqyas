@@ -1,18 +1,18 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { DemoBanner } from "@/components/demo-banner";
 import { LevelBadge } from "@/components/level-badge";
 import { StudentImportFlow } from "@/components/student-import-flow";
 import { BatchOMRScanner } from "@/components/batch-omr-scanner";
-import { students as DEMO_STUDENTS, getLevel } from "@/lib/demo-data";
+import { getLevel } from "@/lib/demo-data";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Student {
-  id: number;
+  id: string;
   name: string;
   score: number;
   total: number;
@@ -35,19 +35,17 @@ interface ClassReport {
   recommendations: string;
 }
 
-// ─── Demo data ────────────────────────────────────────────────────────────────
-
-const DEMO_CLASSES: ClassItem[] = [
-  { id: "c1", name: "الثالث أ", grade: 3, subject: "رياضيات", teacherId: "t1", schoolId: "s1" },
-  { id: "c2", name: "الثالث ب", grade: 3, subject: "رياضيات", teacherId: "t1", schoolId: "s1" },
-];
-
 type ClassStudentsMap = Record<string, Student[]>;
 
-const INITIAL_CLASS_STUDENTS: ClassStudentsMap = {
-  c1: DEMO_STUDENTS,
-  c2: [],
-};
+interface TeacherProfile {
+  id: string;
+  auth_id: string;
+  name: string | null;
+  role: string;
+  school_id: string;
+  grade: string | null;
+  subject: string | null;
+}
 
 // ─── Report Modal ─────────────────────────────────────────────────────────────
 
@@ -124,12 +122,13 @@ function AddClassModal({
   onAdd,
 }: {
   onClose: () => void;
-  onAdd: (cls: ClassItem) => void;
+  onAdd: (input: { name: string; grade: number; subject: string }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [grade, setGrade] = useState(1);
   const [subject, setSubject] = useState("رياضيات");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const gradeLabels: Record<number, string> = {
     1: "الأول", 2: "الثاني", 3: "الثالث",
@@ -139,17 +138,15 @@ function AddClassModal({
   const handleCreate = async () => {
     if (!name.trim()) return;
     setSaving(true);
-    const newClass: ClassItem = {
-      id: `c${Date.now()}`,
-      name: name.trim(),
-      grade,
-      subject,
-      teacherId: "t1",
-      schoolId: "s1",
-    };
-    onAdd(newClass);
-    setSaving(false);
-    onClose();
+    setError(null);
+    try {
+      await onAdd({ name: name.trim(), grade, subject });
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر إنشاء الفصل");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -161,6 +158,11 @@ function AddClassModal({
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
         </div>
         <div className="p-6 space-y-4">
+          {error && (
+            <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+              {error}
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">اسم الفصل</label>
             <input
@@ -218,21 +220,20 @@ function AddClassModal({
 export default function TeacherDashboard() {
   const router = useRouter();
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) window.location.href = "/login";
-    });
-  }, []);
-
   // ── View state ──────────────────────────────────────────────────────────────
   type View = "classes" | "students";
   const [view, setView] = useState<View>("classes");
   const [activeClassId, setActiveClassId] = useState<string | null>(null);
 
   // ── Classes state ────────────────────────────────────────────────────────────
-  const [classes, setClasses] = useState<ClassItem[]>(DEMO_CLASSES);
-  const [classStudents, setClassStudents] = useState<ClassStudentsMap>(INITIAL_CLASS_STUDENTS);
+  const [classes, setClasses] = useState<ClassItem[]>([]);
+  const [classStudents, setClassStudents] = useState<ClassStudentsMap>({});
   const [showAddClass, setShowAddClass] = useState(false);
+  const [teacherProfile, setTeacherProfile] = useState<TeacherProfile | null>(null);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [pageError, setPageError] = useState<string | null>(null);
+  const [studentSaveError, setStudentSaveError] = useState<string | null>(null);
+  const [manualSaving, setManualSaving] = useState(false);
 
   // ── Student add (manual) state ───────────────────────────────────────────────
   const [showAddStudents, setShowAddStudents] = useState(false);
@@ -256,6 +257,90 @@ export default function TeacherDashboard() {
   };
 
   const normalizeStudentName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
+
+  const mapStudentRow = (row: {
+    id: string;
+    name: string;
+    score?: number | null;
+    total?: number | null;
+  }): Student => ({
+    id: row.id,
+    name: row.name,
+    score: row.score ?? 0,
+    total: row.total ?? 10,
+  });
+
+  const loadTeacherData = useCallback(async () => {
+    setPageLoading(true);
+    setPageError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push("/login");
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from("users")
+        .select("id, auth_id, name, role, school_id, grade, subject")
+        .eq("auth_id", session.user.id)
+        .single();
+
+      if (profileError || !profile || profile.role !== "teacher" || !profile.school_id) {
+        throw new Error("تعذر التحقق من حساب المعلم");
+      }
+
+      setTeacherProfile(profile as TeacherProfile);
+
+      const { data: classRows, error: classesError } = await supabase
+        .from("classes")
+        .select("id, name, grade, subject, teacher_id, school_id")
+        .eq("teacher_id", profile.id)
+        .eq("school_id", profile.school_id)
+        .order("created_at", { ascending: false });
+
+      if (classesError) throw classesError;
+
+      const mappedClasses: ClassItem[] = (classRows ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        grade: Number(row.grade),
+        subject: row.subject,
+        teacherId: row.teacher_id,
+        schoolId: row.school_id,
+      }));
+
+      setClasses(mappedClasses);
+
+      const nextStudents: ClassStudentsMap = Object.fromEntries(mappedClasses.map((cls) => [cls.id, []]));
+      const classIds = mappedClasses.map((cls) => cls.id);
+
+      if (classIds.length > 0) {
+        const { data: studentRows, error: studentsError } = await supabase
+          .from("students")
+          .select("id, name, class_id, score, total")
+          .in("class_id", classIds)
+          .order("created_at", { ascending: true });
+
+        if (studentsError) throw studentsError;
+
+        (studentRows ?? []).forEach((row) => {
+          nextStudents[row.class_id] = [...(nextStudents[row.class_id] ?? []), mapStudentRow(row)];
+        });
+      }
+
+      setClassStudents(nextStudents);
+    } catch (err) {
+      console.error("teacher dashboard load failed", err);
+      setPageError(err instanceof Error ? err.message : "تعذر تحميل بيانات الفصول والطلاب");
+    } finally {
+      setPageLoading(false);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    loadTeacherData();
+  }, [loadTeacherData]);
 
   // ── Report generation ────────────────────────────────────────────────────────
   const generateReport = async () => {
@@ -288,46 +373,64 @@ export default function TeacherDashboard() {
   };
 
   // ── Student handlers ─────────────────────────────────────────────────────────
-  const handleImportSave = (names: string[]) => {
+  const saveStudents = async (names: string[]) => {
     if (!activeClassId) return;
-    setClassStudents((prev) => {
-      const existing = prev[activeClassId] ?? [];
-      const existingByName = new Map(existing.map((student) => [normalizeStudentName(student.name), student]));
-      const nextStudents: Student[] = names
-        .map((name) => name.trim().replace(/\s+/g, " "))
-        .filter(Boolean)
-        .map((name, index) => {
-          const existingStudent = existingByName.get(normalizeStudentName(name));
-          return existingStudent ?? { id: Date.now() + index, name, score: 0, total: 10 };
-        });
+    setStudentSaveError(null);
 
-      return { ...prev, [activeClassId]: nextStudents };
+    const existing = classStudents[activeClassId] ?? [];
+    const existingNames = new Set(existing.map((student) => normalizeStudentName(student.name)));
+    const newNames = names
+      .map((name) => name.trim().replace(/\s+/g, " "))
+      .filter(Boolean)
+      .filter((name) => !existingNames.has(normalizeStudentName(name)));
+
+    if (newNames.length === 0) return { savedCount: 0 };
+
+    const res = await fetch("/api/save-students", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ classId: activeClassId, names: newNames }),
     });
-    setShowAddStudents(false);
-    setAddStudentMode("choice");
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok || json.error) {
+      throw new Error(json.error || "تعذر حفظ الطلاب");
+    }
+
+    const savedStudents: Student[] = (json.students ?? []).map(mapStudentRow);
+    setClassStudents((prev) => ({
+      ...prev,
+      [activeClassId]: [...(prev[activeClassId] ?? []), ...savedStudents],
+    }));
+    return { savedCount: savedStudents.length };
   };
 
-  const handleManualSave = () => {
+  const handleImportSave = async (names: string[]) => {
+    const result = await saveStudents(names);
+    setShowAddStudents(false);
+    setAddStudentMode("choice");
+    return result;
+  };
+
+  const handleManualSave = async () => {
     if (!activeClassId) return;
     const names = manualNames
       .split("\n")
       .map((n) => n.trim())
       .filter((n) => n.length > 0);
     if (!names.length) return;
-    setClassStudents((prev) => {
-      const existing = prev[activeClassId] ?? [];
-      const startId = existing.length + 1;
-      return {
-        ...prev,
-        [activeClassId]: [
-          ...existing,
-          ...names.map((name, i) => ({ id: startId + i, name, score: 0, total: 10 })),
-        ],
-      };
-    });
-    setManualNames("");
-    setShowAddStudents(false);
-    setAddStudentMode("choice");
+    setManualSaving(true);
+    setStudentSaveError(null);
+    try {
+      await saveStudents(names);
+      setManualNames("");
+      setShowAddStudents(false);
+      setAddStudentMode("choice");
+    } catch (err) {
+      setStudentSaveError(err instanceof Error ? err.message : "تعذر حفظ الطلاب");
+    } finally {
+      setManualSaving(false);
+    }
   };
 
   const handleScanComplete = (results: { editedName: string; studentName: string; score: number }[]) => {
@@ -345,8 +448,36 @@ export default function TeacherDashboard() {
     });
   };
 
-  const handleAddClass = (cls: ClassItem) => {
-    setClasses((prev) => [...prev, cls]);
+  const handleAddClass = async (input: { name: string; grade: number; subject: string }) => {
+    if (!teacherProfile) throw new Error("تعذر تحديد حساب المعلم");
+
+    const { data, error } = await supabase
+      .from("classes")
+      .insert({
+        name: input.name,
+        grade: input.grade,
+        subject: input.subject,
+        teacher_id: teacherProfile.id,
+        school_id: teacherProfile.school_id,
+      })
+      .select("id, name, grade, subject, teacher_id, school_id")
+      .single();
+
+    if (error || !data) {
+      console.error("create class failed", error);
+      throw new Error(error?.message || "تعذر حفظ الفصل");
+    }
+
+    const cls: ClassItem = {
+      id: data.id,
+      name: data.name,
+      grade: Number(data.grade),
+      subject: data.subject,
+      teacherId: data.teacher_id,
+      schoolId: data.school_id,
+    };
+
+    setClasses((prev) => [cls, ...prev]);
     setClassStudents((prev) => ({ ...prev, [cls.id]: [] }));
   };
 
@@ -400,11 +531,29 @@ export default function TeacherDashboard() {
       </header>
 
       <main className="mx-auto max-w-6xl space-y-8 px-5 py-8 lg:px-8">
+        {pageLoading && (
+          <div className="rounded-[1.5rem] border border-slate-100 bg-white p-8 text-center font-bold text-slate-500 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+            جارٍ تحميل الفصول والطلاب...
+          </div>
+        )}
+
+        {pageError && !pageLoading && (
+          <div className="rounded-[1.5rem] border border-red-100 bg-red-50 p-5 text-red-700">
+            <p className="font-black">تعذر تحميل البيانات</p>
+            <p className="mt-1 text-sm font-bold">{pageError}</p>
+            <button
+              onClick={loadTeacherData}
+              className="mt-4 rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white"
+            >
+              إعادة المحاولة
+            </button>
+          </div>
+        )}
 
         {/* ══════════════════════════════════════════════════════════════════════
             VIEW: CLASSES LIST
         ══════════════════════════════════════════════════════════════════════ */}
-        {view === "classes" && (
+        {view === "classes" && !pageLoading && !pageError && (
           <>
             {/* ── SECTION 1: هذا الأسبوع ──────────────────────────────────────── */}
             <section>
@@ -445,6 +594,12 @@ export default function TeacherDashboard() {
               <h2 className="mb-4 text-2xl font-black tracking-normal text-[#0b2447]">فصولي</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {classes.length === 0 && (
+                  <div className="rounded-[1.5rem] border border-slate-100 bg-white p-8 text-center text-slate-400 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+                    <div className="text-4xl mb-3">🏫</div>
+                    <p className="font-bold">لا توجد فصول محفوظة بعد</p>
+                  </div>
+                )}
                 {classes.map((cls) => {
                   const students = classStudents[cls.id] ?? [];
                   const avg = calcAvg(students);
@@ -517,7 +672,7 @@ export default function TeacherDashboard() {
         {/* ══════════════════════════════════════════════════════════════════════
             VIEW: STUDENT LIST
         ══════════════════════════════════════════════════════════════════════ */}
-        {view === "students" && activeClass && (
+        {view === "students" && activeClass && !pageLoading && !pageError && (
           <>
             {/* Back button + heading */}
             <div className="flex items-center gap-3">
@@ -648,6 +803,11 @@ export default function TeacherDashboard() {
 
                 {addStudentMode === "manual" && (
                   <div className="space-y-3">
+                    {studentSaveError && (
+                      <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+                        {studentSaveError}
+                      </div>
+                    )}
                     <p className="text-sm text-gray-600">أدخل اسماً في كل سطر:</p>
                     <textarea
                       value={manualNames}
@@ -660,11 +820,11 @@ export default function TeacherDashboard() {
                     <div className="flex gap-3">
                       <button
                         onClick={handleManualSave}
-                        disabled={!manualNames.trim()}
+                        disabled={!manualNames.trim() || manualSaving}
                         className="px-5 py-2.5 rounded-lg text-white text-sm font-bold hover:opacity-90 disabled:opacity-50"
                         style={{ background: "#1D9E75" }}
                       >
-                        حفظ
+                        {manualSaving ? "جارٍ الحفظ..." : "حفظ"}
                       </button>
                       <button
                         onClick={() => setAddStudentMode("choice")}

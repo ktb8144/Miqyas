@@ -11,7 +11,7 @@ type Step =
   | "manual";
 
 interface Props {
-  onSave: (names: string[]) => void;
+  onSave: (names: string[]) => Promise<{ savedCount?: number } | void> | { savedCount?: number } | void;
   initialNames?: string[];
 }
 
@@ -60,6 +60,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
   const [mergeInfo, setMergeInfo] = useState<MergeInfo | null>(null);
   const [manualText, setManualText] = useState("");
   const [savedCount, setSavedCount] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -165,19 +166,16 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
     const cleaned = uniqueCleanNames(editableNames);
     if (!cleaned.length) return;
     setStep("saving");
+    setSaveError(null);
 
     try {
-      // Attempt Supabase save — fail silently in demo
-      await fetch("/api/save-students", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ names: cleaned }),
-      }).catch(() => null);
-    } finally {
+      const result = await onSave(cleaned);
       await new Promise((r) => setTimeout(r, 700));
-      setSavedCount(cleaned.length);
+      setSavedCount(result?.savedCount ?? cleaned.length);
       setStep("done");
-      onSave(cleaned);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "تعذر حفظ الطلاب");
+      setStep("review");
     }
   };
 
@@ -362,6 +360,15 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             >
               تمت إضافة <b>{mergeInfo.added}</b> اسم جديد
               {mergeInfo.duplicates > 0 && <>، وتم تجاهل <b>{mergeInfo.duplicates}</b> اسم مكرر</>}
+            </div>
+          )}
+
+          {saveError && (
+            <div
+              className="mb-4 rounded-xl border px-4 py-3 text-sm font-bold"
+              style={{ background: "#fff5f5", borderColor: "#fecaca", color: "#b91c1c" }}
+            >
+              {saveError}
             </div>
           )}
 

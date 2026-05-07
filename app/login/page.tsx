@@ -1,61 +1,75 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
   const [showPass, setShowPass] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setLoadingMessage("جاري التحقق من الحساب...");
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    if (error) {
-      setError(`Auth error: ${error.message}`);
-      setLoading(false);
-      return;
-    }
-
-    const userId = data.user.id;
-    console.log("Logged in user ID:", userId);
-
-    const { data: profile, error: profileError } = await supabase
-      .from("users")
-      .select("role, name, school_id, grade, subject")
-      .eq("auth_id", userId)
-      .single();
-
-    console.log("Profile:", profile);
-    console.log("Profile error:", profileError);
-
-    if (profileError || !profile) {
-      setError(
-        `Profile error: ${profileError?.message} | ` +
-        `Looking for auth_id: ${userId}`
-      );
-      setLoading(false);
-      return;
-    }
-
-    setTimeout(() => {
-      if (profile.role === "principal") {
-        window.location.href = "/dashboard/principal";
-      } else if (profile.role === "teacher") {
-        window.location.href = "/dashboard/teacher";
-      } else if (profile.role === "admin") {
-        window.location.href = "/admin";
-      } else {
-        setError(`Unknown role: ${profile.role}`);
+      if (error || !data.user) {
+        setError("بيانات الدخول غير صحيحة أو الحساب غير متاح.");
         setLoading(false);
+        setLoadingMessage("");
+        return;
       }
-    }, 500);
+
+      const userId = data.user.id;
+
+      const { data: profile, error: profileError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("auth_id", userId)
+        .single();
+
+      if (profileError || !profile?.role) {
+        console.error("login profile lookup failed", {
+          code: profileError?.code,
+          message: profileError?.message,
+        });
+        setError("تعذر العثور على صلاحيات الحساب. تواصل مع مدير النظام.");
+        setLoading(false);
+        setLoadingMessage("");
+        return;
+      }
+
+      const destinations: Record<string, string> = {
+        admin: "/admin",
+        principal: "/dashboard/principal",
+        teacher: "/dashboard/teacher",
+      };
+
+      const destination = destinations[profile.role];
+      if (!destination) {
+        setError("لا توجد لوحة مخصصة لهذا الحساب. تواصل مع مدير النظام.");
+        setLoading(false);
+        setLoadingMessage("");
+        return;
+      }
+
+      setLoadingMessage("جاري فتح لوحة التحكم...");
+      router.replace(destination);
+    } catch (err) {
+      console.error("login failed", err);
+      setError("تعذر تسجيل الدخول حاليًا. حاول مرة أخرى.");
+      setLoading(false);
+      setLoadingMessage("");
+    }
   };
 
   return (
@@ -148,7 +162,7 @@ export default function LoginPage() {
                   disabled={loading}
                   className="w-full rounded-xl bg-[#159f91] py-3.5 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-[#10877b] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {loading ? "جارٍ الدخول..." : "دخول"}
+                  {loading ? loadingMessage || "جارٍ الدخول..." : "دخول"}
                 </button>
               </form>
 
