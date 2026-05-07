@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Activity,
   BarChart3,
@@ -969,6 +970,7 @@ function ReportsTab() {
 }
 
 export default function AdminPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [modalType, setModalType] = useState<ModalType | null>(null);
   const [editingSchool, setEditingSchool] = useState<AdminSchool | null>(null);
@@ -1058,7 +1060,7 @@ export default function AdminPage() {
       } = await supabase.auth.getSession();
 
       if (!session) {
-        window.location.href = "/login";
+        router.replace("/login");
         return;
       }
 
@@ -1084,7 +1086,7 @@ export default function AdminPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (activeTab === "schools") {
@@ -1105,7 +1107,7 @@ export default function AdminPage() {
   async function handleLogout() {
     setLoggingOut(true);
     await supabase.auth.signOut();
-    window.location.href = "/login";
+    router.replace("/login");
   }
 
   function openAddSchoolModal() {

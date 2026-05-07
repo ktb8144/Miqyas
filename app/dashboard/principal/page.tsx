@@ -86,12 +86,17 @@ function TeacherCard({ teacher }: { teacher: typeof teachers[0] }) {
 export default function PrincipalDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState(0);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) window.location.href = "/login";
+      if (!session) {
+        router.replace("/login");
+        return;
+      }
+      setCheckingSession(false);
     });
-  }, []);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
@@ -135,9 +140,14 @@ export default function PrincipalDashboard() {
       </header>
 
       <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
+        {checkingSession && (
+          <div className="mb-6 rounded-[1.5rem] border border-slate-100 bg-white p-6 text-center text-sm font-extrabold text-slate-500 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+            جارٍ تحميل لوحة المدرسة...
+          </div>
+        )}
 
         {/* TAB 1: لوحة القيادة */}
-        {activeTab === 0 && (
+        {activeTab === 0 && !checkingSession && (
           <div className="space-y-6">
             {/* Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -204,7 +214,7 @@ export default function PrincipalDashboard() {
         )}
 
         {/* TAB 2: مسار نافس */}
-        {activeTab === 1 && (
+        {activeTab === 1 && !checkingSession && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 mb-4">
               <div className="flex items-center justify-between">
@@ -227,7 +237,7 @@ export default function PrincipalDashboard() {
         )}
 
         {/* TAB 3: أداء المعلمين */}
-        {activeTab === 2 && (
+        {activeTab === 2 && !checkingSession && (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-2">
               <h3 className="font-bold text-gray-900">تقرير أداء المعلمين</h3>
@@ -238,7 +248,7 @@ export default function PrincipalDashboard() {
         )}
 
         {/* TAB 4: التنبيهات */}
-        {activeTab === 3 && (
+        {activeTab === 3 && !checkingSession && (
           <div className="space-y-4">
             <div className="rounded-xl border p-5" style={{ background: "#fff5f5", borderColor: "#fecaca" }}>
               <h3 className="font-bold mb-3" style={{ color: "#E24B4A" }}>🔴 تنبيهات عاجلة</h3>
@@ -282,7 +292,7 @@ export default function PrincipalDashboard() {
         )}
 
         {/* TAB 5: التحسن */}
-        {activeTab === 4 && (
+        {activeTab === 4 && !checkingSession && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
               <h3 className="font-bold text-gray-900 mb-6">تطور مستويات الطلاب — شهر بشهر</h3>

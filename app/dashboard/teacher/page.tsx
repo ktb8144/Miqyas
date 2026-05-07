@@ -39,12 +39,9 @@ type ClassStudentsMap = Record<string, Student[]>;
 
 interface TeacherProfile {
   id: string;
-  auth_id: string;
   name: string | null;
   role: string;
   school_id: string;
-  grade: string | null;
-  subject: string | null;
 }
 
 // ─── Report Modal ─────────────────────────────────────────────────────────────
@@ -282,7 +279,7 @@ export default function TeacherDashboard() {
 
       const { data: profile, error: profileError } = await supabase
         .from("users")
-        .select("id, auth_id, name, role, school_id, grade, subject")
+        .select("id, name, role, school_id")
         .eq("auth_id", session.user.id)
         .single();
 
@@ -294,41 +291,28 @@ export default function TeacherDashboard() {
 
       const { data: classRows, error: classesError } = await supabase
         .from("classes")
-        .select("id, name, grade, subject, teacher_id, school_id")
+        .select("id, name, grade, subject, teacher_id, school_id, students(id, name, class_id, score, total)")
         .eq("teacher_id", profile.id)
         .eq("school_id", profile.school_id)
         .order("created_at", { ascending: false });
 
       if (classesError) throw classesError;
 
-      const mappedClasses: ClassItem[] = (classRows ?? []).map((row) => ({
-        id: row.id,
-        name: row.name,
-        grade: Number(row.grade),
-        subject: row.subject,
-        teacherId: row.teacher_id,
-        schoolId: row.school_id,
-      }));
+      const nextStudents: ClassStudentsMap = {};
+      const mappedClasses: ClassItem[] = (classRows ?? []).map((row) => {
+        const students = Array.isArray(row.students) ? row.students : [];
+        nextStudents[row.id] = students.map(mapStudentRow);
+        return {
+          id: row.id,
+          name: row.name,
+          grade: Number(row.grade),
+          subject: row.subject,
+          teacherId: row.teacher_id,
+          schoolId: row.school_id,
+        };
+      });
 
       setClasses(mappedClasses);
-
-      const nextStudents: ClassStudentsMap = Object.fromEntries(mappedClasses.map((cls) => [cls.id, []]));
-      const classIds = mappedClasses.map((cls) => cls.id);
-
-      if (classIds.length > 0) {
-        const { data: studentRows, error: studentsError } = await supabase
-          .from("students")
-          .select("id, name, class_id, score, total")
-          .in("class_id", classIds)
-          .order("created_at", { ascending: true });
-
-        if (studentsError) throw studentsError;
-
-        (studentRows ?? []).forEach((row) => {
-          nextStudents[row.class_id] = [...(nextStudents[row.class_id] ?? []), mapStudentRow(row)];
-        });
-      }
-
       setClassStudents(nextStudents);
     } catch (err) {
       console.error("teacher dashboard load failed", err);
