@@ -257,7 +257,7 @@ export function BatchOMRScanner({
   subject: string;
   grade: string | number;
   weekNumber: number;
-  onComplete: (results: ScanResult[]) => void;
+  onComplete: (results: ScanResult[]) => Promise<void> | void;
 }) {
   const [step, setStep] = useState<Step>("capture");
   const [papers, setPapers] = useState<CapturedPaper[]>([]);
@@ -270,6 +270,7 @@ export function BatchOMRScanner({
   const [captureMessage, setCaptureMessage] = useState<string | null>(null);
   const [retakingPaperId, setRetakingPaperId] = useState<string | null>(null);
   const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -454,14 +455,15 @@ export function BatchOMRScanner({
 
   const saveAll = async () => {
     const valid = results.filter((r) => !r.error);
-    // Attempt Supabase save silently — table may not exist in demo
-    fetch("/api/save-students", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ results: valid.map((r) => ({ name: r.editedName || r.studentName, score: r.score, total: r.total, level: r.level })) }),
-    }).catch(() => null);
-    setStep("done");
-    onComplete(valid);
+    if (!valid.length) return;
+
+    setSaveError(null);
+    try {
+      await onComplete(valid);
+      setStep("done");
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "تعذر حفظ نتائج التصحيح");
+    }
   };
 
   // ─── Derived ──────────────────────────────────────────────────────────────
@@ -683,6 +685,12 @@ export function BatchOMRScanner({
               </div>
             )}
 
+            {saveError && (
+              <div className="mb-4 p-3 rounded-xl text-sm font-bold" style={{ background: "#fff5f5", border: "1px solid #fecaca", color: "#b91c1c" }}>
+                {saveError}
+              </div>
+            )}
+
             {/* Results table */}
             <div className="rounded-xl border border-gray-200 overflow-hidden mb-5">
               <table className="w-full">
@@ -768,6 +776,7 @@ export function BatchOMRScanner({
 
             <button
               onClick={saveAll}
+              disabled={validResults.length === 0}
               className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90"
               style={{ background: "#1D9E75" }}
             >

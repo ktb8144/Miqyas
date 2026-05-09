@@ -86,6 +86,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         students: [],
+        insertedCount: 0,
         added: 0,
         duplicates: cleanedNames.length,
       });
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       students: students ?? [],
+      insertedCount: students?.length ?? 0,
       added: students?.length ?? 0,
       duplicates: cleanedNames.length - (students?.length ?? 0),
     });

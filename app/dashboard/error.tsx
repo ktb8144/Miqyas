@@ -1,5 +1,6 @@
 "use client";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function DashboardError({
   error,
@@ -8,6 +9,8 @@ export default function DashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const router = useRouter();
+
   useEffect(() => {
     console.error("Dashboard error:", error);
   }, [error]);
@@ -22,10 +25,9 @@ export default function DashboardError({
         <h2 className="text-xl font-bold text-gray-900 mb-2">
           حدث خطأ في تحميل الصفحة
         </h2>
-        <p className="text-sm text-gray-500 mb-2">{error.message}</p>
-        {error.digest && (
-          <p className="text-xs text-gray-400 font-mono mb-4">{error.digest}</p>
-        )}
+        <p className="text-sm text-gray-500 mb-2">
+          تعذر فتح لوحة التحكم حاليًا. حاول مرة أخرى أو سجّل الدخول من جديد.
+        </p>
         <div className="flex gap-3 justify-center mt-6">
           <button
             onClick={reset}
@@ -35,7 +37,7 @@ export default function DashboardError({
             إعادة المحاولة
           </button>
           <button
-            onClick={() => { window.location.href = "/login"; }}
+            onClick={() => router.replace("/login")}
             className="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm"
           >
             العودة لتسجيل الدخول

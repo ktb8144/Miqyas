@@ -417,18 +417,46 @@ export default function TeacherDashboard() {
     }
   };
 
-  const handleScanComplete = (results: { editedName: string; studentName: string; score: number }[]) => {
+  const handleScanComplete = async (results: { editedName: string; studentName: string; score: number; total: number }[]) => {
     if (!activeClassId) return;
+
+    const currentStudents = classStudents[activeClassId] ?? [];
+    const updates = results
+      .map((result, index) => {
+        const name = result.editedName || result.studentName;
+        const match = currentStudents.find((student) => normalizeStudentName(student.name) === normalizeStudentName(name)) ?? currentStudents[index];
+        return match ? { student: match, result } : null;
+      })
+      .filter(Boolean) as { student: Student; result: { score: number; total: number } }[];
+
+    if (updates.length === 0) {
+      throw new Error("لم يتم العثور على طلاب مطابقين لحفظ النتائج");
+    }
+
+    const failures: string[] = [];
+    await Promise.all(
+      updates.map(async ({ student, result }) => {
+        const { error } = await supabase
+          .from("students")
+          .update({ score: result.score, total: result.total })
+          .eq("id", student.id)
+          .eq("class_id", activeClassId);
+
+        if (error) failures.push(student.name);
+      })
+    );
+
+    if (failures.length > 0) {
+      throw new Error(`تعذر حفظ نتائج ${failures.length} طالب`);
+    }
+
     setClassStudents((prev) => {
       const updated = [...(prev[activeClassId] ?? [])];
-      results.forEach((r, i) => {
-        const name = r.editedName || r.studentName;
-        const match = updated.find((s) => s.name === name) ?? updated[i];
-        if (match) {
-          match.score = r.score;
-        }
+      updates.forEach(({ student, result }) => {
+        const index = updated.findIndex((item) => item.id === student.id);
+        if (index >= 0) updated[index] = { ...updated[index], score: result.score, total: result.total };
       });
-      return { ...prev, [activeClassId]: [...updated] };
+      return { ...prev, [activeClassId]: updated };
     });
   };
 
