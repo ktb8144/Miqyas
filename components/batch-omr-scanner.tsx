@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
 import { ETEC_LEVELS } from "@/lib/demo-data";
+import { toEnglishDigits } from "@/lib/format";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -18,7 +19,7 @@ interface CapturedPaper {
 
 interface ScanResult {
   paperId: string;
-  studentName: string;    // from Gemini
+  studentName: string;    // extracted by AI
   editedName: string;     // teacher-editable
   answers: Record<string, string>;
   score: number;
@@ -59,6 +60,10 @@ function sendBrowserNotification(body: string) {
   } else if (Notification.permission !== "denied") {
     Notification.requestPermission().then((p) => { if (p === "granted") show(); });
   }
+}
+
+function formatCount(value: number) {
+  return toEnglishDigits(value);
 }
 
 // ─── Retake Modal (single paper in review mode) ───────────────────────────────
@@ -176,7 +181,7 @@ function PaperReviewModal({
             <p className="text-xs text-gray-400 mt-0.5">راجع قراءة الطالب فقط، نموذج التصحيح مركزي</p>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold leading-none" style={{ color: levelColor }}>{result.score}/{total}</div>
+            <div className="text-3xl font-bold leading-none" style={{ color: levelColor }}>{toEnglishDigits(`${result.score}/${total}`)}</div>
             <div className="text-xs font-medium mt-1" style={{ color: levelColor }}>{result.level}</div>
           </div>
         </div>
@@ -193,7 +198,7 @@ function PaperReviewModal({
 
             return (
               <div key={q} className="flex items-center gap-2">
-                <span className="w-7 text-xs text-gray-500 text-center flex-shrink-0 font-medium">س{q}</span>
+                <span className="w-7 text-xs text-gray-500 text-center flex-shrink-0 font-medium">س{formatCount(q)}</span>
                 <div className="flex gap-1 flex-1">
                   {ARABIC_LETTERS.map((letter) => {
                     const isSelected = selected === letter;
@@ -347,7 +352,7 @@ export function BatchOMRScanner({
       });
       clearTimeout(timer);
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || "scan failed");
+      if (!res.ok || json.error) throw new Error(json.error || "تعذّر تحليل الورقة");
 
       const result = json.result as {
         studentName?: string;
@@ -376,7 +381,7 @@ export function BatchOMRScanner({
       return {
         paperId, studentName: "", editedName: "", answers: {}, score: 0,
         total: Q_COUNT, percentage: 0, level: "دون الأساسي", weakSkills: [], error: true,
-        errorMsg: isTimeout ? "انتهت المهلة (٢٠ ثانية) — أعد التصوير" : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
+        errorMsg: isTimeout ? "انتهت المهلة (20 ثانية) — أعد التصوير" : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
         thumbBase64,
       };
     }
@@ -433,7 +438,7 @@ export function BatchOMRScanner({
         body: JSON.stringify({ studentAnswers: answers, subject, grade, weekNumber }),
       });
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || "regrade failed");
+      if (!res.ok || json.error) throw new Error(json.error || "تعذّرت إعادة التصحيح");
       const graded = json.result as { answers: Record<string, string>; score: number; total: number; percentage: number; level: string; weakSkills: { question: string; skill: string }[] };
       setResults((prev) =>
         prev.map((r) =>
@@ -556,7 +561,7 @@ export function BatchOMRScanner({
                     ضع الورقة داخل الإطار
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 py-1.5 text-white text-xs text-center" style={{ background: "rgba(0,0,0,0.55)" }}>
-                    {captureMessage ?? `تم تصوير ${papers.length} / ٤٠ ورقة`}
+                    {captureMessage ?? `تم تصوير ${formatCount(papers.length)} / ${formatCount(MAX_PAPERS)} ورقة`}
                   </div>
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
@@ -575,13 +580,13 @@ export function BatchOMRScanner({
                 </div>
                 {papers.length > 0 && (
                   <button onClick={processAll} className="w-full py-3.5 rounded-xl text-white font-bold text-base shadow-md hover:opacity-90" style={{ background: "#1D9E75" }}>
-                    بدء تصحيح {papers.length} ورقة
+                    بدء تصحيح {formatCount(papers.length)} ورقة
                   </button>
                 )}
               </div>
             ) : papers.length >= MAX_PAPERS ? (
               <div className="text-center py-5 mb-5 rounded-xl border border-amber-200" style={{ background: "#fffbeb" }}>
-                <p className="text-amber-700 font-bold mb-1">وصلت للحد الأقصى ٤٠ ورقة</p>
+                <p className="text-amber-700 font-bold mb-1">وصلت للحد الأقصى {formatCount(MAX_PAPERS)} ورقة</p>
                 <p className="text-amber-600 text-sm">اضغط بدء التصحيح لمعالجة الأوراق</p>
               </div>
             ) : (
@@ -591,7 +596,7 @@ export function BatchOMRScanner({
                   تصوير ورقة
                 </button>
                 <p className="text-gray-400 text-sm">
-                  {papers.length === 0 ? `صوّر أوراق الـ ${totalStudents} طالب` : `تم تصوير ${papers.length} / ٤٠ ورقة — يمكنك إضافة المزيد`}
+                  {papers.length === 0 ? `صوّر أوراق الـ ${formatCount(totalStudents)} طالب` : `تم تصوير ${formatCount(papers.length)} / ${formatCount(MAX_PAPERS)} ورقة — يمكنك إضافة المزيد`}
                 </p>
               </div>
             )}
@@ -601,25 +606,25 @@ export function BatchOMRScanner({
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">
-                    تم تصوير <span className="font-bold" style={{ color: "#1D9E75" }}>{papers.length}</span> / <span className="font-bold">٤٠</span> ورقة
+                    تم تصوير <span className="font-bold" style={{ color: "#1D9E75" }}>{formatCount(papers.length)}</span> / <span className="font-bold">{formatCount(MAX_PAPERS)}</span> ورقة
                   </span>
                   {totalStudents > 0 && papers.length < totalStudents && papers.length < MAX_PAPERS && (
                     <span className="text-xs text-amber-600 font-medium">
-                      ⚠️ {totalStudents - papers.length} ورقة متبقية
+                      ⚠️ {formatCount(totalStudents - papers.length)} ورقة متبقية
                     </span>
                   )}
                 </div>
                 <div className="grid grid-cols-5 gap-2 mb-4">
                   {papers.map((p, i) => (
                     <div key={p.id} className="relative group rounded-lg overflow-hidden border-2 border-gray-200" style={{ aspectRatio: "3/4" }}>
-                      <img src={`data:image/jpeg;base64,${p.thumbBase64}`} alt={`ورقة ${i + 1}`} className="w-full h-full object-cover" />
+                      <img src={`data:image/jpeg;base64,${p.thumbBase64}`} alt={`ورقة ${formatCount(i + 1)}`} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button onClick={() => setPapers((prev) => prev.filter((pp) => pp.id !== p.id))} className="w-7 h-7 rounded-full bg-red-500 text-white text-lg leading-none flex items-center justify-center">
                           ×
                         </button>
                       </div>
                       <div className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-xs rounded px-1 leading-4">
-                        {i + 1}
+                        {formatCount(i + 1)}
                       </div>
                     </div>
                   ))}
@@ -627,7 +632,7 @@ export function BatchOMRScanner({
                 {/* Start grading button — always visible once papers exist and camera is closed */}
                 {!cameraOpen && (
                   <button onClick={processAll} className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:opacity-90" style={{ background: "#1D9E75" }}>
-                    بدء تصحيح {papers.length} ورقة
+                    بدء تصحيح {formatCount(papers.length)} ورقة
                   </button>
                 )}
               </div>
@@ -643,7 +648,7 @@ export function BatchOMRScanner({
               <div className="absolute top-0 left-0 w-20 h-20 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: "#7F77DD", borderTopColor: "transparent" }} />
             </div>
             <p className="font-bold text-gray-900 text-lg mb-1">
-              جارٍ تحليل الأوراق... {processingCount}/{papers.length}
+              جارٍ تحليل الأوراق... {toEnglishDigits(`${processingCount}/${papers.length}`)}
             </p>
             <p className="text-gray-500 text-sm mb-5">
               {processingCount < papers.length
@@ -670,7 +675,7 @@ export function BatchOMRScanner({
                 const count = validResults.filter((r) => r.level === lvl).length;
                 return (
                   <div key={lvl} className="rounded-xl p-3 text-center border" style={{ borderColor: cfg.color + "40", background: cfg.color + "12" }}>
-                    <div className="text-2xl font-bold" style={{ color: cfg.color }}>{count}</div>
+                    <div className="text-2xl font-bold" style={{ color: cfg.color }}>{formatCount(count)}</div>
                     <div className="text-xs font-medium text-gray-600 mt-0.5">{lvl}</div>
                   </div>
                 );
@@ -681,7 +686,7 @@ export function BatchOMRScanner({
             {errorResults.length > 0 && (
               <div className="mb-4 p-3 rounded-xl text-sm flex items-start gap-2" style={{ background: "#fff5f5", border: "1px solid #fecaca", color: "#b91c1c" }}>
                 <span>⚠️</span>
-                <span>{errorResults.length} ورقة لم تتم قراءتها — اضغط أعد التصوير لكل ورقة فاشلة</span>
+                <span>{formatCount(errorResults.length)} ورقة لم تتم قراءتها — اضغط أعد التصوير لكل ورقة فاشلة</span>
               </div>
             )}
 
@@ -713,7 +718,7 @@ export function BatchOMRScanner({
                             {r.thumbBase64 && (
                               <img src={`data:image/jpeg;base64,${r.thumbBase64}`} alt="" className="w-7 h-9 object-cover rounded border border-gray-200" />
                             )}
-                            <span className="text-gray-400 text-sm">{i + 1}</span>
+                            <span className="text-gray-400 text-sm">{formatCount(i + 1)}</span>
                           </div>
                         </td>
                         <td className="px-3 py-3">
@@ -737,7 +742,7 @@ export function BatchOMRScanner({
                           )}
                         </td>
                         <td className="px-3 py-3 text-sm font-bold text-gray-900">
-                          {r.error ? "—" : `${r.score}/${r.total}`}
+                          {r.error ? "—" : toEnglishDigits(`${r.score}/${r.total}`)}
                         </td>
                         <td className="px-3 py-3">
                           {cfg && !r.error ? (
@@ -780,7 +785,7 @@ export function BatchOMRScanner({
               className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90"
               style={{ background: "#1D9E75" }}
             >
-              💾 حفظ نتائج {validResults.length} طالب في الفصل
+              💾 حفظ نتائج {formatCount(validResults.length)} طالب في الفصل
             </button>
           </div>
         )}
@@ -790,7 +795,7 @@ export function BatchOMRScanner({
           <div className="text-center py-10">
             <div className="text-6xl mb-4">🎉</div>
             <p className="text-2xl font-bold text-gray-900 mb-2">
-              تم حفظ نتائج {validResults.length} طالب بنجاح
+              تم حفظ نتائج {formatCount(validResults.length)} طالب بنجاح
             </p>
             <p className="text-gray-500 text-sm">يمكنك الآن مراجعة النتائج في جدول الطلاب</p>
           </div>

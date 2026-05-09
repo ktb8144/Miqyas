@@ -2,12 +2,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
-import { DemoBanner } from "@/components/demo-banner";
 import { LevelBadge } from "@/components/level-badge";
 import { StudentImportFlow } from "@/components/student-import-flow";
 import { BatchOMRScanner } from "@/components/batch-omr-scanner";
-import { getLevel } from "@/lib/demo-data";
 import { supabase } from "@/lib/supabase";
+import { toEnglishDigits } from "@/lib/format";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,8 +39,11 @@ type ClassStudentsMap = Record<string, Student[]>;
 interface TeacherProfile {
   id: string;
   name: string | null;
+  email: string | null;
   role: string;
-  school_id: string;
+  school_id: string | null;
+  subject: string | null;
+  schoolName: string | null;
 }
 
 // ─── Report Modal ─────────────────────────────────────────────────────────────
@@ -246,11 +248,34 @@ export default function TeacherDashboard() {
   // ── Derived values ───────────────────────────────────────────────────────────
   const activeClass = classes.find((c) => c.id === activeClassId) ?? null;
   const activeStudents: Student[] = activeClassId ? (classStudents[activeClassId] ?? []) : [];
+  const weeklyClass = activeClass ?? classes[0] ?? null;
+  const teacherDisplayName = teacherProfile?.name?.trim() || "المعلم";
+  const teacherSubtitle = `${teacherDisplayName}${teacherProfile?.subject ? ` — ${teacherProfile.subject}` : ""}`;
 
   const calcAvg = (students: Student[]) => {
     const scored = students.filter((s) => s.score > 0);
     if (!scored.length) return null;
     return Math.round(scored.reduce((acc, s) => acc + (s.score / s.total) * 100, 0) / scored.length);
+  };
+
+  const getPerformanceLevel = (score: number, total: number) => {
+    const pct = (score / total) * 100;
+    if (pct >= 90) return "متقدم";
+    if (pct >= 70) return "متمكن";
+    if (pct >= 50) return "أساسي";
+    return "دون الأساسي";
+  };
+
+  const getGradeLabel = (grade?: number | null) => {
+    const labels: Record<number, string> = {
+      1: "الأول",
+      2: "الثاني",
+      3: "الثالث",
+      4: "الرابع",
+      5: "الخامس",
+      6: "السادس",
+    };
+    return grade ? labels[grade] ?? String(grade) : "غير محدد";
   };
 
   const normalizeStudentName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
@@ -279,7 +304,7 @@ export default function TeacherDashboard() {
 
       const { data: profile, error: profileError } = await supabase
         .from("users")
-        .select("id, name, role, school_id")
+        .select("id, name, email, role, school_id, subject")
         .eq("auth_id", session.user.id)
         .single();
 
@@ -287,7 +312,24 @@ export default function TeacherDashboard() {
         throw new Error("تعذر التحقق من حساب المعلم");
       }
 
-      setTeacherProfile(profile as TeacherProfile);
+      let schoolName: string | null = null;
+      const { data: school } = await supabase
+        .from("schools")
+        .select("name")
+        .eq("id", profile.school_id)
+        .maybeSingle();
+
+      schoolName = school?.name ?? null;
+
+      setTeacherProfile({
+        id: profile.id,
+        name: profile.name ?? null,
+        email: profile.email ?? null,
+        role: profile.role,
+        school_id: profile.school_id,
+        subject: profile.subject ?? null,
+        schoolName,
+      });
 
       const { data: classRows, error: classesError } = await supabase
         .from("classes")
@@ -333,17 +375,22 @@ export default function TeacherDashboard() {
     setReportError(null);
     setReportLoading(true);
     try {
+      const reportClass = activeClass ?? weeklyClass;
+      if (!reportClass) {
+        throw new Error("أضف فصلًا أولًا لتوليد التقرير");
+      }
+
       const res = await fetch("/api/generate-report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          teacherName: "عبدالله السالم",
-          skill: "الكسور",
-          grade: "الثالث",
-          subject: "الرياضيات",
+          teacherName: teacherProfile?.name?.trim() || "المعلم",
+          skill: `متابعة ${reportClass.subject}`,
+          grade: getGradeLabel(reportClass.grade),
+          subject: reportClass.subject || teacherProfile?.subject || "غير محدد",
           results: activeStudents
             .filter((s) => s.score > 0)
-            .map((s) => ({ name: s.name, score: s.score, total: s.total, level: getLevel(s.score, s.total) })),
+            .map((s) => ({ name: s.name, score: s.score, total: s.total, level: getPerformanceLevel(s.score, s.total) })),
         }),
       });
       const json = await res.json();
@@ -447,7 +494,7 @@ export default function TeacherDashboard() {
     );
 
     if (failures.length > 0) {
-      throw new Error(`تعذر حفظ نتائج ${failures.length} طالب`);
+      throw new Error(`تعذر حفظ نتائج ${toEnglishDigits(failures.length)} طالب`);
     }
 
     setClassStudents((prev) => {
@@ -512,8 +559,6 @@ export default function TeacherDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
-      <DemoBanner />
-
       {reportOpen && (
         <ReportModal report={report} loading={reportLoading} error={reportError} onClose={() => setReportOpen(false)} />
       )}
@@ -531,7 +576,7 @@ export default function TeacherDashboard() {
           <BrandLogo
             size="sm"
             contextTitle="لوحة المعلم"
-            contextSubtitle="عبدالله السالم — الثالث رياضيات"
+            contextSubtitle={teacherSubtitle}
           />
           <button
             onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
@@ -574,30 +619,43 @@ export default function TeacherDashboard() {
                 <h2 className="mt-2 text-2xl font-black tracking-normal text-[#0b2447]">مهمة التقييم الحالية</h2>
               </div>
               <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                <div className="flex items-center justify-between flex-wrap gap-4">
-                  <div>
-                    <div className="text-sm font-bold text-slate-400 mb-1">مهمة هذا الأسبوع</div>
-                    <h3 className="text-3xl font-black text-[#0b2447]">الكسور</h3>
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">الثالث ابتدائي</span>
-                      <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">الرياضيات</span>
+                {weeklyClass ? (
+                  <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div>
+                      <div className="text-sm font-bold text-slate-400 mb-1">الفصل الجاهز للتقييم</div>
+                      <h3 className="text-3xl font-black text-[#0b2447]">{weeklyClass.name}</h3>
+                      <div className="flex items-center gap-3 mt-2">
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                          الصف {getGradeLabel(weeklyClass.grade)}
+                        </span>
+                        <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
+                          {weeklyClass.subject || teacherProfile?.subject || "مادة غير محددة"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700">
+                        جاهز
+                      </span>
+                      <button
+                        onClick={generateReport}
+                        className="flex items-center gap-2 rounded-xl bg-[#0b2447] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
+                      >
+                        توليد تقرير الفصل
+                      </button>
+                      <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
+                        طباعة
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700">
-                      مكتمل
-                    </span>
-                    <button
-                      onClick={generateReport}
-                      className="flex items-center gap-2 rounded-xl bg-[#0b2447] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
-                    >
-                      توليد تقرير الفصل
-                    </button>
-                    <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
-                      طباعة
-                    </button>
+                ) : (
+                  <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-6 text-center">
+                    <h3 className="text-xl font-black text-[#0b2447]">أضف فصلًا للبدء في تنفيذ التقييمات.</h3>
+                    <p className="mt-2 text-sm font-bold text-slate-400">
+                      بعد إضافة الفصل والطلاب ستظهر هنا مهام التقييم والتقارير.
+                    </p>
                   </div>
-                </div>
+                )}
               </div>
             </section>
 
@@ -637,7 +695,7 @@ export default function TeacherDashboard() {
                       {/* Stats */}
                       <div className="flex items-center gap-4">
                         <div className="text-center">
-                          <div className="text-2xl font-black text-[#0b2447]">{students.length}</div>
+                          <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(students.length)}</div>
                           <div className="text-xs font-bold text-slate-400">طالب</div>
                         </div>
                         <div className="h-10 w-px bg-slate-100" />
@@ -645,7 +703,7 @@ export default function TeacherDashboard() {
                           {avg !== null ? (
                             <>
                               <div className="text-2xl font-bold" style={{ color: avg >= 70 ? "#1D9E75" : avg >= 50 ? "#BA7517" : "#E24B4A" }}>
-                                {avg}٪
+                                {toEnglishDigits(avg)}٪
                               </div>
                               <div className="text-xs font-bold text-slate-400">متوسط هذا الأسبوع</div>
                             </>
@@ -703,7 +761,9 @@ export default function TeacherDashboard() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <div className="text-sm font-bold text-slate-400 mb-0.5">مهمة هذا الأسبوع</div>
-                  <div className="font-black text-[#0b2447]">الكسور — الرياضيات</div>
+                  <div className="font-black text-[#0b2447]">
+                    {activeClass.name} — {activeClass.subject || teacherProfile?.subject || "مادة غير محددة"}
+                  </div>
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <button
@@ -725,7 +785,7 @@ export default function TeacherDashboard() {
               <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                 <div>
                   <h3 className="font-black text-[#0b2447]">قائمة الطلاب</h3>
-                  <p className="mt-0.5 text-sm font-bold text-slate-400">{activeStudents.length} طالب</p>
+                  <p className="mt-0.5 text-sm font-bold text-slate-400">{toEnglishDigits(activeStudents.length)} طالب</p>
                 </div>
                 {/* Add students button */}
                 <button
@@ -756,11 +816,11 @@ export default function TeacherDashboard() {
                     <tbody className="divide-y divide-gray-50">
                       {activeStudents.map((s, i) => (
                         <tr key={s.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-gray-400 text-sm">{i + 1}</td>
+                          <td className="px-4 py-3 text-gray-400 text-sm">{toEnglishDigits(i + 1)}</td>
                           <td className="px-4 py-3 font-medium text-gray-900">{s.name}</td>
                           <td className="px-4 py-3">
                             {s.score > 0 ? (
-                              <><span className="font-bold text-gray-900">{s.score}</span><span className="text-gray-400">/{s.total}</span></>
+                              <><span className="font-bold text-gray-900">{toEnglishDigits(s.score)}</span><span className="text-gray-400">/{toEnglishDigits(s.total)}</span></>
                             ) : (
                               <span className="text-gray-300 text-sm">لم يُقيَّم بعد</span>
                             )}
@@ -825,7 +885,7 @@ export default function TeacherDashboard() {
                       value={manualNames}
                       onChange={(e) => setManualNames(e.target.value)}
                       rows={6}
-                      placeholder={"أحمد محمد السلمي\nعبدالرحمن خالد\nسلطان فهد العنزي"}
+                      placeholder={"اسم الطالب الأول\nاسم الطالب الثاني\nاسم الطالب الثالث"}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 resize-y"
                       style={{ direction: "rtl" }}
                     />

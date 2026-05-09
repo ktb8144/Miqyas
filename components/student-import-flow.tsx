@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
+import { toEnglishDigits } from "@/lib/format";
 
 type Step =
   | "choice"
@@ -109,7 +110,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
     runExtraction(base64);
   };
 
-  // ── Gemini extraction ────────────────────────────────────────────────────────
+  // ── AI extraction ───────────────────────────────────────────────────────────
 
   const runExtraction = async (base64: string) => {
     setStep("extracting");
@@ -204,7 +205,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
           <h3 className="font-bold text-gray-900 text-lg">إضافة طلاب الفصل</h3>
           <p className="text-gray-500 text-sm">
             {editableNames.length > 0
-              ? `القائمة الحالية تحتوي ${editableNames.length} اسم — يمكنك إضافة صفحات أخرى`
+              ? `القائمة الحالية تحتوي ${toEnglishDigits(editableNames.length)} اسم — يمكنك إضافة صفحات أخرى`
               : "لم يتم إضافة طلاب بعد — ابدأ الآن"}
           </p>
         </div>
@@ -238,7 +239,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
                 className="px-3 py-1 rounded-full text-xs font-bold text-white"
                 style={{ background: "#1D9E75" }}
               >
-                مدعوم بـ Gemini Vision
+                مدعوم بالذكاء الاصطناعي
               </span>
             </button>
 
@@ -327,7 +328,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             />
           </div>
           <p className="text-gray-700 font-bold text-lg">جارٍ قراءة الأسماء...</p>
-          <p className="text-gray-400 text-sm mt-1">Gemini Vision يحلل كشف الحضور</p>
+          <p className="text-gray-400 text-sm mt-1">الذكاء الاصطناعي يحلل كشف الحضور</p>
         </div>
       )}
 
@@ -342,7 +343,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
                 className="mr-2 px-2.5 py-0.5 rounded-full text-sm font-bold text-white"
                 style={{ background: "#1D9E75" }}
               >
-                {editableNames.filter(n => n.trim()).length} اسم
+                {toEnglishDigits(editableNames.filter(n => n.trim()).length)} اسم
               </span>
             </div>
             <button
@@ -358,8 +359,8 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
               className="mb-4 rounded-xl border px-4 py-3 text-sm"
               style={{ background: "#f0fdfa", borderColor: "#99f6e4", color: "#0f766e" }}
             >
-              تمت إضافة <b>{mergeInfo.added}</b> اسم جديد
-              {mergeInfo.duplicates > 0 && <>، وتم تجاهل <b>{mergeInfo.duplicates}</b> اسم مكرر</>}
+              تمت إضافة <b>{toEnglishDigits(mergeInfo.added)}</b> اسم جديد
+              {mergeInfo.duplicates > 0 && <>، وتم تجاهل <b>{toEnglishDigits(mergeInfo.duplicates)}</b> اسم مكرر</>}
             </div>
           )}
 
@@ -379,7 +380,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             >
               <span>⚠️</span>
               <span>
-                تم استخراج {editableNames.filter(n => n.trim()).length} اسم فقط — تحقق من الصورة أو أضف الأسماء يدوياً
+                تم استخراج {toEnglishDigits(editableNames.filter(n => n.trim()).length)} اسم فقط — تحقق من الصورة أو أضف الأسماء يدوياً
               </span>
             </div>
           )}
@@ -388,7 +389,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
           <div className="space-y-2 mb-4 max-h-72 overflow-y-auto pl-1">
             {editableNames.map((name, i) => (
               <div key={i} className="flex items-center gap-2">
-                <span className="text-gray-400 text-sm w-6 text-center flex-shrink-0">{i + 1}</span>
+                <span className="text-gray-400 text-sm w-6 text-center flex-shrink-0">{toEnglishDigits(i + 1)}</span>
                 <input
                   className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-right text-sm focus:outline-none focus:ring-2"
                   style={{ focusRingColor: "#1D9E75" } as React.CSSProperties}
@@ -423,7 +424,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90 disabled:opacity-50"
             style={{ background: "#1D9E75" }}
           >
-            💾 حفظ {editableNames.filter(n => n.trim()).length} طالب في الفصل
+            💾 حفظ {toEnglishDigits(editableNames.filter(n => n.trim()).length)} طالب في الفصل
           </button>
         </div>
       )}
@@ -447,7 +448,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
         <div className="text-center py-8">
           <div className="text-6xl mb-4">✅</div>
           <p className="text-2xl font-bold text-gray-900 mb-2">
-            تم إضافة {savedCount} طالب بنجاح
+            تم إضافة {toEnglishDigits(savedCount)} طالب بنجاح
           </p>
           <p className="text-gray-500">يمكنك الآن بدء التقييم الأسبوعي</p>
         </div>
@@ -472,12 +473,12 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             <textarea
               className="w-full border border-gray-300 rounded-xl px-4 py-3 text-right text-sm focus:outline-none focus:ring-2 resize-none"
               rows={10}
-              placeholder={"أحمد محمد السلمي\nعبدالرحمن خالد\nسلطان فهد العنزي\n..."}
+              placeholder={"اسم الطالب الأول\nاسم الطالب الثاني\nاسم الطالب الثالث\n..."}
               value={manualText}
               onChange={(e) => setManualText(e.target.value)}
             />
             <p className="text-xs text-gray-400 mt-1">
-              {manualText.split("\n").filter(n => n.trim()).length} اسم مُدخل
+              {toEnglishDigits(manualText.split("\n").filter(n => n.trim()).length)} اسم مُدخل
             </p>
           </div>
 

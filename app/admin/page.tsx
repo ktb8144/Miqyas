@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
+import { toEnglishDigits } from "@/lib/format";
 
 type Tab = "overview" | "schools" | "users" | "questions" | "trialRequests" | "reports";
 type ModalType = "school" | "user" | "question";
@@ -188,7 +189,16 @@ const navItems = [
 ] satisfies { id: Tab; label: string; icon: typeof LayoutDashboard }[];
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat("ar-SA").format(value);
+  return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
+}
+
+function difficultyLabel(value: string) {
+  const labels: Record<string, string> = {
+    easy: "سهل",
+    medium: "متوسط",
+    hard: "متقدم",
+  };
+  return labels[value] ?? value;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -467,9 +477,9 @@ function AdminModal({
                 </select>
               ) : field.type === "questionStatus" ? (
                 <select name={field.name} defaultValue={initialValues?.[field.name] ?? "draft"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
-                  <option value="draft">draft</option>
-                  <option value="active">active</option>
-                  <option value="archived">archived</option>
+                  <option value="draft">مسودة</option>
+                  <option value="active">مفعل</option>
+                  <option value="archived">مؤرشف</option>
                 </select>
               ) : field.type === "textarea" ? (
                 <textarea name={field.name} required={type === "question" && field.name === "question_text"} defaultValue={initialValues?.[field.name]} rows={4} className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
@@ -595,7 +605,7 @@ function OverviewTab({ overview, state, onAddSchool }: { overview: OverviewData;
               <div key={item.skill}>
                 <div className="mb-2 flex items-center justify-between text-sm font-bold">
                   <span className="text-[#0b2447]">{item.skill}</span>
-                  <span className="text-slate-400">{item.value}%</span>
+                  <span className="text-slate-400">{toEnglishDigits(item.value)}%</span>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
                   <div className="h-full rounded-full" style={{ width: `${item.value}%`, backgroundColor: item.color }} />
@@ -699,6 +709,7 @@ function UsersTab({
   const roleLabel: Record<string, string> = {
     admin: "مدير نظام",
     principal: "مدير مدرسة",
+    supervisor: "مشرف",
     teacher: "معلم",
   };
 
@@ -748,7 +759,7 @@ function UsersTab({
               <div className="mt-5 space-y-2 text-sm font-bold text-slate-500">
                 <div className="flex justify-between gap-3">
                   <span>الدور</span>
-                  <span className="text-[#0b2447]">{roleLabel[user.role]}</span>
+                  <span className="text-[#0b2447]">{roleLabel[user.role] ?? user.role}</span>
                 </div>
                 <div className="flex justify-between gap-3">
                   <span>المدرسة</span>
@@ -826,10 +837,10 @@ function QuestionsTab({
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-extrabold text-[#159f91]">{question.subject}</span>
                       <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-500">{question.grade}</span>
-                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-500">الأسبوع {question.week_number}</span>
+                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-500">الأسبوع {toEnglishDigits(question.week_number)}</span>
                     </div>
                     <h3 className="font-black text-[#0b2447]">{question.skill}</h3>
-                    <p className="mt-1 text-sm font-semibold text-slate-400">الصعوبة: {question.difficulty}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-400">الصعوبة: {difficultyLabel(question.difficulty)}</p>
                     <p className="mt-1 text-sm font-semibold text-slate-400">{question.question_text}</p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -899,7 +910,7 @@ function TrialRequestsTab({
                   <td className="px-5 py-4 font-bold text-slate-500">{request.email}</td>
                   <td className="px-5 py-4"><StatusBadge status={request.status} /></td>
                   <td className="px-5 py-4 font-bold text-slate-500">
-                    {request.created_at ? new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(request.created_at)) : "—"}
+                    {request.created_at ? toEnglishDigits(new Intl.DateTimeFormat("ar-SA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(request.created_at))) : "—"}
                   </td>
                   <td className="px-5 py-4">
                     <select
@@ -908,9 +919,9 @@ function TrialRequestsTab({
                       onChange={(event) => onUpdateStatus(request, event.target.value)}
                       className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-extrabold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white disabled:opacity-60"
                     >
-                      <option value="new">new</option>
-                      <option value="contacted">contacted</option>
-                      <option value="closed">closed</option>
+                      <option value="new">جديد</option>
+                      <option value="contacted">تم التواصل</option>
+                      <option value="closed">مغلق</option>
                     </select>
                   </td>
                 </tr>
@@ -944,10 +955,10 @@ function ReportsTab() {
         }
       />
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="متوسط المدارس" value="٨١٪" hint="أداء إجمالي مستقر" icon={TrendingUp} accent="#159f91" />
-        <StatCard title="أداء المعلمين" value="٧٨٪" hint="إكمال التقييمات الأسبوعية" icon={UsersRound} accent="#0b2447" />
-        <StatCard title="طلاب بحاجة دعم" value="١٢٧" hint="دون المستوى الأساسي" icon={TrendingDown} accent="#ef4444" />
-        <StatCard title="تقارير جاهزة" value="٢٤" hint="قابلة للطباعة والتصدير" icon={FileText} accent="#f59e0b" />
+        <StatCard title="متوسط المدارس" value="81٪" hint="أداء إجمالي مستقر" icon={TrendingUp} accent="#159f91" />
+        <StatCard title="أداء المعلمين" value="78٪" hint="إكمال التقييمات الأسبوعية" icon={UsersRound} accent="#0b2447" />
+        <StatCard title="طلاب بحاجة دعم" value="127" hint="دون المستوى الأساسي" icon={TrendingDown} accent="#ef4444" />
+        <StatCard title="تقارير جاهزة" value="24" hint="قابلة للطباعة والتصدير" icon={FileText} accent="#f59e0b" />
       </div>
       <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <h2 className="text-lg font-black text-[#0b2447]">أكثر المهارات ضعفًا</h2>
@@ -956,7 +967,7 @@ function ReportsTab() {
             <div key={item.skill} className="rounded-2xl bg-slate-50/70 p-5">
               <div className="mb-3 flex items-center justify-between text-sm font-bold">
                 <span className="text-[#0b2447]">{item.skill}</span>
-                <span className="text-slate-400">{item.value}%</span>
+                <span className="text-slate-400">{toEnglishDigits(item.value)}%</span>
               </div>
               <div className="h-2.5 overflow-hidden rounded-full bg-white">
                 <div className="h-full rounded-full" style={{ width: `${item.value}%`, backgroundColor: item.color }} />
@@ -1215,12 +1226,12 @@ export default function AdminPage() {
 
     if (!name || !email || !role) {
       window.alert("حدث خطأ");
-      throw new Error("User name, email and role are required");
+      throw new Error("الاسم والبريد الإلكتروني والدور مطلوبة");
     }
 
     if (role !== "admin" && !school_id) {
       window.alert("حدث خطأ");
-      throw new Error("School is required for non-admin users");
+      throw new Error("يجب ربط المستخدم بمدرسة");
     }
 
     const endpoint = editingUser ? `/api/admin/users/${editingUser.id}` : "/api/admin/users";
@@ -1282,7 +1293,7 @@ export default function AdminPage() {
 
     if (!subject || !grade || !question_text) {
       window.alert("حدث خطأ");
-      throw new Error("Question subject, grade and text are required");
+      throw new Error("المادة والصف ونص السؤال مطلوبة");
     }
 
     const body = {

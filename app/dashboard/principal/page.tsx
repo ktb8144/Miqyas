@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
-import { DemoBanner } from "@/components/demo-banner";
 import { supabase } from "@/lib/supabase";
+import { toEnglishDigits } from "@/lib/format";
 import {
   Bar,
   BarChart,
@@ -42,11 +42,11 @@ type PrincipalReport = {
 };
 
 function formatNumber(value: number) {
-  return new Intl.NumberFormat("ar-SA").format(value);
+  return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
 }
 
 function formatPct(value: number | null) {
-  return value === null ? "لا توجد بيانات" : `${value}%`;
+  return value === null ? "لا توجد بيانات" : `${toEnglishDigits(value)}%`;
 }
 
 function EmptyState({ children }: { children: React.ReactNode }) {
@@ -189,8 +189,6 @@ export default function PrincipalDashboard() {
 
   return (
     <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
-      <DemoBanner />
-
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
           <BrandLogo
@@ -301,10 +299,10 @@ export default function PrincipalDashboard() {
                 <h3 className="font-black text-[#0b2447]">جاهزية نافس</h3>
                 <p className="mt-1 text-sm font-bold text-slate-400">{report.readinessIndex.label}</p>
                 <div className="my-6 text-center text-6xl font-black text-[#159f91]">
-                  {report.readinessIndex.value === null ? "—" : `${report.readinessIndex.value}%`}
+                  {report.readinessIndex.value === null ? "—" : `${toEnglishDigits(report.readinessIndex.value)}%`}
                 </div>
                 <p className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-500">
-                  {report.readinessIndex.formula}
+                  {toEnglishDigits(report.readinessIndex.formula)}
                 </p>
               </div>
             </div>
@@ -322,13 +320,13 @@ export default function PrincipalDashboard() {
                 <button onClick={() => window.print()} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500">طباعة التقرير</button>
               </div>
               <div className="mt-6 grid gap-4 md:grid-cols-3">
-                <KpiCard label="مؤشر التحسن" value={report.improvement.value === null ? "—" : `${report.improvement.value}%`} sub={report.improvement.label} icon="📈" />
-                <KpiCard label="تفاعل المعلمين" value={formatPct(report.teacherEngagement.rate)} sub={`${report.teacherEngagement.activeTeachers}/${report.teacherEngagement.totalTeachers}`} icon="🧭" />
+                <KpiCard label="مؤشر التحسن" value={report.improvement.value === null ? "—" : `${toEnglishDigits(report.improvement.value)}%`} sub={toEnglishDigits(report.improvement.label)} icon="📈" />
+                <KpiCard label="تفاعل المعلمين" value={formatPct(report.teacherEngagement.rate)} sub={toEnglishDigits(`${report.teacherEngagement.activeTeachers}/${report.teacherEngagement.totalTeachers}`)} icon="🧭" />
                 <KpiCard label="متوسط المدرسة" value={formatPct(report.kpis.performanceAverage)} sub="نتائج محفوظة" icon="🎯" />
               </div>
               {report.notes.length > 0 && (
                 <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm font-bold leading-7 text-slate-500">
-                  {report.notes.map((note) => <p key={note}>• {note}</p>)}
+                  {report.notes.map((note) => <p key={note}>• {toEnglishDigits(note)}</p>)}
                 </div>
               )}
             </div>
@@ -340,7 +338,7 @@ export default function PrincipalDashboard() {
                   <div key={item.skill} className="mb-4">
                     <div className="mb-1 flex justify-between text-sm font-bold">
                       <span>{item.skill}</span>
-                      <span className="text-[#BA7517]">{item.average}%</span>
+                      <span className="text-[#BA7517]">{toEnglishDigits(item.average)}%</span>
                     </div>
                     <div className="h-2.5 rounded-full bg-slate-100"><div className="h-2.5 rounded-full bg-[#BA7517]" style={{ width: `${item.average}%` }} /></div>
                   </div>
@@ -352,7 +350,7 @@ export default function PrincipalDashboard() {
                 {report.atRiskStudents.length ? report.atRiskStudents.map((student) => (
                   <div key={student.id} className="mb-3 rounded-xl border border-red-100 bg-red-50/60 p-3">
                     <div className="font-bold text-[#0b2447]">{student.name}</div>
-                    <div className="mt-1 text-xs font-bold text-red-500">{student.className} — {student.percentage}%</div>
+                    <div className="mt-1 text-xs font-bold text-red-500">{student.className} — {toEnglishDigits(student.percentage)}%</div>
                   </div>
                 )) : <EmptyState>لا يوجد طلاب متعثرون حسب البيانات الحالية</EmptyState>}
               </div>
@@ -375,7 +373,7 @@ export default function PrincipalDashboard() {
             {report.alerts.length ? report.alerts.map((alert) => (
               <div key={`${alert.type}-${alert.title}`} className="rounded-xl border p-5" style={{ background: alert.type === "risk" ? "#fff5f5" : "#f8fafc", borderColor: alert.type === "risk" ? "#fecaca" : "#e2e8f0" }}>
                 <h3 className="font-bold text-[#0b2447]">{alert.title}</h3>
-                <p className="mt-1 text-sm font-bold text-slate-500">{alert.detail}</p>
+                <p className="mt-1 text-sm font-bold text-slate-500">{toEnglishDigits(alert.detail)}</p>
               </div>
             )) : <EmptyState>لا توجد تنبيهات إدارية حالية</EmptyState>}
           </div>
