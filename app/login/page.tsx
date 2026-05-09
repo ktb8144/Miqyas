@@ -1,17 +1,20 @@
 "use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const inviteError = searchParams.get("error") === "invalid_invite";
+  const passwordUpdated = searchParams.get("message") === "password_updated";
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -157,6 +160,18 @@ export default function LoginPage() {
                   </div>
                 )}
 
+                {inviteError && !error && (
+                  <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                    رابط الدعوة غير صالح أو منتهي. اطلب دعوة جديدة من مدير المدرسة.
+                  </div>
+                )}
+
+                {passwordUpdated && !error && (
+                  <div className="rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-[#159f91]">
+                    تم تحديث كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   disabled={loading}
@@ -174,5 +189,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   );
 }

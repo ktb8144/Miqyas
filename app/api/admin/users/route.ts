@@ -31,10 +31,26 @@ function createTemporaryPassword() {
   return `Miqyas@${random}!`;
 }
 
+function getInviteRedirectTo() {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
+
+  if (appUrl) {
+    return `${appUrl}/auth/callback`;
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    return "http://localhost:3000/auth/callback";
+  }
+
+  throw new Error("NEXT_PUBLIC_APP_URL is required for production invites");
+}
+
 async function createInvitedAuthUser(db: ReturnType<typeof getAdminClient>, email: string, name: string, role: string) {
   const metadata = { name, role };
+  const redirectTo = getInviteRedirectTo();
   const { data: invited, error: inviteError } = await db.auth.admin.inviteUserByEmail(email, {
     data: metadata,
+    redirectTo,
   });
 
   if (!inviteError && invited.user) {
@@ -53,6 +69,9 @@ async function createInvitedAuthUser(db: ReturnType<typeof getAdminClient>, emai
   const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
     type: "recovery",
     email,
+    options: {
+      redirectTo,
+    },
   });
 
   return {
