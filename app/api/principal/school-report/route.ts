@@ -23,6 +23,20 @@ type ClassRow = {
   students?: StudentRow[];
 };
 
+type WeeklyPlanRow = {
+  id: string;
+  week_number: number;
+  start_date: string;
+  end_date: string;
+  start_hijri: string;
+  end_hijri: string;
+  grade: number;
+  grade_label: string;
+  subject: string;
+  skill: string;
+  difficulty_level: string;
+};
+
 function pct(score: number | null | undefined, total: number | null | undefined) {
   if (!score || !total || total <= 0) return null;
   return Math.round((score / total) * 100);
@@ -35,6 +49,14 @@ function avg(values: number[]) {
 
 function clamp(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function normalizePlanSubject(subject?: string | null) {
+  const value = (subject ?? "").trim();
+  if (["رياضيات", "الرياضيات"].includes(value)) return "رياضيات";
+  if (["لغة عربية", "اللغة العربية", "عربية", "لغتي", "قراءة"].includes(value)) return "لغة عربية";
+  if (["علوم", "العلوم"].includes(value)) return "علوم";
+  return null;
 }
 
 export async function GET(req: NextRequest) {
@@ -136,6 +158,77 @@ export async function GET(req: NextRequest) {
       ? Math.round((activeTeachers / teachers.length) * 100)
       : null;
 
+    const today = new Date().toISOString().slice(0, 10);
+    const currentPlansRes = await db
+      .from("weekly_plans")
+      .select("id, week_number, start_date, end_date, start_hijri, end_hijri, grade, grade_label, subject, skill, difficulty_level")
+      .eq("status", "active")
+      .lte("start_date", today)
+      .gte("end_date", today)
+      .order("grade", { ascending: true })
+      .order("subject", { ascending: true });
+
+    let weeklyPlanSource: "current_week" | "upcoming" | "none" = "none";
+    let weeklyPlans = (currentPlansRes.error ? [] : currentPlansRes.data ?? []) as WeeklyPlanRow[];
+
+    if (weeklyPlans.length) {
+      weeklyPlanSource = "current_week";
+    } else {
+      const upcomingPlansRes = await db
+        .from("weekly_plans")
+        .select("id, week_number, start_date, end_date, start_hijri, end_hijri, grade, grade_label, subject, skill, difficulty_level")
+        .eq("status", "active")
+        .gt("start_date", today)
+        .order("start_date", { ascending: true })
+        .order("grade", { ascending: true })
+        .order("subject", { ascending: true })
+        .limit(8);
+      weeklyPlans = (upcomingPlansRes.error ? [] : upcomingPlansRes.data ?? []) as WeeklyPlanRow[];
+      weeklyPlanSource = weeklyPlans.length ? "upcoming" : "none";
+    }
+
+    const weeklyPlanKeys = new Set(weeklyPlans.map((plan) => `${plan.grade}:${plan.subject}`));
+    const targetClasses = classes.filter((classRow) =>
+      classRow.grade !== null
+      && [3, 4, 5, 6].includes(classRow.grade)
+      && normalizePlanSubject(classRow.subject) !== null
+      && !(classRow.grade === 3 && normalizePlanSubject(classRow.subject) === "علوم")
+    );
+    const matchingClassesCount = targetClasses.filter((classRow) =>
+      weeklyPlanKeys.has(`${classRow.grade}:${normalizePlanSubject(classRow.subject)}`)
+    ).length;
+    const unsupportedClassesCount = classes.filter((classRow) =>
+      classRow.grade !== null
+      && (
+        ![3, 4, 5, 6].includes(classRow.grade)
+        || normalizePlanSubject(classRow.subject) === null
+        || (classRow.grade === 3 && normalizePlanSubject(classRow.subject) === "علوم")
+      )
+    ).length;
+    const weeklyPlanSummary = {
+      source: weeklyPlanSource,
+      weekNumber: weeklyPlans[0]?.week_number ?? null,
+      startDate: weeklyPlans[0]?.start_date ?? null,
+      endDate: weeklyPlans[0]?.end_date ?? null,
+      startHijri: weeklyPlans[0]?.start_hijri ?? null,
+      endHijri: weeklyPlans[0]?.end_hijri ?? null,
+      targetGrades: [3, 4, 5, 6],
+      targetSubjects: ["رياضيات", "لغة عربية", "علوم للصفوف 4-6"],
+      activePlansCount: weeklyPlans.length,
+      matchingClassesCount,
+      classesWithoutPlans: Math.max(0, targetClasses.length - matchingClassesCount),
+      unsupportedClassesCount,
+      plans: weeklyPlans.map((plan) => ({
+        id: plan.id,
+        weekNumber: plan.week_number,
+        grade: plan.grade,
+        gradeLabel: plan.grade_label,
+        subject: plan.subject,
+        skill: plan.skill,
+        difficultyLevel: plan.difficulty_level,
+      })),
+    };
+
     const improvement = {
       value: null as number | null,
       label: "لا توجد بيانات كافية لحساب التحسن",
@@ -183,6 +276,7 @@ export async function GET(req: NextRequest) {
           totalTeachers: teachers.length,
           rate: teacherEngagement,
         },
+        weeklyPlanSummary,
         teachers: teacherRows,
         classes: classes.map((classRow) => {
           const classStudents = students.filter((student) => student.class_id === classRow.id);
@@ -200,6 +294,8 @@ export async function GET(req: NextRequest) {
         }),
         alerts: [
           ...(atRiskStudents.length ? [{ type: "risk", title: "طلاب يحتاجون تدخل", detail: `${atRiskStudents.length} طالب دون ${AT_RISK_THRESHOLD}%` }] : []),
+          ...(weeklyPlanSummary.classesWithoutPlans ? [{ type: "plan", title: "فصول بلا خطة مطابقة", detail: `${weeklyPlanSummary.classesWithoutPlans} فصل يحتاج ضبط الصف أو المادة` }] : []),
+          ...(weeklyPlanSummary.unsupportedClassesCount ? [{ type: "plan", title: "مواد أو صفوف خارج المرحلة الأولى", detail: `${weeklyPlanSummary.unsupportedClassesCount} فصل خارج نطاق الصفوف 3-6 أو مواد مقياس الحالية` }] : []),
           ...(!students.length ? [{ type: "empty", title: "لا توجد بيانات طلاب", detail: "ابدأ بإضافة الفصول والطلاب من لوحة المعلم." }] : []),
           ...(!scoredStudents.length ? [{ type: "empty", title: "لا توجد نتائج بعد", detail: "ستظهر مؤشرات الأداء بعد إدخال نتائج الطلاب." }] : []),
         ],

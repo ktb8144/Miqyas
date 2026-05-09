@@ -35,6 +35,29 @@ type PrincipalReport = {
   weakSkills: { skill: string; average: number; count: number }[];
   atRiskStudents: { id: string; name: string; className: string; percentage: number }[];
   teacherEngagement: { activeTeachers: number; totalTeachers: number; rate: number | null };
+  weeklyPlanSummary: {
+    source: "current_week" | "upcoming" | "none";
+    weekNumber: number | null;
+    startDate: string | null;
+    endDate: string | null;
+    startHijri: string | null;
+    endHijri: string | null;
+    targetGrades: number[];
+    targetSubjects: string[];
+    activePlansCount: number;
+    matchingClassesCount: number;
+    classesWithoutPlans: number;
+    unsupportedClassesCount: number;
+    plans: {
+      id: string;
+      weekNumber: number;
+      grade: number;
+      gradeLabel: string;
+      subject: string;
+      skill: string;
+      difficultyLevel: string;
+    }[];
+  };
   teachers: { id: string; name: string; email: string; subject: string; status: string; classesCount: number; studentsCount: number; average: number | null; active: boolean }[];
   classes: { id: string; name: string; grade: number | null; subject: string; studentsCount: number; average: number | null }[];
   alerts: { type: string; title: string; detail: string }[];
@@ -68,6 +91,16 @@ function KpiCard({ label, value, sub, icon, color = "#159f91" }: { label: string
       <div className="text-sm font-bold text-slate-500">{label}</div>
     </div>
   );
+}
+
+function difficultyLabel(value: string) {
+  const labels: Record<string, string> = {
+    easy: "سهل",
+    medium: "متوسط",
+    hard: "متقدم",
+    nafs_simulation: "محاكاة نافس",
+  };
+  return labels[value] ?? value;
 }
 
 function TeacherCard({ teacher }: { teacher: PrincipalReport["teachers"][number] }) {
@@ -277,6 +310,67 @@ export default function PrincipalDashboard() {
               <KpiCard label="متوسط الأداء" value={formatPct(report.kpis.performanceAverage)} sub="حسب النتائج" icon="📊" />
               <KpiCard label="طلاب متعثرون" value={formatNumber(report.kpis.atRiskCount)} sub="أقل من 50%" icon="⚠️" color="#E24B4A" />
               <KpiCard label="تنفيذ الأسبوع" value={formatPct(report.kpis.implementationRate)} sub="فصول لديها نتائج" icon="✅" />
+            </div>
+
+            <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-extrabold text-[#159f91]">خطة مقياس</p>
+                  <h3 className="mt-1 text-xl font-black text-[#0b2447]">
+                    {report.weeklyPlanSummary.source === "current_week" ? "خطة هذا الأسبوع" : report.weeklyPlanSummary.source === "upcoming" ? "أقرب خطة قادمة" : "لا توجد خطة مفعّلة"}
+                  </h3>
+                  {report.weeklyPlanSummary.weekNumber ? (
+                    <p className="mt-2 text-sm font-bold leading-7 text-slate-500">
+                      الأسبوع {toEnglishDigits(report.weeklyPlanSummary.weekNumber)} من {toEnglishDigits(report.weeklyPlanSummary.startDate ?? "")} إلى {toEnglishDigits(report.weeklyPlanSummary.endDate ?? "")}
+                      {" "}({report.weeklyPlanSummary.startHijri} إلى {report.weeklyPlanSummary.endHijri})
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm font-bold text-slate-400">أضف الخطط الأسبوعية من إدارة النظام لتظهر هنا.</p>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
+                    الصفوف {report.weeklyPlanSummary.targetGrades.map((grade) => toEnglishDigits(grade)).join("، ")}
+                  </span>
+                  <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                    {report.weeklyPlanSummary.targetSubjects.join("، ")}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-4">
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(report.weeklyPlanSummary.activePlansCount)}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">خطط نشطة</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(report.weeklyPlanSummary.matchingClassesCount)}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">فصول مطابقة</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="text-2xl font-black text-[#BA7517]">{toEnglishDigits(report.weeklyPlanSummary.classesWithoutPlans)}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">فصول بلا خطة</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 p-4">
+                  <div className="text-2xl font-black text-slate-600">{formatPct(report.kpis.implementationRate)}</div>
+                  <div className="mt-1 text-xs font-bold text-slate-400">نسبة التنفيذ</div>
+                </div>
+              </div>
+
+              {report.weeklyPlanSummary.plans.length ? (
+                <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  {report.weeklyPlanSummary.plans.slice(0, 8).map((plan) => (
+                    <div key={plan.id} className="rounded-xl border border-slate-100 bg-white p-4">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="text-sm font-black text-[#0b2447]">{plan.gradeLabel}</span>
+                        <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-bold text-[#159f91]">{plan.subject}</span>
+                      </div>
+                      <p className="text-sm font-bold leading-6 text-slate-500">{plan.skill}</p>
+                      <p className="mt-2 text-xs font-bold text-slate-400">{difficultyLabel(plan.difficultyLevel)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
 
             <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">

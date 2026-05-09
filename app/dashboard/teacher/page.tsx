@@ -26,6 +26,34 @@ interface ClassItem {
   schoolId: string;
 }
 
+interface WeeklyPlan {
+  id: string;
+  week_number: number;
+  start_date: string;
+  end_date: string;
+  start_hijri: string;
+  end_hijri: string;
+  grade: number;
+  grade_label: string;
+  subject: string;
+  domain: string | null;
+  skill: string;
+  learning_goal: string | null;
+  assessment_title: string;
+  question_count: number;
+  difficulty_level: string;
+}
+
+type WeeklyPlanItem = {
+  plan: WeeklyPlan;
+  class: {
+    id: string;
+    name: string;
+    grade: number | null;
+    subject: string | null;
+  };
+};
+
 interface ClassReport {
   summary: string;
   strengths: string;
@@ -124,14 +152,13 @@ function AddClassModal({
   onAdd: (input: { name: string; grade: number; subject: string }) => Promise<void>;
 }) {
   const [name, setName] = useState("");
-  const [grade, setGrade] = useState(1);
+  const [grade, setGrade] = useState(3);
   const [subject, setSubject] = useState("رياضيات");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const gradeLabels: Record<number, string> = {
-    1: "الأول", 2: "الثاني", 3: "الثالث",
-    4: "الرابع", 5: "الخامس", 6: "السادس",
+    3: "الثالث", 4: "الرابع", 5: "الخامس", 6: "السادس",
   };
 
   const handleCreate = async () => {
@@ -145,6 +172,13 @@ function AddClassModal({
       setError(err instanceof Error ? err.message : "تعذر إنشاء الفصل");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGradeChange = (nextGrade: number) => {
+    setGrade(nextGrade);
+    if (nextGrade === 3 && subject === "علوم") {
+      setSubject("رياضيات");
     }
   };
 
@@ -177,11 +211,11 @@ function AddClassModal({
             <label className="block text-sm font-medium text-gray-700 mb-1">الصف الدراسي</label>
             <select
               value={grade}
-              onChange={(e) => setGrade(Number(e.target.value))}
+              onChange={(e) => handleGradeChange(Number(e.target.value))}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 focus:outline-none focus:ring-2"
               style={{ direction: "rtl" }}
             >
-              {[1, 2, 3, 4, 5, 6].map((g) => (
+              {[3, 4, 5, 6].map((g) => (
                 <option key={g} value={g}>{gradeLabels[g]}</option>
               ))}
             </select>
@@ -195,9 +229,8 @@ function AddClassModal({
               style={{ direction: "rtl" }}
             >
               <option value="رياضيات">رياضيات</option>
-              <option value="عربية">عربية</option>
-              <option value="علوم">علوم</option>
-              <option value="قرآن">قرآن</option>
+              <option value="لغة عربية">لغة عربية</option>
+              {grade !== 3 && <option value="علوم">علوم</option>}
             </select>
           </div>
           <button
@@ -220,7 +253,7 @@ export default function TeacherDashboard() {
   const router = useRouter();
 
   // ── View state ──────────────────────────────────────────────────────────────
-  type View = "classes" | "students";
+  type View = "classes" | "students" | "weeklyPlans";
   const [view, setView] = useState<View>("classes");
   const [activeClassId, setActiveClassId] = useState<string | null>(null);
 
@@ -233,6 +266,10 @@ export default function TeacherDashboard() {
   const [pageError, setPageError] = useState<string | null>(null);
   const [studentSaveError, setStudentSaveError] = useState<string | null>(null);
   const [manualSaving, setManualSaving] = useState(false);
+  const [currentPlans, setCurrentPlans] = useState<WeeklyPlanItem[]>([]);
+  const [upcomingPlans, setUpcomingPlans] = useState<WeeklyPlanItem[]>([]);
+  const [planSource, setPlanSource] = useState<"current_week" | "upcoming" | "none">("none");
+  const [planLoading, setPlanLoading] = useState(false);
 
   // ── Student add (manual) state ───────────────────────────────────────────────
   const [showAddStudents, setShowAddStudents] = useState(false);
@@ -248,6 +285,11 @@ export default function TeacherDashboard() {
   // ── Derived values ───────────────────────────────────────────────────────────
   const activeClass = classes.find((c) => c.id === activeClassId) ?? null;
   const activeStudents: Student[] = activeClassId ? (classStudents[activeClassId] ?? []) : [];
+  const allPlanItems = [...currentPlans, ...upcomingPlans];
+  const weeklyPlanItem = currentPlans[0] ?? upcomingPlans[0] ?? null;
+  const activeClassPlanItem = activeClass
+    ? allPlanItems.find((item) => item.class.id === activeClass.id) ?? null
+    : null;
   const weeklyClass = activeClass ?? classes[0] ?? null;
   const teacherDisplayName = teacherProfile?.name?.trim() || "المعلم";
   const teacherSubtitle = `${teacherDisplayName}${teacherProfile?.subject ? ` — ${teacherProfile.subject}` : ""}`;
@@ -276,6 +318,16 @@ export default function TeacherDashboard() {
       6: "السادس",
     };
     return grade ? labels[grade] ?? String(grade) : "غير محدد";
+  };
+
+  const difficultyLabel = (value?: string | null) => {
+    const labels: Record<string, string> = {
+      easy: "سهل",
+      medium: "متوسط",
+      hard: "متقدم",
+      nafs_simulation: "محاكاة نافس",
+    };
+    return value ? labels[value] ?? value : "غير محدد";
   };
 
   const normalizeStudentName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
@@ -367,6 +419,29 @@ export default function TeacherDashboard() {
   useEffect(() => {
     loadTeacherData();
   }, [loadTeacherData]);
+
+  const loadCurrentPlan = useCallback(async () => {
+    setPlanLoading(true);
+    try {
+      const res = await fetch("/api/teacher/current-plan", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل خطة الأسبوع");
+      setCurrentPlans(json.currentPlans ?? []);
+      setUpcomingPlans(json.upcomingPlans ?? []);
+      setPlanSource(json.source ?? "none");
+    } catch (err) {
+      console.error("teacher current plan load failed", err);
+      setCurrentPlans([]);
+      setUpcomingPlans([]);
+      setPlanSource("none");
+    } finally {
+      setPlanLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadCurrentPlan();
+  }, [loadCurrentPlan]);
 
   // ── Report generation ────────────────────────────────────────────────────────
   const generateReport = async () => {
@@ -619,40 +694,69 @@ export default function TeacherDashboard() {
                 <h2 className="mt-2 text-2xl font-black tracking-normal text-[#0b2447]">مهمة التقييم الحالية</h2>
               </div>
               <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                {weeklyClass ? (
+                {planLoading ? (
+                  <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-6 text-center">
+                    <h3 className="text-xl font-black text-[#0b2447]">جارٍ تحميل خطة هذا الأسبوع...</h3>
+                  </div>
+                ) : weeklyPlanItem ? (
                   <div className="flex items-center justify-between flex-wrap gap-4">
                     <div>
-                      <div className="text-sm font-bold text-slate-400 mb-1">الفصل الجاهز للتقييم</div>
-                      <h3 className="text-3xl font-black text-[#0b2447]">{weeklyClass.name}</h3>
-                      <div className="flex items-center gap-3 mt-2">
+                      <div className="text-sm font-bold text-slate-400 mb-1">
+                        {planSource === "current_week" ? "خطة هذا الأسبوع" : "أقرب خطة قادمة"}
+                      </div>
+                      <h3 className="text-3xl font-black text-[#0b2447]">{weeklyPlanItem.plan.skill}</h3>
+                      <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-slate-500">
+                        {weeklyPlanItem.plan.learning_goal ?? "هدف التعلم قابل للتحديث من الإدارة."}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3 mt-3">
                         <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-                          الصف {getGradeLabel(weeklyClass.grade)}
+                          الأسبوع {toEnglishDigits(weeklyPlanItem.plan.week_number)}
                         </span>
                         <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
-                          {weeklyClass.subject || teacherProfile?.subject || "مادة غير محددة"}
+                          {weeklyPlanItem.class.name}
+                        </span>
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                          {weeklyPlanItem.plan.grade_label}
+                        </span>
+                        <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
+                          {weeklyPlanItem.plan.subject}
+                        </span>
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                          {toEnglishDigits(weeklyPlanItem.plan.start_date)} إلى {toEnglishDigits(weeklyPlanItem.plan.end_date)}
+                        </span>
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                          {weeklyPlanItem.plan.start_hijri} إلى {weeklyPlanItem.plan.end_hijri}
+                        </span>
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                          {difficultyLabel(weeklyPlanItem.plan.difficulty_level)}
+                        </span>
+                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                          {toEnglishDigits(weeklyPlanItem.plan.question_count)} أسئلة
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <span className="rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-extrabold text-emerald-700">
-                        جاهز
-                      </span>
                       <button
-                        onClick={generateReport}
+                        onClick={() => handleViewStudents(weeklyPlanItem.class.id)}
                         className="flex items-center gap-2 rounded-xl bg-[#0b2447] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
                       >
-                        توليد تقرير الفصل
+                        بدء التقييم
                       </button>
                       <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
-                        طباعة
+                        طباعة ورقة الاختبار
+                      </button>
+                      <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => setView("weeklyPlans")}>
+                        عرض خطة الأسابيع
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-6 text-center">
-                    <h3 className="text-xl font-black text-[#0b2447]">أضف فصلًا للبدء في تنفيذ التقييمات.</h3>
+                    <h3 className="text-xl font-black text-[#0b2447]">
+                      {classes.length ? "لا توجد خطة مفعّلة لهذا الأسبوع." : "أضف فصلًا للبدء في تنفيذ التقييمات."}
+                    </h3>
                     <p className="mt-2 text-sm font-bold text-slate-400">
-                      بعد إضافة الفصل والطلاب ستظهر هنا مهام التقييم والتقارير.
+                      {classes.length ? "يمكنك عرض الخطة القادمة أو التواصل مع مدير النظام." : "بعد إضافة الفصل والطلاب ستظهر هنا مهام التقييم والتقارير."}
                     </p>
                   </div>
                 )}
@@ -740,6 +844,83 @@ export default function TeacherDashboard() {
         )}
 
         {/* ══════════════════════════════════════════════════════════════════════
+            VIEW: WEEKLY PLANS
+        ══════════════════════════════════════════════════════════════════════ */}
+        {view === "weeklyPlans" && !pageLoading && !pageError && (
+          <section className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-extrabold text-[#159f91]">الخطة الأسبوعية</p>
+                <h2 className="mt-1 text-2xl font-black tracking-normal text-[#0b2447]">خطة الأسابيع لفصولي</h2>
+              </div>
+              <button
+                onClick={() => setView("classes")}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+              >
+                ← العودة للفصول
+              </button>
+            </div>
+
+            {planLoading ? (
+              <div className="rounded-[1.5rem] border border-slate-100 bg-white p-8 text-center font-bold text-slate-500 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+                جارٍ تحميل خطة الأسابيع...
+              </div>
+            ) : allPlanItems.length ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {allPlanItems.map((item) => (
+                  <div key={`${item.class.id}-${item.plan.id}`} className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-bold text-slate-400">الأسبوع {toEnglishDigits(item.plan.week_number)}</div>
+                        <h3 className="mt-1 text-xl font-black text-[#0b2447]">{item.plan.skill}</h3>
+                      </div>
+                      <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
+                        {difficultyLabel(item.plan.difficulty_level)}
+                      </span>
+                    </div>
+                    <p className="text-sm font-bold leading-7 text-slate-500">
+                      {item.plan.learning_goal ?? "هدف التعلم قابل للتحديث من الإدارة."}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{item.class.name}</span>
+                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{item.plan.grade_label}</span>
+                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{item.plan.subject}</span>
+                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
+                        {toEnglishDigits(item.plan.start_date)} إلى {toEnglishDigits(item.plan.end_date)}
+                      </span>
+                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
+                        {toEnglishDigits(item.plan.question_count)} أسئلة
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <button
+                        onClick={() => handleViewStudents(item.class.id)}
+                        className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b]"
+                      >
+                        بدء التقييم
+                      </button>
+                      <button
+                        onClick={() => window.print()}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                      >
+                        طباعة ورقة الاختبار
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[1.5rem] border border-dashed border-teal-100 bg-white p-8 text-center shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+                <h3 className="text-xl font-black text-[#0b2447]">لا توجد خطة مفعّلة لهذا الأسبوع.</h3>
+                <p className="mt-2 text-sm font-bold text-slate-400">
+                  يمكنك التواصل مع مدير النظام لتفعيل خطة الصفوف 3-6 في مواد مقياس الحالية.
+                </p>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
             VIEW: STUDENT LIST
         ══════════════════════════════════════════════════════════════════════ */}
         {view === "students" && activeClass && !pageLoading && !pageError && (
@@ -762,8 +943,15 @@ export default function TeacherDashboard() {
                 <div>
                   <div className="text-sm font-bold text-slate-400 mb-0.5">مهمة هذا الأسبوع</div>
                   <div className="font-black text-[#0b2447]">
-                    {activeClass.name} — {activeClass.subject || teacherProfile?.subject || "مادة غير محددة"}
+                    {activeClassPlanItem
+                      ? `${activeClassPlanItem.plan.assessment_title} — ${activeClassPlanItem.plan.skill}`
+                      : `${activeClass.name} — ${activeClass.subject || teacherProfile?.subject || "مادة غير محددة"}`}
                   </div>
+                  {activeClassPlanItem && (
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      الأسبوع {toEnglishDigits(activeClassPlanItem.plan.week_number)} | {toEnglishDigits(activeClassPlanItem.plan.question_count)} أسئلة
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                   <button
@@ -915,7 +1103,7 @@ export default function TeacherDashboard() {
               totalStudents={activeStudents.length}
               subject={activeClass.subject}
               grade={activeClass.grade}
-              weekNumber={5}
+              weekNumber={activeClassPlanItem?.plan.week_number ?? 0}
               onComplete={handleScanComplete}
             />
           </>

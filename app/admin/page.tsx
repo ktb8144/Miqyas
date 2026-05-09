@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -1446,6 +1447,13 @@ export default function AdminPage() {
         </nav>
 
         <div className="border-t border-slate-100 p-4">
+          <Link
+            href="/admin/weekly-plans"
+            className="mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:bg-slate-50 hover:text-[#0b2447]"
+          >
+            <BookOpenCheck className="h-5 w-5" />
+            إدارة الخطة الأسبوعية
+          </Link>
           <button
             onClick={handleLogout}
             disabled={loggingOut}
