@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 const userCreateSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().trim().email(),
-  role: z.enum(["admin", "principal", "teacher"]),
+  role: z.enum(["admin", "principal", "supervisor", "teacher"]),
   school_id: z.string().uuid().nullable().optional(),
+  subject: z.string().trim().nullable().optional(),
 });
 
 function normalizeUser(row: Record<string, unknown>) {
@@ -26,8 +27,39 @@ function normalizeUser(row: Record<string, unknown>) {
 }
 
 function createTemporaryPassword() {
-  const suffix = Math.random().toString(36).slice(2, 10);
-  return `Miqyas@${suffix}2026`;
+  const random = crypto.getRandomValues(new Uint32Array(2)).join("");
+  return `Miqyas@${random}!`;
+}
+
+async function createInvitedAuthUser(db: ReturnType<typeof getAdminClient>, email: string, name: string, role: string) {
+  const metadata = { name, role };
+  const { data: invited, error: inviteError } = await db.auth.admin.inviteUserByEmail(email, {
+    data: metadata,
+  });
+
+  if (!inviteError && invited.user) {
+    return { userId: invited.user.id, method: "email_invite", actionLink: null as string | null };
+  }
+
+  const { data: created, error: createError } = await db.auth.admin.createUser({
+    email,
+    password: createTemporaryPassword(),
+    email_confirm: false,
+    user_metadata: metadata,
+  });
+
+  if (createError || !created.user) throw createError ?? new Error("Failed to create auth user");
+
+  const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
+    type: "recovery",
+    email,
+  });
+
+  return {
+    userId: created.user.id,
+    method: linkError ? "temporary_password_created" : "password_reset_link",
+    actionLink: linkData?.properties?.action_link ?? null,
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -91,24 +123,33 @@ export async function POST(req: NextRequest) {
     }
 
     const db = getAdminClient();
-    const temporaryPassword = createTemporaryPassword();
-    const { data: authData, error: authError } = await db.auth.admin.createUser({
-      email,
-      password: temporaryPassword,
-      email_confirm: true,
-      user_metadata: { name, role },
-    });
 
-    if (authError) throw authError;
+    const { data: existing, error: existingError } = await db
+      .from("users")
+      .select("id")
+      .ilike("email", email)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (existing) {
+      return NextResponse.json(
+        { success: false, error: "يوجد مستخدم بهذا البريد مسبقًا" },
+        { status: 409 }
+      );
+    }
+
+    const authUser = await createInvitedAuthUser(db, email, name, role);
 
     const { data, error } = await db
       .from("users")
       .insert({
-        auth_id: authData.user.id,
+        auth_id: authUser.userId,
         name,
         email,
         role,
         school_id: role === "admin" ? null : schoolId,
+        subject: role === "teacher" ? parsed.data.subject ?? null : null,
+        status: "invited",
       })
       .select("id, auth_id, name, email, role, school_id, schools(name)")
       .single();
@@ -119,7 +160,10 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         data: normalizeUser(data),
-        temporaryPassword,
+        invite: {
+          method: authUser.method,
+          actionLink: authUser.actionLink,
+        },
       },
       { status: 201 }
     );

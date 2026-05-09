@@ -13,23 +13,30 @@
 
 ## الحسابات المطلوبة
 
-جهز في Supabase حسابين على الأقل:
+جهز في Supabase خمسة حسابات اختبار:
 
-1. مستخدم A:
+1. Admin:
+   - `role = admin`
+   - لا يحتاج `school_id`
+
+2. Principal A:
+   - `role = principal`
+   - مرتبط بمدرسة A عبر `users.school_id`
+   - `users.auth_id` يطابق Auth user id
+
+3. Principal B:
+   - `role = principal`
+   - مرتبط بمدرسة B عبر `users.school_id`
+   - `users.auth_id` يطابق Auth user id
+
+4. Teacher A:
    - `role = teacher`
    - مرتبط بمدرسة A عبر `users.school_id`
    - `users.auth_id` يطابق Auth user id
 
-2. مستخدم B:
-   - الأفضل أن يكون `role = principal`
+5. Teacher B:
+   - `role = teacher`
    - مرتبط بمدرسة B عبر `users.school_id`
-   - `users.auth_id` يطابق Auth user id
-
-لإثبات شرط "قائد مدرسة A لا يرى مدرسة B" بدقة، جهز حسابًا ثالثًا اختياريًا:
-
-3. Principal A:
-   - `role = principal`
-   - مرتبط بمدرسة A عبر `users.school_id`
    - `users.auth_id` يطابق Auth user id
 
 ## بيانات اختبار في الجداول
@@ -56,13 +63,17 @@ RLS_TEST_USER_B_EMAIL=
 RLS_TEST_USER_B_PASSWORD=
 RLS_TEST_SCHOOL_A_ID=
 RLS_TEST_SCHOOL_B_ID=
-```
 
-للاختبار الأدق لقائد مدرسة A:
-
-```bash
+RLS_TEST_ADMIN_EMAIL=
+RLS_TEST_ADMIN_PASSWORD=
 RLS_TEST_PRINCIPAL_A_EMAIL=
 RLS_TEST_PRINCIPAL_A_PASSWORD=
+RLS_TEST_PRINCIPAL_B_EMAIL=
+RLS_TEST_PRINCIPAL_B_PASSWORD=
+RLS_TEST_TEACHER_A_EMAIL=
+RLS_TEST_TEACHER_A_PASSWORD=
+RLS_TEST_TEACHER_B_EMAIL=
+RLS_TEST_TEACHER_B_PASSWORD=
 ```
 
 لا تضع قيمًا حقيقية في `.env.example` أو في Git.
@@ -78,5 +89,6 @@ npm run test:rls
 ## ملاحظات مهمة
 
 - الاختبار يستخدم `NEXT_PUBLIC_SUPABASE_ANON_KEY` فقط، ولا يستخدم `SUPABASE_SERVICE_ROLE_KEY`.
+- إذا توفر `SUPABASE_SERVICE_ROLE_KEY` محليًا فسيستخدمه السكربت فقط لتنظيف بيانات اختبار mutation التي أنشأها، وليس لاختبار صلاحيات القراءة.
 - يجب تطبيق migrations الخاصة بـ RLS و indexes قبل الاختبار.
 - نجاح الاختبار لا يعني أن كل مسار API آمن تلقائيًا، لكنه يؤكد عزل RLS الأساسي على الجداول المهمة.
