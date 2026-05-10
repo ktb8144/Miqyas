@@ -6,7 +6,7 @@ import { LevelBadge } from "@/components/level-badge";
 import { StudentImportFlow } from "@/components/student-import-flow";
 import { BatchOMRScanner } from "@/components/batch-omr-scanner";
 import { supabase } from "@/lib/supabase";
-import { toEnglishDigits } from "@/lib/format";
+import { formatSchoolDateRange, toEnglishDigits } from "@/lib/format";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -722,10 +722,12 @@ export default function TeacherDashboard() {
                           {weeklyPlanItem.plan.subject}
                         </span>
                         <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-                          {toEnglishDigits(weeklyPlanItem.plan.start_date)} إلى {toEnglishDigits(weeklyPlanItem.plan.end_date)}
-                        </span>
-                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-                          {weeklyPlanItem.plan.start_hijri} إلى {weeklyPlanItem.plan.end_hijri}
+                          {formatSchoolDateRange({
+                            startDate: weeklyPlanItem.plan.start_date,
+                            endDate: weeklyPlanItem.plan.end_date,
+                            startHijri: weeklyPlanItem.plan.start_hijri,
+                            endHijri: weeklyPlanItem.plan.end_hijri,
+                          })}
                         </span>
                         <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
                           {difficultyLabel(weeklyPlanItem.plan.difficulty_level)}
@@ -886,7 +888,12 @@ export default function TeacherDashboard() {
                       <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{item.plan.grade_label}</span>
                       <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{item.plan.subject}</span>
                       <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
-                        {toEnglishDigits(item.plan.start_date)} إلى {toEnglishDigits(item.plan.end_date)}
+                        {formatSchoolDateRange({
+                          startDate: item.plan.start_date,
+                          endDate: item.plan.end_date,
+                          startHijri: item.plan.start_hijri,
+                          endHijri: item.plan.end_hijri,
+                        })}
                       </span>
                       <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
                         {toEnglishDigits(item.plan.question_count)} أسئلة

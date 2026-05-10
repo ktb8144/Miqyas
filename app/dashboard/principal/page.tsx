@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
-import { toEnglishDigits } from "@/lib/format";
+import { formatSchoolDateRange, toEnglishDigits } from "@/lib/format";
 import {
   Bar,
   BarChart,
@@ -321,8 +321,12 @@ export default function PrincipalDashboard() {
                   </h3>
                   {report.weeklyPlanSummary.weekNumber ? (
                     <p className="mt-2 text-sm font-bold leading-7 text-slate-500">
-                      الأسبوع {toEnglishDigits(report.weeklyPlanSummary.weekNumber)} من {toEnglishDigits(report.weeklyPlanSummary.startDate ?? "")} إلى {toEnglishDigits(report.weeklyPlanSummary.endDate ?? "")}
-                      {" "}({report.weeklyPlanSummary.startHijri} إلى {report.weeklyPlanSummary.endHijri})
+                      الأسبوع {toEnglishDigits(report.weeklyPlanSummary.weekNumber)}: {formatSchoolDateRange({
+                        startDate: report.weeklyPlanSummary.startDate,
+                        endDate: report.weeklyPlanSummary.endDate,
+                        startHijri: report.weeklyPlanSummary.startHijri,
+                        endHijri: report.weeklyPlanSummary.endHijri,
+                      })}
                     </p>
                   ) : (
                     <p className="mt-2 text-sm font-bold text-slate-400">أضف الخطط الأسبوعية من إدارة النظام لتظهر هنا.</p>

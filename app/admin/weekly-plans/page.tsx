@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
-import { toEnglishDigits } from "@/lib/format";
+import { formatSchoolDateRange, toEnglishDigits } from "@/lib/format";
 
 type WeeklyPlan = {
   id: string;
@@ -163,7 +163,14 @@ export default function WeeklyPlansAdminPage() {
                   {plans.map((plan) => (
                     <tr key={plan.id} className="hover:bg-slate-50/60">
                       <td className="px-4 py-3 font-black">{toEnglishDigits(plan.week_number)}</td>
-                      <td className="px-4 py-3 font-bold text-slate-500">{toEnglishDigits(plan.start_date)} إلى {toEnglishDigits(plan.end_date)}</td>
+                      <td className="px-4 py-3 font-bold text-slate-500">
+                        {formatSchoolDateRange({
+                          startDate: plan.start_date,
+                          endDate: plan.end_date,
+                          startHijri: plan.start_hijri,
+                          endHijri: plan.end_hijri,
+                        })}
+                      </td>
                       <td className="px-4 py-3">{plan.grade_label}</td>
                       <td className="px-4 py-3">{plan.subject}</td>
                       <td className="px-4 py-3">{plan.domain ?? "—"}</td>
