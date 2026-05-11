@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   ClipboardList,
   Download,
-  FileText,
   GraduationCap,
   LayoutDashboard,
   LogOut,
@@ -22,7 +21,6 @@ import {
   ShieldCheck,
   Sparkles,
   TrendingDown,
-  TrendingUp,
   UserRoundCog,
   UsersRound,
 } from "lucide-react";
@@ -131,54 +129,19 @@ type AdminTrialRequest = {
   created_at: string;
 };
 
-const fallbackOverview: OverviewData = {
-  schools: { total: 12 },
+const emptyOverview: OverviewData = {
+  schools: { total: 0 },
   users: {
-    total: 61,
+    total: 0,
     byRole: {
-      admin: 2,
-      principal: 12,
-      teacher: 47,
+      admin: 0,
+      principal: 0,
+      teacher: 0,
     },
   },
-  students: { total: 1240 },
-  questions: { total: 320 },
+  students: { total: 0 },
+  questions: { total: 0 },
 };
-
-const fallbackSchools: AdminSchool[] = [
-  { id: "demo-1", name: "مدرسة الملك فهد", city: "الرياض", principal: "محمد القحطاني", teachers: 8, students: 248, status: "نشطة", score: "86%" },
-  { id: "demo-2", name: "مدرسة الأمير سلطان", city: "جدة", principal: "عبدالله العتيبي", teachers: 12, students: 340, status: "نشطة", score: "82%" },
-  { id: "demo-3", name: "مدرسة ابن خلدون", city: "الدمام", principal: "سارة الغامدي", teachers: 5, students: 186, status: "تجريبية", score: "74%" },
-  { id: "demo-4", name: "مدرسة الوفاء", city: "مكة", principal: "نورة الحربي", teachers: 3, students: 92, status: "موقوفة", score: "—" },
-];
-
-const fallbackUsers: AdminUser[] = [
-  { id: "demo-user-1", auth_id: null, name: "فهد المطيري", email: "admin@miqyas.sa", role: "admin", school_id: null, school: "كل المدارس", status: "نشط" },
-  { id: "demo-user-2", auth_id: null, name: "محمد القحطاني", email: "principal@miqyas.sa", role: "principal", school_id: "demo-1", school: "مدرسة الملك فهد", status: "نشط" },
-  { id: "demo-user-3", auth_id: null, name: "عبدالله السالم", email: "teacher@miqyas.sa", role: "teacher", school_id: "demo-1", school: "مدرسة الملك فهد", status: "نشط" },
-  { id: "demo-user-4", auth_id: null, name: "سارة الغامدي", email: "sarah@miqyas.sa", role: "principal", school_id: "demo-3", school: "مدرسة ابن خلدون", status: "دعوة مرسلة" },
-];
-
-const fallbackQuestions: AdminQuestion[] = [
-  { id: "demo-question-1", subject: "رياضيات", grade: "الثالث", skill: "الكسور", week_number: 5, difficulty: "medium", question_text: "سؤال تجريبي عن الكسور", status: "active", correct_option: "أ", options: [] },
-  { id: "demo-question-2", subject: "لغتي", grade: "الرابع", skill: "الفهم القرائي", week_number: 5, difficulty: "easy", question_text: "سؤال تجريبي عن الفهم القرائي", status: "active", correct_option: "ب", options: [] },
-  { id: "demo-question-3", subject: "علوم", grade: "الخامس", skill: "الطاقة", week_number: 4, difficulty: "hard", question_text: "سؤال تجريبي عن الطاقة", status: "draft", correct_option: "ج", options: [] },
-  { id: "demo-question-4", subject: "رياضيات", grade: "السادس", skill: "النسبة", week_number: 4, difficulty: "medium", question_text: "سؤال تجريبي عن النسبة", status: "active", correct_option: "د", options: [] },
-];
-
-const activity = [
-  { title: "تمت إضافة مدرسة جديدة", detail: "مدرسة ابن خلدون - الدمام", time: "قبل 18 دقيقة", icon: Building2 },
-  { title: "اكتمل تصحيح دفعة أوراق", detail: "الثالث أ - 32 ورقة", time: "قبل ساعة", icon: ClipboardList },
-  { title: "تم تحديث دور مستخدم", detail: "عبدالله السالم أصبح teacher", time: "اليوم", icon: UserRoundCog },
-  { title: "تقرير أسبوعي جاهز", detail: "أداء المدارس للأسبوع الخامس", time: "أمس", icon: FileText },
-];
-
-const weakSkills = [
-  { skill: "الكسور", value: 52, color: "#ef4444" },
-  { skill: "الفهم القرائي", value: 59, color: "#f59e0b" },
-  { skill: "القسمة", value: 64, color: "#f59e0b" },
-  { skill: "الهندسة", value: 78, color: "#14b8a6" },
-];
 
 const navItems = [
   { id: "overview", label: "لوحة عامة", icon: LayoutDashboard },
@@ -231,11 +194,23 @@ function PrimaryButton({ children, onClick, disabled }: { children: React.ReactN
   );
 }
 
-function SoftButton({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) {
+function SoftButton({
+  children,
+  onClick,
+  disabled,
+  title,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+}) {
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-[#0b2447] transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+      disabled={disabled}
+      title={title}
+      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-[#0b2447] transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -292,14 +267,48 @@ function PageHeader({
   );
 }
 
-function SearchBar({ placeholder }: { placeholder: string }) {
+function SearchBar({
+  placeholder,
+  value,
+  onChange,
+}: {
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
     <div className="relative w-full md:max-w-sm">
       <Search className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         className="w-full rounded-xl border border-slate-100 bg-white py-3 pl-4 pr-11 text-sm font-semibold text-[#0b2447] outline-none transition placeholder:text-slate-300 focus:border-[#159f91]/40"
         placeholder={placeholder}
       />
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4 text-sm font-bold text-rose-700">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <span>{message}</span>
+        <button
+          onClick={onRetry}
+          className="rounded-xl bg-white px-4 py-2 text-xs font-extrabold text-rose-700 transition hover:bg-rose-100"
+        >
+          إعادة المحاولة
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-10 text-center text-sm font-extrabold text-slate-400">
+      {message}
     </div>
   );
 }
@@ -309,7 +318,7 @@ function ActionDropdown({
   onEdit,
   onDisable,
   disabled,
-  actionLabel = "حذف",
+  actionLabel = "إجراء",
 }: {
   label: string;
   onEdit?: () => void;
@@ -503,7 +512,19 @@ function AdminModal({
   );
 }
 
-function OverviewTab({ overview, state, onAddSchool }: { overview: OverviewData; state: ApiState; onAddSchool: () => void }) {
+function OverviewTab({
+  overview,
+  state,
+  error,
+  onAddSchool,
+  onRetry,
+}: {
+  overview: OverviewData;
+  state: ApiState;
+  error: string | null;
+  onAddSchool: () => void;
+  onRetry: () => void;
+}) {
   const stats = [
     {
       title: "المدارس",
@@ -542,9 +563,9 @@ function OverviewTab({ overview, state, onAddSchool }: { overview: OverviewData;
         description="نظرة مركزية على المدارس والمستخدمين والطلاب والأسئلة، مع مؤشرات تساعدك على متابعة تشغيل المنصة."
         action={
           <div className="flex gap-3">
-            <SoftButton>
+            <SoftButton disabled title="قريبًا">
               <Download className="h-4 w-4" />
-              تصدير ملخص
+              تصدير ملخص · قريبًا
             </SoftButton>
             <PrimaryButton onClick={onAddSchool}>إضافة مدرسة</PrimaryButton>
           </div>
@@ -552,9 +573,7 @@ function OverviewTab({ overview, state, onAddSchool }: { overview: OverviewData;
       />
 
       {state === "error" && (
-        <div className="rounded-2xl border border-amber-100 bg-amber-50 px-5 py-4 text-sm font-bold text-amber-800">
-          تعذر تحميل الإحصاءات الحية، ويتم عرض بيانات تجريبية مؤقتة.
-        </div>
+        <ErrorState message={`${error ?? "تعذر تحميل الإحصاءات الحية"}. لا يتم عرض بيانات تجريبية بدل البيانات الفعلية.`} onRetry={onRetry} />
       )}
 
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -568,52 +587,22 @@ function OverviewTab({ overview, state, onAddSchool }: { overview: OverviewData;
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-black text-[#0b2447]">آخر النشاطات</h2>
-              <p className="mt-1 text-sm text-slate-400">أحدث العمليات على مستوى النظام</p>
+              <p className="mt-1 text-sm text-slate-400">سيتم ربطها بسجل نشاط فعلي في مرحلة لاحقة</p>
             </div>
             <Activity className="h-5 w-5 text-[#159f91]" />
           </div>
-          <div className="space-y-4">
-            {activity.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.title} className="flex items-start gap-4 rounded-2xl bg-slate-50/70 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-[#159f91]">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-extrabold text-[#0b2447]">{item.title}</p>
-                      <span className="shrink-0 text-xs font-bold text-slate-400">{item.time}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-500">{item.detail}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <EmptyState message="لا توجد نشاطات فعلية مرتبطة بعد." />
         </div>
 
         <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 className="text-lg font-black text-[#0b2447]">المهارات الأضعف</h2>
-              <p className="mt-1 text-sm text-slate-400">حسب نتائج آخر أسبوع</p>
+              <p className="mt-1 text-sm text-slate-400">ستظهر بعد ربط نتائج الحزم والتصحيح</p>
             </div>
             <TrendingDown className="h-5 w-5 text-rose-500" />
           </div>
-          <div className="space-y-5">
-            {weakSkills.map((item) => (
-              <div key={item.skill}>
-                <div className="mb-2 flex items-center justify-between text-sm font-bold">
-                  <span className="text-[#0b2447]">{item.skill}</span>
-                  <span className="text-slate-400">{toEnglishDigits(item.value)}%</span>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-                  <div className="h-full rounded-full" style={{ width: `${item.value}%`, backgroundColor: item.color }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <EmptyState message="لا توجد نتائج فعلية كافية لحساب المهارات الأضعف." />
         </div>
       </div>
     </div>
@@ -623,6 +612,10 @@ function OverviewTab({ overview, state, onAddSchool }: { overview: OverviewData;
 function SchoolsTab({
   schools,
   loading,
+  error,
+  search,
+  onSearchChange,
+  onRetry,
   onAddSchool,
   onEditSchool,
   onDisableSchool,
@@ -630,6 +623,10 @@ function SchoolsTab({
 }: {
   schools: AdminSchool[];
   loading: boolean;
+  error: string | null;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onRetry: () => void;
   onAddSchool: () => void;
   onEditSchool: (school: AdminSchool) => void;
   onDisableSchool: (school: AdminSchool) => void;
@@ -642,12 +639,13 @@ function SchoolsTab({
         description="عرض المدارس، إضافة مدرسة جديدة، وتفعيل أو تعطيل الوصول حسب حالة الاشتراك والتجربة."
         action={<PrimaryButton onClick={onAddSchool} disabled={Boolean(busySchoolId)}>إضافة مدرسة</PrimaryButton>}
       />
+      {error && <ErrorState message={error} onRetry={onRetry} />}
       <div className="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <div className="flex flex-col gap-4 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
-          <SearchBar placeholder="ابحث باسم المدرسة أو المدينة" />
-          <SoftButton>
+          <SearchBar placeholder="ابحث باسم المدرسة أو المدينة" value={search} onChange={onSearchChange} />
+          <SoftButton disabled title="قريبًا">
             <Settings className="h-4 w-4" />
-            {loading ? "جارٍ تحميل المدارس..." : "إعدادات المدارس"}
+            {loading ? "جارٍ تحميل المدارس..." : "إعدادات المدارس · قريبًا"}
           </SoftButton>
         </div>
         <div className="overflow-x-auto">
@@ -680,10 +678,18 @@ function SchoolsTab({
                       onEdit={() => onEditSchool(school)}
                       onDisable={() => onDisableSchool(school)}
                       disabled={busySchoolId === school.id}
+                      actionLabel="إيقاف المدرسة"
                     />
                   </td>
                 </tr>
               ))}
+              {!loading && schools.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-5 py-10">
+                    <EmptyState message={search ? "لا توجد مدارس مطابقة للبحث." : "لا توجد مدارس فعلية حتى الآن."} />
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -695,6 +701,10 @@ function SchoolsTab({
 function UsersTab({
   users,
   loading,
+  error,
+  search,
+  onSearchChange,
+  onRetry,
   busyUserId,
   onAddUser,
   onEditUser,
@@ -702,6 +712,10 @@ function UsersTab({
 }: {
   users: AdminUser[];
   loading: boolean;
+  error: string | null;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onRetry: () => void;
   busyUserId: string | null;
   onAddUser: () => void;
   onEditUser: (user: AdminUser) => void;
@@ -721,9 +735,10 @@ function UsersTab({
         description="إنشاء حسابات وربط المستخدمين بالمدارس مع تحديد الدور المناسب: admin أو principal أو teacher."
         action={<PrimaryButton onClick={onAddUser} disabled={Boolean(busyUserId)}>إضافة مستخدم</PrimaryButton>}
       />
+      {error && <ErrorState message={error} onRetry={onRetry} />}
       <div className="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <div className="flex flex-col gap-4 border-b border-slate-100 p-5 md:flex-row md:items-center md:justify-between">
-          <SearchBar placeholder="ابحث بالاسم أو البريد" />
+          <SearchBar placeholder="ابحث بالاسم أو البريد" value={search} onChange={onSearchChange} />
           <div className="flex gap-2">
             {loading && (
               <span className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-500">
@@ -731,7 +746,7 @@ function UsersTab({
               </span>
             )}
             {["admin", "principal", "teacher"].map((role) => (
-              <button key={role} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-500">
+              <button key={role} disabled title="قريبًا" className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-extrabold text-slate-500 opacity-60">
                 {roleLabel[role]}
               </button>
             ))}
@@ -769,6 +784,11 @@ function UsersTab({
               </div>
             </div>
           ))}
+          {!loading && users.length === 0 && (
+            <div className="md:col-span-2 xl:col-span-4">
+              <EmptyState message={search ? "لا يوجد مستخدمون مطابقون للبحث." : "لا يوجد مستخدمون فعليون حتى الآن."} />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -778,6 +798,10 @@ function UsersTab({
 function QuestionsTab({
   questions,
   loading,
+  error,
+  search,
+  onSearchChange,
+  onRetry,
   busyQuestionId,
   onAddQuestion,
   onEditQuestion,
@@ -785,6 +809,10 @@ function QuestionsTab({
 }: {
   questions: AdminQuestion[];
   loading: boolean;
+  error: string | null;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onRetry: () => void;
   busyQuestionId: string | null;
   onAddQuestion: () => void;
   onEditQuestion: (question: AdminQuestion) => void;
@@ -797,35 +825,26 @@ function QuestionsTab({
         description="إضافة الأسئلة، تحديد المادة والصف والمهارة والصعوبة والإجابة الصحيحة، ثم تفعيلها للأسبوع المناسب."
         action={
           <div className="flex gap-3">
-            <SoftButton>
+            <SoftButton disabled title="قريبًا">
               <Sparkles className="h-4 w-4" />
-              توليد بالذكاء الاصطناعي
+              توليد بالذكاء الاصطناعي · قريبًا
             </SoftButton>
             <PrimaryButton onClick={onAddQuestion} disabled={Boolean(busyQuestionId)}>إضافة سؤال</PrimaryButton>
           </div>
         }
       />
+      {error && <ErrorState message={error} onRetry={onRetry} />}
       <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
         <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
           <h2 className="text-lg font-black text-[#0b2447]">إضافة سؤال سريع</h2>
-          <div className="mt-6 space-y-4">
-            {["المادة", "الصف", "المهارة", "مستوى الصعوبة", "الأسبوع/التاريخ"].map((label) => (
-              <label key={label} className="block">
-                <span className="mb-2 block text-sm font-extrabold text-slate-500">{label}</span>
-                <input className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
-              </label>
-            ))}
-            <label className="block">
-              <span className="mb-2 block text-sm font-extrabold text-slate-500">نص السؤال</span>
-              <textarea rows={4} className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
-            </label>
-            <button className="w-full rounded-xl bg-[#159f91] py-3 text-sm font-extrabold text-white">حفظ السؤال</button>
+          <div className="mt-6">
+            <EmptyState message="استخدم زر إضافة سؤال لفتح النموذج الكامل. الإدخال السريع سيعود لاحقًا بعد ربطه بحزم V0.2." />
           </div>
         </div>
 
         <div className="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
           <div className="border-b border-slate-100 p-5">
-            <SearchBar placeholder="ابحث في الأسئلة أو المهارات" />
+            <SearchBar placeholder="ابحث في الأسئلة أو المهارات" value={search} onChange={onSearchChange} />
             {loading && (
               <p className="mt-3 text-xs font-extrabold text-slate-400">جارٍ تحميل الأسئلة...</p>
             )}
@@ -857,6 +876,11 @@ function QuestionsTab({
                 </div>
               </div>
             ))}
+            {!loading && questions.length === 0 && (
+              <div className="p-5">
+                <EmptyState message={search ? "لا توجد أسئلة مطابقة للبحث." : "لا توجد أسئلة فعلية حتى الآن."} />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -867,11 +891,15 @@ function QuestionsTab({
 function TrialRequestsTab({
   requests,
   loading,
+  error,
+  onRetry,
   busyTrialRequestId,
   onUpdateStatus,
 }: {
   requests: AdminTrialRequest[];
   loading: boolean;
+  error: string | null;
+  onRetry: () => void;
   busyTrialRequestId: string | null;
   onUpdateStatus: (request: AdminTrialRequest, status: string) => void;
 }) {
@@ -887,6 +915,7 @@ function TrialRequestsTab({
           </SoftButton>
         }
       />
+      {error && <ErrorState message={error} onRetry={onRetry} />}
 
       <div className="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <div className="overflow-x-auto">
@@ -949,32 +978,19 @@ function ReportsTab() {
         title="التقارير والتحليلات"
         description="متابعة أداء المدارس والمعلمين والطلاب واكتشاف أكثر المهارات ضعفًا على مستوى النظام."
         action={
-          <SoftButton>
+          <SoftButton disabled title="قريبًا">
             <Download className="h-4 w-4" />
-            تصدير التقرير
+            تصدير التقرير · قريبًا
           </SoftButton>
         }
       />
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="متوسط المدارس" value="81٪" hint="أداء إجمالي مستقر" icon={TrendingUp} accent="#159f91" />
-        <StatCard title="أداء المعلمين" value="78٪" hint="إكمال التقييمات الأسبوعية" icon={UsersRound} accent="#0b2447" />
-        <StatCard title="طلاب بحاجة دعم" value="127" hint="دون المستوى الأساسي" icon={TrendingDown} accent="#ef4444" />
-        <StatCard title="تقارير جاهزة" value="24" hint="قابلة للطباعة والتصدير" icon={FileText} accent="#f59e0b" />
-      </div>
       <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-        <h2 className="text-lg font-black text-[#0b2447]">أكثر المهارات ضعفًا</h2>
-        <div className="mt-6 grid gap-5 md:grid-cols-2">
-          {weakSkills.map((item) => (
-            <div key={item.skill} className="rounded-2xl bg-slate-50/70 p-5">
-              <div className="mb-3 flex items-center justify-between text-sm font-bold">
-                <span className="text-[#0b2447]">{item.skill}</span>
-                <span className="text-slate-400">{toEnglishDigits(item.value)}%</span>
-              </div>
-              <div className="h-2.5 overflow-hidden rounded-full bg-white">
-                <div className="h-full rounded-full" style={{ width: `${item.value}%`, backgroundColor: item.color }} />
-              </div>
-            </div>
-          ))}
+        <h2 className="text-lg font-black text-[#0b2447]">تقارير النظام</h2>
+        <p className="mt-2 text-sm font-bold leading-7 text-slate-500">
+          لا يتم عرض مؤشرات تجريبية في لوحة الإدارة. ستظهر التقارير هنا بعد ربط نتائج الحزم وبيانات المدارس الفعلية.
+        </p>
+        <div className="mt-6">
+          <EmptyState message="لا توجد تقارير فعلية جاهزة بعد." />
         </div>
       </div>
     </div>
@@ -988,26 +1004,97 @@ export default function AdminPage() {
   const [editingSchool, setEditingSchool] = useState<AdminSchool | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<AdminQuestion | null>(null);
-  const [schoolRows, setSchoolRows] = useState<AdminSchool[]>(fallbackSchools);
-  const [userRows, setUserRows] = useState<AdminUser[]>(fallbackUsers);
-  const [questionRows, setQuestionRows] = useState<AdminQuestion[]>(fallbackQuestions);
+  const [schoolRows, setSchoolRows] = useState<AdminSchool[]>([]);
+  const [userRows, setUserRows] = useState<AdminUser[]>([]);
+  const [questionRows, setQuestionRows] = useState<AdminQuestion[]>([]);
   const [trialRequestRows, setTrialRequestRows] = useState<AdminTrialRequest[]>([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [trialRequestsLoading, setTrialRequestsLoading] = useState(false);
+  const [schoolsError, setSchoolsError] = useState<string | null>(null);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [questionsError, setQuestionsError] = useState<string | null>(null);
+  const [trialRequestsError, setTrialRequestsError] = useState<string | null>(null);
+  const [overviewError, setOverviewError] = useState<string | null>(null);
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [userSearch, setUserSearch] = useState("");
+  const [questionSearch, setQuestionSearch] = useState("");
   const [busySchoolId, setBusySchoolId] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [busyQuestionId, setBusyQuestionId] = useState<string | null>(null);
   const [busyTrialRequestId, setBusyTrialRequestId] = useState<string | null>(null);
-  const [overview, setOverview] = useState<OverviewData>(fallbackOverview);
+  const [overview, setOverview] = useState<OverviewData>(emptyOverview);
   const [apiState, setApiState] = useState<ApiState>("idle");
   const [loggingOut, setLoggingOut] = useState(false);
 
   const activeTitle = useMemo(() => navItems.find((item) => item.id === activeTab)?.label ?? "لوحة عامة", [activeTab]);
 
+  const filteredSchools = useMemo(() => {
+    const query = schoolSearch.trim().toLowerCase();
+    if (!query) return schoolRows;
+    return schoolRows.filter((school) =>
+      [school.name, school.city, school.region ?? "", school.type ?? "", school.status]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [schoolRows, schoolSearch]);
+
+  const filteredUsers = useMemo(() => {
+    const query = userSearch.trim().toLowerCase();
+    if (!query) return userRows;
+    return userRows.filter((user) =>
+      [user.name, user.email, user.role, user.school, user.status]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [userRows, userSearch]);
+
+  const filteredQuestions = useMemo(() => {
+    const query = questionSearch.trim().toLowerCase();
+    if (!query) return questionRows;
+    return questionRows.filter((question) =>
+      [question.subject, question.grade, question.skill, question.question_text, question.status]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [questionRows, questionSearch]);
+
+  const loadOverview = useCallback(async () => {
+    setApiState("loading");
+    setOverviewError(null);
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      router.replace("/login");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/overview", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || "فشل تحميل بيانات لوحة الإدارة");
+      }
+      setOverview(json.data);
+      setApiState("ready");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "فشل تحميل بيانات لوحة الإدارة";
+      console.error("load admin overview failed", error);
+      setOverview(emptyOverview);
+      setOverviewError(message);
+      setApiState("error");
+    }
+  }, [router]);
+
   const loadSchools = useCallback(async () => {
     setSchoolsLoading(true);
+    setSchoolsError(null);
     try {
       const res = await fetch("/api/admin/schools", { cache: "no-store" });
       const json = await res.json();
@@ -1015,6 +1102,8 @@ export default function AdminPage() {
       setSchoolRows(json.data);
     } catch (error) {
       console.error("load admin schools failed", error);
+      setSchoolRows([]);
+      setSchoolsError(error instanceof Error ? error.message : "فشل تحميل المدارس");
     } finally {
       setSchoolsLoading(false);
     }
@@ -1022,6 +1111,7 @@ export default function AdminPage() {
 
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
+    setUsersError(null);
     try {
       const res = await fetch("/api/admin/users", { cache: "no-store" });
       const json = await res.json();
@@ -1029,6 +1119,8 @@ export default function AdminPage() {
       setUserRows(json.data);
     } catch (error) {
       console.error("load admin users failed", error);
+      setUserRows([]);
+      setUsersError(error instanceof Error ? error.message : "فشل تحميل المستخدمين");
     } finally {
       setUsersLoading(false);
     }
@@ -1036,6 +1128,7 @@ export default function AdminPage() {
 
   const loadQuestions = useCallback(async () => {
     setQuestionsLoading(true);
+    setQuestionsError(null);
     try {
       const res = await fetch("/api/admin/questions", { cache: "no-store" });
       const json = await res.json();
@@ -1043,6 +1136,8 @@ export default function AdminPage() {
       setQuestionRows(json.data);
     } catch (error) {
       console.error("load admin questions failed", error);
+      setQuestionRows([]);
+      setQuestionsError(error instanceof Error ? error.message : "فشل تحميل الأسئلة");
     } finally {
       setQuestionsLoading(false);
     }
@@ -1050,6 +1145,7 @@ export default function AdminPage() {
 
   const loadTrialRequests = useCallback(async () => {
     setTrialRequestsLoading(true);
+    setTrialRequestsError(null);
     try {
       const res = await fetch("/api/admin/trial-requests", { cache: "no-store" });
       const json = await res.json();
@@ -1057,48 +1153,16 @@ export default function AdminPage() {
       setTrialRequestRows(json.data);
     } catch (error) {
       console.error("load admin trial requests failed", error);
+      setTrialRequestRows([]);
+      setTrialRequestsError(error instanceof Error ? error.message : "فشل تحميل طلبات التجربة");
     } finally {
       setTrialRequestsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    let mounted = true;
-
-    async function loadOverview() {
-      setApiState("loading");
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session) {
-        router.replace("/login");
-        return;
-      }
-
-      try {
-        const res = await fetch("/api/admin/overview", { cache: "no-store" });
-        const json = await res.json();
-        if (!res.ok || !json.success) {
-          throw new Error(json.error || "فشل تحميل بيانات لوحة الإدارة");
-        }
-        if (mounted) {
-          setOverview(json.data);
-          setApiState("ready");
-        }
-      } catch {
-        if (mounted) {
-          setOverview(fallbackOverview);
-          setApiState("error");
-        }
-      }
-    }
-
-    loadOverview();
-    return () => {
-      mounted = false;
-    };
-  }, [router]);
+    void loadOverview();
+  }, [loadOverview]);
 
   useEffect(() => {
     if (activeTab === "schools") {
@@ -1180,10 +1244,10 @@ export default function AdminPage() {
       }
 
       if (editingSchool) {
-        setSchoolRows((prev) => prev.map((school) => (school.id === editingSchool.id ? json.data : school)));
+        await loadSchools();
         window.alert("تم التحديث");
       } else {
-        setSchoolRows((prev) => [json.data, ...prev.filter((school) => !school.id.startsWith("demo-"))]);
+        await loadSchools();
         window.alert("تمت الإضافة");
       }
       setEditingSchool(null);
@@ -1196,21 +1260,22 @@ export default function AdminPage() {
   }
 
   async function handleDisableSchool(school: AdminSchool) {
+    const confirmed = window.confirm("سيتم إيقاف المدرسة ولن تظهر كمدرسة نشطة. لن يتم حذف بياناتها. هل تريد المتابعة؟");
+    if (!confirmed) return;
+
     setBusySchoolId(school.id);
     try {
-      const res = await fetch(`/api/admin/schools/${school.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: false }),
-      });
+      // TODO: hard delete requires dependency checks for users, classes, students,
+      // package assignments, and assessment results. Keep this as soft disable.
+      const res = await fetch(`/api/admin/schools/${school.id}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok || !json.success) {
         console.error("disable school API failed", json);
         const details = [json.error, json.details, json.hint].filter(Boolean).join(" - ");
         throw new Error(details || "فشل تعطيل المدرسة");
       }
-      setSchoolRows((prev) => prev.map((item) => (item.id === school.id ? json.data : item)));
-      window.alert("تم التعطيل");
+      await loadSchools();
+      window.alert("تم إيقاف المدرسة");
     } catch (error) {
       console.error("disable school failed", error);
       window.alert(error instanceof Error ? error.message : "حدث خطأ");
@@ -1226,12 +1291,10 @@ export default function AdminPage() {
     const school_id = payload.school_id?.trim() || null;
 
     if (!name || !email || !role) {
-      window.alert("حدث خطأ");
       throw new Error("الاسم والبريد الإلكتروني والدور مطلوبة");
     }
 
     if (role !== "admin" && !school_id) {
-      window.alert("حدث خطأ");
       throw new Error("يجب ربط المستخدم بمدرسة");
     }
 
@@ -1251,7 +1314,7 @@ export default function AdminPage() {
         setUserRows((prev) => prev.map((user) => (user.id === editingUser.id ? json.data : user)));
         window.alert("تم التحديث");
       } else {
-        setUserRows((prev) => [json.data, ...prev.filter((user) => !user.id.startsWith("demo-user-"))]);
+        setUserRows((prev) => [json.data, ...prev]);
         window.alert("تمت الإضافة");
       }
       setEditingUser(null);
@@ -1280,7 +1343,7 @@ export default function AdminPage() {
     } catch (error) {
       console.error("toggle user status failed", error);
       setUserRows((prev) => prev.map((item) => (item.id === user.id ? user : item)));
-      window.alert("حدث خطأ");
+      window.alert(error instanceof Error ? error.message : "فشل تحديث حالة المستخدم");
     } finally {
       setBusyUserId(null);
     }
@@ -1293,7 +1356,6 @@ export default function AdminPage() {
     const correct_option = payload.correct_option?.trim() || "أ";
 
     if (!subject || !grade || !question_text) {
-      window.alert("حدث خطأ");
       throw new Error("المادة والصف ونص السؤال مطلوبة");
     }
 
@@ -1330,7 +1392,7 @@ export default function AdminPage() {
         setQuestionRows((prev) => prev.map((question) => (question.id === editingQuestion.id ? json.data : question)));
         window.alert("تم التحديث");
       } else {
-        setQuestionRows((prev) => [json.data, ...prev.filter((question) => !question.id.startsWith("demo-question-"))]);
+        setQuestionRows((prev) => [json.data, ...prev]);
         window.alert("تمت الإضافة");
       }
       setEditingQuestion(null);
@@ -1359,7 +1421,7 @@ export default function AdminPage() {
     } catch (error) {
       console.error("toggle question status failed", error);
       setQuestionRows((prev) => prev.map((item) => (item.id === question.id ? question : item)));
-      window.alert("حدث خطأ");
+      window.alert(error instanceof Error ? error.message : "فشل تحديث حالة السؤال");
     } finally {
       setBusyQuestionId(null);
     }
@@ -1507,11 +1569,23 @@ export default function AdminPage() {
         </header>
 
         <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-10">
-          {activeTab === "overview" && <OverviewTab overview={overview} state={apiState} onAddSchool={openAddSchoolModal} />}
+          {activeTab === "overview" && (
+            <OverviewTab
+              overview={overview}
+              state={apiState}
+              error={overviewError}
+              onAddSchool={openAddSchoolModal}
+              onRetry={loadOverview}
+            />
+          )}
           {activeTab === "schools" && (
             <SchoolsTab
-              schools={schoolRows}
+              schools={filteredSchools}
               loading={schoolsLoading}
+              error={schoolsError}
+              search={schoolSearch}
+              onSearchChange={setSchoolSearch}
+              onRetry={loadSchools}
               onAddSchool={openAddSchoolModal}
               onEditSchool={openEditSchoolModal}
               onDisableSchool={handleDisableSchool}
@@ -1520,8 +1594,12 @@ export default function AdminPage() {
           )}
           {activeTab === "users" && (
             <UsersTab
-              users={userRows}
+              users={filteredUsers}
               loading={usersLoading}
+              error={usersError}
+              search={userSearch}
+              onSearchChange={setUserSearch}
+              onRetry={loadUsers}
               busyUserId={busyUserId}
               onAddUser={openAddUserModal}
               onEditUser={openEditUserModal}
@@ -1530,8 +1608,12 @@ export default function AdminPage() {
           )}
           {activeTab === "questions" && (
             <QuestionsTab
-              questions={questionRows}
+              questions={filteredQuestions}
               loading={questionsLoading}
+              error={questionsError}
+              search={questionSearch}
+              onSearchChange={setQuestionSearch}
+              onRetry={loadQuestions}
               busyQuestionId={busyQuestionId}
               onAddQuestion={openAddQuestionModal}
               onEditQuestion={openEditQuestionModal}
@@ -1542,6 +1624,8 @@ export default function AdminPage() {
             <TrialRequestsTab
               requests={trialRequestRows}
               loading={trialRequestsLoading}
+              error={trialRequestsError}
+              onRetry={loadTrialRequests}
               busyTrialRequestId={busyTrialRequestId}
               onUpdateStatus={handleTrialRequestStatus}
             />

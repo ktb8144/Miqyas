@@ -57,8 +57,11 @@ function logSchoolError(action: string, err: unknown) {
   console.error(`admin schools ${action} failed`, details);
 }
 
-function errorResponse(err: unknown) {
+function errorResponse(err: unknown, fallback = "تعذر تنفيذ العملية على المدرسة") {
   const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
+  const message = err && typeof err === "object" && "message" in err ? String(err.message) : "";
+  const details = err && typeof err === "object" && "details" in err ? String(err.details) : undefined;
+  const hint = err && typeof err === "object" && "hint" in err ? String(err.hint) : undefined;
 
   return NextResponse.json(
     {
@@ -66,7 +69,14 @@ function errorResponse(err: unknown) {
       error:
         code === "PGRST204"
           ? "تعذر حفظ المدرسة بسبب عدم تطابق أعمدة جدول schools في Supabase."
-          : "تعذر تنفيذ العملية على المدرسة",
+          : message.includes("violates not-null constraint")
+            ? "تعذر حفظ المدرسة بسبب نقص حقل مطلوب في جدول schools."
+            : message.includes("violates check constraint")
+              ? "تعذر حفظ المدرسة بسبب قيمة غير مسموحة في أحد الحقول."
+              : fallback,
+      details,
+      hint,
+      code,
     },
     { status: 500 }
   );
@@ -142,7 +152,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     });
   } catch (err) {
     logSchoolError("update", err);
-    return errorResponse(err);
+    return errorResponse(err, "تعذر تحديث المدرسة في Supabase");
   }
 }
 
@@ -177,6 +187,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     });
   } catch (err) {
     logSchoolError("disable", err);
-    return errorResponse(err);
+    return errorResponse(err, "تعذر إيقاف المدرسة في Supabase");
   }
 }

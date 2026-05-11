@@ -50,19 +50,29 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { status } = parsed.data;
     const db = getAdminClient();
 
-    const { data, error } = await db
+    const { data: existingUser, error: existingError } = await db
       .from("users")
-      .select("id, auth_id, name, email, role, school_id, schools(name)")
+      .select("id, auth_id")
       .eq("id", params.id)
       .single();
 
-    if (error) throw error;
+    if (existingError) throw existingError;
 
-    if (data?.auth_id) {
-      await db.auth.admin.updateUserById(String(data.auth_id), {
+    if (existingUser?.auth_id) {
+      const { error: authError } = await db.auth.admin.updateUserById(String(existingUser.auth_id), {
         ban_duration: status === "موقوف" ? "876000h" : "none",
       });
+      if (authError) throw authError;
     }
+
+    const { data, error } = await db
+      .from("users")
+      .update({ status })
+      .eq("id", params.id)
+      .select("id, auth_id, name, email, role, school_id, status, schools(name)")
+      .single();
+
+    if (error) throw error;
 
     return NextResponse.json({
       success: true,

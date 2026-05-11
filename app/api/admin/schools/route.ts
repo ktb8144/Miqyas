@@ -51,8 +51,11 @@ function logSchoolError(action: string, err: unknown) {
   console.error(`admin schools ${action} failed`, details);
 }
 
-function errorResponse(err: unknown) {
+function errorResponse(err: unknown, fallback = "تعذر تنفيذ العملية على المدارس") {
   const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
+  const message = err && typeof err === "object" && "message" in err ? String(err.message) : "";
+  const details = err && typeof err === "object" && "details" in err ? String(err.details) : undefined;
+  const hint = err && typeof err === "object" && "hint" in err ? String(err.hint) : undefined;
 
   return NextResponse.json(
     {
@@ -60,7 +63,14 @@ function errorResponse(err: unknown) {
       error:
         code === "PGRST204"
           ? "تعذر حفظ المدرسة بسبب عدم تطابق أعمدة جدول schools في Supabase."
-          : "تعذر تنفيذ العملية على المدارس",
+          : message.includes("violates not-null constraint")
+            ? "تعذر حفظ المدرسة بسبب نقص حقل مطلوب في جدول schools."
+            : message.includes("violates check constraint")
+              ? "تعذر حفظ المدرسة بسبب قيمة غير مسموحة في أحد الحقول."
+              : fallback,
+      details,
+      hint,
+      code,
     },
     { status: 500 }
   );
@@ -118,7 +128,7 @@ export async function POST(req: NextRequest) {
     const parsed = schoolCreateSchema.safeParse(await req.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: "تحقق من بيانات المدرسة المطلوبة" },
+        { success: false, error: "تحقق من بيانات المدرسة المطلوبة: اسم المدرسة والمدينة مطلوبان" },
         { status: 400 }
       );
     }
@@ -160,6 +170,6 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     logSchoolError("create", err);
-    return errorResponse(err);
+    return errorResponse(err, "تعذر إنشاء المدرسة في Supabase");
   }
 }
