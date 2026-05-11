@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { scanAnswerSheet } from "@/lib/gemini";
+import { scanAnswerSheet, scanQuestionPaperAnswers } from "@/lib/gemini";
 import { getLevel } from "@/lib/demo-data";
 import { getAdminClient, requireUserRole } from "@/lib/supabase-admin";
 
@@ -66,6 +66,7 @@ const scanSchema = z.object({
   classPackageAssignmentId: z.string().uuid(),
   imageBase64: z.string().min(100).optional(),
   mimeType: z.string().trim().min(1).default("image/jpeg"),
+  scanMode: z.enum(["answer_sheet", "question_paper"]).optional().default("answer_sheet"),
   studentAnswers: z.record(z.string()).optional(),
   save: z.boolean().optional().default(false),
   studentId: z.string().uuid().optional(),
@@ -86,6 +87,17 @@ function normalizeAnswer(value: unknown) {
 function normalizePoints(value: number | string) {
   const points = Number(value);
   return Number.isFinite(points) && points > 0 ? points : 1;
+}
+
+function countDetectedAnswers(scanned: Record<string, string>, totalQuestions: number) {
+  const explicitCount = Number(scanned._detectedAnswerCount);
+  if (Number.isFinite(explicitCount)) return explicitCount;
+  let count = 0;
+  for (let i = 1; i <= totalQuestions; i++) {
+    const value = scanned[`q${i}`];
+    if (value && ["أ", "ب", "ج", "د", "unclear"].includes(value)) count += 1;
+  }
+  return count;
 }
 
 async function loadPackageQuestionsForAssignment(classPackageAssignmentId: string, profile: { id: string; school_id?: string | null }) {
@@ -355,7 +367,30 @@ export async function POST(req: NextRequest) {
     }
 
     const totalQuestions = loaded.questions.length;
-    const scanned = body.studentAnswers ?? await scanAnswerSheet(body.imageBase64!, totalQuestions, body.mimeType);
+    let scanned: Record<string, string>;
+    if (body.studentAnswers) {
+      scanned = body.studentAnswers;
+    } else if (body.scanMode === "question_paper") {
+      scanned = await scanQuestionPaperAnswers(body.imageBase64!, totalQuestions, body.mimeType);
+    } else {
+      scanned = await scanAnswerSheet(body.imageBase64!, totalQuestions, body.mimeType);
+    }
+
+    const detectedAnswerCount = body.studentAnswers ? totalQuestions : countDetectedAnswers(scanned, totalQuestions);
+    console.info("scan-package-omr", {
+      scanMode: body.scanMode,
+      totalQuestions,
+      parseableJson: scanned._parseableJson ?? "unknown",
+      detectedAnswerCount,
+    });
+
+    if (!body.studentAnswers && body.scanMode === "question_paper" && detectedAnswerCount < 1) {
+      return NextResponse.json(
+        { success: false, error: "لم يتم العثور على اختيارات مظللة بوضوح في الورقة" },
+        { status: 422 }
+      );
+    }
+
     const studentName = typeof scanned.studentName === "string" ? scanned.studentName.trim() : "";
     const graded = gradePackageAnswers(scanned, loaded.questions, studentName);
 

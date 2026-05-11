@@ -15,6 +15,70 @@ export interface OMRResult {
   [key: string]: string; // e.g. { q1: "ب", q2: "أ", ... }
 }
 
+const ARABIC_DIGITS: Record<string, string> = {
+  "٠": "0",
+  "١": "1",
+  "٢": "2",
+  "٣": "3",
+  "٤": "4",
+  "٥": "5",
+  "٦": "6",
+  "٧": "7",
+  "٨": "8",
+  "٩": "9",
+};
+
+function stripCodeFence(text: string) {
+  return text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+}
+
+function normalizeQuestionKey(key: string) {
+  const englishDigits = key.replace(/[٠-٩]/g, (digit) => ARABIC_DIGITS[digit] ?? digit);
+  const match = englishDigits.match(/(?:q|س|السؤال)?\s*([0-9]+)/i);
+  return match ? `q${match[1]}` : null;
+}
+
+function normalizeOption(value: unknown) {
+  if (typeof value !== "string") return null;
+  const option = value.trim().replace(/^ا$/, "أ");
+  if (["أ", "ب", "ج", "د", "blank", "unclear"].includes(option)) return option;
+  if (["فارغ", "بدون إجابة"].includes(option)) return "blank";
+  if (["غير واضح", "غير مؤكدة", "غير مؤكد"].includes(option)) return "unclear";
+  return null;
+}
+
+function normalizeScannedAnswers(raw: unknown, totalQuestions: number): OMRResult {
+  const source = raw && typeof raw === "object" && "answers" in raw
+    ? (raw as { answers?: unknown }).answers
+    : raw;
+  const result: OMRResult = {
+    studentName: raw && typeof raw === "object" && typeof (raw as { studentName?: unknown }).studentName === "string"
+      ? String((raw as { studentName: string }).studentName).trim()
+      : "",
+  };
+  let detectedAnswerCount = 0;
+
+  if (source && typeof source === "object" && !Array.isArray(source)) {
+    Object.entries(source as Record<string, unknown>).forEach(([key, value]) => {
+      if (key === "studentName") return;
+      const normalizedKey = normalizeQuestionKey(key);
+      const normalizedOption = normalizeOption(value);
+      if (!normalizedKey || !normalizedOption) return;
+      const questionNumber = Number(normalizedKey.slice(1));
+      if (!Number.isInteger(questionNumber) || questionNumber < 1 || questionNumber > totalQuestions) return;
+      result[normalizedKey] = normalizedOption;
+      if (normalizedOption !== "blank") detectedAnswerCount += 1;
+    });
+  }
+
+  for (let i = 1; i <= totalQuestions; i++) {
+    if (!result[`q${i}`]) result[`q${i}`] = "blank";
+  }
+
+  result._detectedAnswerCount = String(detectedAnswerCount);
+  return result;
+}
+
 export interface StudentResult {
   name: string;
   score: number;
@@ -84,7 +148,7 @@ Return the JSON object only — no markdown, no explanation.`;
   ]);
 
   const text = result.response.text().trim();
-  const jsonText = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  const jsonText = stripCodeFence(text);
 
   try {
     return JSON.parse(jsonText) as OMRResult;
@@ -94,6 +158,72 @@ Return the JSON object only — no markdown, no explanation.`;
       partial[`q${i}`] = "unclear";
     }
     return partial;
+  }
+}
+
+// ─── Function 1B: Scan answers from a marked question paper ─────────────────
+
+export async function scanQuestionPaperAnswers(
+  imageBase64: string,
+  totalQuestions: number,
+  mimeType: string = "image/jpeg"
+): Promise<OMRResult> {
+  const model = getModel();
+
+  const prompt = `You are analyzing a full printed Arabic question paper from a Saudi school exam.
+
+This is NOT a separate OMR answer sheet.
+The student marks or shades one option directly on the same question paper.
+
+The paper has exactly ${totalQuestions} multiple-choice questions on one A4 page.
+Each question has four options labeled exactly:
+أ، ب، ج، د
+There may be circles or bubbles next to the options.
+
+Your task:
+1. Read the student's visible markings only.
+2. Identify which option the student selected, shaded, circled, ticked, or marked for each question.
+3. Extract the student name if clearly visible.
+
+CRITICAL RULES:
+- Do NOT solve the math/science/reading questions.
+- Do NOT infer the answer from correctness.
+- Do NOT use your knowledge to choose the correct option.
+- Only report what the student physically selected or shaded.
+- If no clear mark exists for a question, return "blank".
+- If multiple options are marked, or the shading is unclear, return "unclear".
+- If a corner marker is missing, ignore it and still inspect the page.
+- Return strict JSON only. No markdown. No explanation.
+
+Valid answer values are exactly: أ ب ج د blank unclear
+
+Return this exact shape:
+{
+  "studentName": "",
+  "answers": {
+    "q1": "أ",
+    "q2": "ب",
+    "q3": "blank",
+    "q4": "unclear"
+  }
+}`;
+
+  const result = await model.generateContent([
+    prompt,
+    { inlineData: { mimeType, data: imageBase64 } },
+  ]);
+
+  const text = result.response.text().trim();
+  const jsonText = stripCodeFence(text);
+
+  try {
+    const normalized = normalizeScannedAnswers(JSON.parse(jsonText), totalQuestions);
+    normalized._parseableJson = "true";
+    return normalized;
+  } catch {
+    const normalized = normalizeScannedAnswers({}, totalQuestions);
+    normalized._parseableJson = "false";
+    return normalized;
   }
 }
 

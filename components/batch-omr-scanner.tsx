@@ -323,8 +323,10 @@ export function BatchOMRScanner({
       canvas.height = 1754;
       canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
       const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
+      const maxWidth = mode === "package" ? 1500 : 800;
+      const quality = mode === "package" ? 0.9 : 0.8;
       const [compressed, thumb] = await Promise.all([
-        compressImage(raw, 800, 0.8),
+        compressImage(raw, maxWidth, quality),
         compressImage(raw, 360, 0.75),
       ]);
       setCapturedPreview(thumb);
@@ -340,13 +342,13 @@ export function BatchOMRScanner({
       setCaptureFlash(false);
       setCaptureBusy(false);
     }
-  }, [captureBusy, papers.length]);
+  }, [captureBusy, mode, papers.length]);
 
   // ── Scan a single image against the API ────────────────────────────────────
 
   const scanImage = async (imageBase64: string, paperId: string, thumbBase64: string): Promise<ScanResult> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
+    const timer = setTimeout(() => controller.abort(), mode === "package" ? 40000 : 20000);
     try {
       if (mode === "package" && !classPackageAssignmentId) {
         throw new Error("لم يتم تحديد اختبار مقياس لهذا الفصل");
@@ -357,7 +359,7 @@ export function BatchOMRScanner({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           mode === "package"
-            ? { classPackageAssignmentId, imageBase64, mimeType: "image/jpeg" }
+            ? { classPackageAssignmentId, imageBase64, mimeType: "image/jpeg", scanMode: "question_paper" }
             : { imageBase64, mimeType: "image/jpeg", subject, grade, weekNumber }
         ),
         signal: controller.signal,
@@ -393,7 +395,7 @@ export function BatchOMRScanner({
       return {
         paperId, studentName: "", editedName: "", answers: {}, score: 0,
         total: Q_COUNT, percentage: 0, level: "دون الأساسي", weakSkills: [], error: true,
-        errorMsg: isTimeout ? "انتهت المهلة (20 ثانية) — أعد التصوير" : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
+        errorMsg: isTimeout ? `انتهت المهلة (${toEnglishDigits(mode === "package" ? 40 : 20)} ثانية) — أعد التصوير` : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
         thumbBase64,
       };
     }
