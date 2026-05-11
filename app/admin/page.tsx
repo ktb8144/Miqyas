@@ -144,8 +144,10 @@ type AdminAssessmentPackage = {
   start_date: string | null;
   end_date: string | null;
   student_pdf_url: string | null;
+  questions_pdf_url: string | null;
   teacher_pdf_url: string | null;
   answer_sheet_pdf_url: string | null;
+  answer_key_file_url: string | null;
   question_count: number;
   assigned_school_count: number;
   published_at: string | null;
@@ -163,8 +165,13 @@ type PackageFormData = {
   start_date: string;
   end_date: string;
   student_pdf_url: string;
-  teacher_pdf_url: string;
+  questions_pdf_url: string;
   answer_sheet_pdf_url: string;
+  answer_key_file_url: string;
+};
+
+type PackageSubmitData = PackageFormData & {
+  questions_pdf_file?: File | null;
 };
 
 const emptyOverview: OverviewData = {
@@ -1035,10 +1042,11 @@ function PackageModal({
 }: {
   initialValues?: AdminAssessmentPackage | null;
   onClose: () => void;
-  onSubmit: (payload: PackageFormData) => Promise<void>;
+  onSubmit: (payload: PackageSubmitData) => Promise<void>;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [questionsPdfFile, setQuestionsPdfFile] = useState<File | null>(null);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1047,7 +1055,7 @@ function PackageModal({
     try {
       setSubmitting(true);
       setError(null);
-      await onSubmit(payload);
+      await onSubmit({ ...payload, questions_pdf_file: questionsPdfFile } as PackageSubmitData);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر حفظ الحزمة");
@@ -1112,16 +1120,35 @@ function PackageModal({
             <input name="end_date" type="date" defaultValue={initialValues?.end_date ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
           </label>
           <label className="md:col-span-2">
-            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط اختبار الطالب PDF</span>
-            <input name="student_pdf_url" type="url" defaultValue={initialValues?.student_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">ملف الأسئلة PDF</span>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={(event) => setQuestionsPdfFile(event.target.files?.[0] ?? null)}
+              className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white"
+            />
+            {initialValues?.questions_pdf_url || initialValues?.student_pdf_url ? (
+              <a
+                href={initialValues.questions_pdf_url ?? initialValues.student_pdf_url ?? ""}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-flex text-xs font-extrabold text-[#159f91]"
+              >
+                عرض الملف الحالي
+              </a>
+            ) : null}
           </label>
           <label className="md:col-span-2">
-            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط نسخة المعلم PDF</span>
-            <input name="teacher_pdf_url" type="url" defaultValue={initialValues?.teacher_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ملف الأسئلة PDF</span>
+            <input name="questions_pdf_url" type="url" defaultValue={initialValues?.questions_pdf_url ?? initialValues?.student_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
           </label>
           <label className="md:col-span-2">
-            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ورقة الإجابة PDF</span>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ورقة الإجابة PDF اختياري</span>
             <input name="answer_sheet_pdf_url" type="url" defaultValue={initialValues?.answer_sheet_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label className="md:col-span-2">
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ملف مفتاح الإجابة والمهارات اختياري</span>
+            <input name="answer_key_file_url" type="url" defaultValue={initialValues?.answer_key_file_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
           </label>
           <div className="flex gap-3 md:col-span-2">
             <button disabled={submitting} className="flex-1 rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
@@ -1152,7 +1179,8 @@ function QuestionImportModal({
     "skill_id": "00000000-0000-0000-0000-000000000000",
     "difficulty_level": "easy",
     "points": 1,
-    "question_text": ""
+    "question_text": "",
+    "remediation_note": ""
   }
 ]`;
   const [text, setText] = useState(sample);
@@ -1184,7 +1212,7 @@ function QuestionImportModal({
         </div>
         {error && <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
         <div className="mb-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold leading-7 text-amber-700">
-          ألصق مصفوفة JSON للأسئلة. هذه البيانات تحتوي مفتاح الإجابة ولا تظهر للمعلم أو قائد المدرسة.
+          ألصق مصفوفة JSON للأسئلة. تشمل المجال في نافس، المهارة المستهدفة، مستوى الصعوبة، وملاحظة علاجية اختيارية. هذه البيانات تحتوي مفتاح الإجابة ولا تظهر للمعلم أو قائد المدرسة.
         </div>
         <textarea
           value={text}
@@ -1313,7 +1341,7 @@ function PackagesTab({
       {error && <ErrorState message={error} onRetry={onRetry} />}
       <div className="grid gap-4">
         {packages.map((item) => {
-          const pdfReady = Boolean(item.student_pdf_url && item.teacher_pdf_url && item.answer_sheet_pdf_url);
+          const pdfReady = Boolean(item.questions_pdf_url || item.student_pdf_url);
           const busy = busyPackageId === item.id;
           return (
             <div key={item.id} className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
@@ -1341,7 +1369,7 @@ function PackagesTab({
                   </div>
                   <div className="rounded-xl bg-slate-50 px-4 py-3">
                     <div className={`text-lg font-black ${pdfReady ? "text-[#159f91]" : "text-amber-600"}`}>{pdfReady ? "جاهز" : "ناقص"}</div>
-                    <div className="text-xs font-bold text-slate-400">PDF</div>
+                    <div className="text-xs font-bold text-slate-400">ملف الأسئلة</div>
                   </div>
                   <div className="rounded-xl bg-slate-50 px-4 py-3">
                     <div className="text-lg font-black text-[#0b2447]">{item.published_at ? "نُشر" : "—"}</div>
@@ -1853,7 +1881,19 @@ export default function AdminPage() {
     }
   }
 
-  async function handlePackageSubmit(payload: PackageFormData) {
+  async function uploadQuestionsPdf(packageId: string, file: File) {
+    const path = `packages/${packageId}/questions.pdf`;
+    const { error } = await supabase.storage
+      .from("assessment-files")
+      .upload(path, file, { upsert: true, contentType: "application/pdf" });
+
+    if (error) throw new Error(error.message || "تعذر رفع ملف الأسئلة PDF");
+
+    const { data } = supabase.storage.from("assessment-files").getPublicUrl(path);
+    return data.publicUrl;
+  }
+
+  async function handlePackageSubmit(payload: PackageSubmitData) {
     const title = payload.title?.trim();
     if (!title) throw new Error("عنوان الحزمة مطلوب");
 
@@ -1867,9 +1907,10 @@ export default function AdminPage() {
       duration_minutes: payload.duration_minutes ? Number(payload.duration_minutes) : null,
       start_date: payload.start_date || null,
       end_date: payload.end_date || null,
-      student_pdf_url: payload.student_pdf_url?.trim() || null,
-      teacher_pdf_url: payload.teacher_pdf_url?.trim() || null,
+      student_pdf_url: payload.questions_pdf_url?.trim() || null,
+      questions_pdf_url: payload.questions_pdf_url?.trim() || null,
       answer_sheet_pdf_url: payload.answer_sheet_pdf_url?.trim() || null,
+      answer_key_file_url: payload.answer_key_file_url?.trim() || null,
       status: editingPackage?.status ?? "draft",
     };
 
@@ -1884,6 +1925,17 @@ export default function AdminPage() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) throw new Error(json.error || "فشل حفظ حزمة الاختبار");
+      const packageId = json.data?.id as string | undefined;
+      if (packageId && payload.questions_pdf_file) {
+        const publicUrl = await uploadQuestionsPdf(packageId, payload.questions_pdf_file);
+        const patchRes = await fetch(`/api/admin/assessment-packages/${packageId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ questions_pdf_url: publicUrl, student_pdf_url: publicUrl }),
+        });
+        const patchJson = await patchRes.json().catch(() => ({}));
+        if (!patchRes.ok || !patchJson.success) throw new Error(patchJson.error || "تم حفظ الحزمة لكن تعذر ربط ملف PDF");
+      }
       await loadPackages();
       setEditingPackage(null);
       setPackageModalOpen(false);

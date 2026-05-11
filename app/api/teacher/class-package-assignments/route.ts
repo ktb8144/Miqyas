@@ -25,7 +25,7 @@ type PackageRow = {
   start_date: string | null;
   end_date: string | null;
   student_pdf_url: string | null;
-  teacher_pdf_url: string | null;
+  questions_pdf_url: string | null;
   answer_sheet_pdf_url: string | null;
 };
 
@@ -97,8 +97,7 @@ function shapeAssignment(row: AssignmentRow, assessmentPackage?: PackageRow, cla
     printedAt: row.printed_at,
     scannedAt: row.scanned_at,
     completedAt: row.completed_at,
-    studentPdfUrl: assessmentPackage?.student_pdf_url ?? null,
-    teacherPdfUrl: assessmentPackage?.teacher_pdf_url ?? null,
+    studentPdfUrl: assessmentPackage?.questions_pdf_url ?? assessmentPackage?.student_pdf_url ?? null,
     answerSheetPdfUrl: assessmentPackage?.answer_sheet_pdf_url ?? null,
     questionCount,
   };
@@ -137,7 +136,7 @@ export async function GET(req: NextRequest) {
     const [packagesResult, classesResult, questionCounts] = await Promise.all([
       db
         .from("assessment_packages")
-        .select("id, title, subject, grade, week_number, duration_minutes, package_type, status, start_date, end_date, student_pdf_url, teacher_pdf_url, answer_sheet_pdf_url")
+        .select("id, title, subject, grade, week_number, duration_minutes, package_type, status, start_date, end_date, student_pdf_url, questions_pdf_url, answer_sheet_pdf_url")
         .in("id", packageIds),
       db
         .from("classes")
@@ -199,7 +198,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle(),
       db
         .from("assessment_packages")
-        .select("id, title, subject, grade, week_number, duration_minutes, package_type, status, start_date, end_date, student_pdf_url, teacher_pdf_url, answer_sheet_pdf_url")
+        .select("id, title, subject, grade, week_number, duration_minutes, package_type, status, start_date, end_date, student_pdf_url, questions_pdf_url, answer_sheet_pdf_url")
         .eq("id", packageId)
         .maybeSingle(),
       db

@@ -17,8 +17,10 @@ const packageUpdateSchema = z.object({
   duration_minutes: z.coerce.number().int().positive().optional().nullable(),
   package_type: z.string().trim().optional(),
   student_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
+  questions_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   teacher_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   answer_sheet_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
+  answer_key_file_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   status: z.enum(["draft", "published", "archived"]).optional(),
 });
 
@@ -74,6 +76,7 @@ export async function GET(req: NextRequest, { params }: Params) {
           difficulty_level,
           points,
           question_text,
+          remediation_note,
           created_at,
           nafs_domains(domain_name, domain_code),
           learning_skills(skill_name, skill_code)
@@ -140,8 +143,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       start_date: body.start_date === undefined ? undefined : emptyToNull(body.start_date),
       end_date: body.end_date === undefined ? undefined : emptyToNull(body.end_date),
       student_pdf_url: body.student_pdf_url === undefined ? undefined : emptyToNull(body.student_pdf_url),
+      questions_pdf_url: body.questions_pdf_url === undefined ? undefined : emptyToNull(body.questions_pdf_url) ?? emptyToNull(body.student_pdf_url),
       teacher_pdf_url: body.teacher_pdf_url === undefined ? undefined : emptyToNull(body.teacher_pdf_url),
       answer_sheet_pdf_url: body.answer_sheet_pdf_url === undefined ? undefined : emptyToNull(body.answer_sheet_pdf_url),
+      answer_key_file_url: body.answer_key_file_url === undefined ? undefined : emptyToNull(body.answer_key_file_url),
     };
 
     const { data, error } = await db

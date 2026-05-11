@@ -14,7 +14,7 @@ type PackageRow = {
   end_date: string | null;
   status: string;
   student_pdf_url: string | null;
-  teacher_pdf_url: string | null;
+  questions_pdf_url: string | null;
   answer_sheet_pdf_url: string | null;
   published_at: string | null;
   created_at: string;
@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
         end_date,
         status,
         student_pdf_url,
-        teacher_pdf_url,
+        questions_pdf_url,
         answer_sheet_pdf_url,
         published_at,
         created_at
@@ -101,6 +101,8 @@ export async function GET(req: NextRequest) {
       success: true,
       packages: rows.map((row) => ({
         ...row,
+        student_pdf_url: row.questions_pdf_url ?? row.student_pdf_url,
+        questions_pdf_url: row.questions_pdf_url ?? row.student_pdf_url,
         question_count: counts.get(row.id) ?? 0,
       })),
     });

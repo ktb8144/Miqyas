@@ -86,7 +86,7 @@ interface TeacherPackage {
   start_date: string | null;
   end_date: string | null;
   student_pdf_url: string | null;
-  teacher_pdf_url: string | null;
+  questions_pdf_url?: string | null;
   answer_sheet_pdf_url: string | null;
   question_count: number;
   schoolAssignmentStatus: string;
@@ -109,7 +109,6 @@ interface TeacherPackageAssignment {
   scannedAt: string | null;
   completedAt: string | null;
   studentPdfUrl: string | null;
-  teacherPdfUrl: string | null;
   answerSheetPdfUrl: string | null;
   questionCount: number;
 }
@@ -1210,9 +1209,8 @@ export default function TeacherDashboard() {
 
                         <div className="mb-4 flex flex-wrap gap-2">
                           {[
-                            { label: "تحميل اختبار الطالب", url: item.student_pdf_url },
-                            { label: "تحميل ورقة الإجابة", url: item.answer_sheet_pdf_url },
-                            { label: "تحميل نسخة المعلم", url: item.teacher_pdf_url },
+                            { label: "تحميل ملف الأسئلة PDF", url: item.questions_pdf_url ?? item.student_pdf_url },
+                            ...(item.answer_sheet_pdf_url ? [{ label: "تحميل ورقة الإجابة", url: item.answer_sheet_pdf_url }] : []),
                           ].map((link) => (
                             link.url ? (
                               <a
@@ -1319,9 +1317,8 @@ export default function TeacherDashboard() {
 
                         <div className="mb-4 flex flex-wrap gap-2">
                           {[
-                            { label: "تحميل اختبار الطالب", url: item.studentPdfUrl },
-                            { label: "تحميل ورقة الإجابة", url: item.answerSheetPdfUrl },
-                            { label: "تحميل نسخة المعلم", url: item.teacherPdfUrl },
+                            { label: "تحميل ملف الأسئلة PDF", url: item.studentPdfUrl },
+                            ...(item.answerSheetPdfUrl ? [{ label: "تحميل ورقة الإجابة", url: item.answerSheetPdfUrl }] : []),
                           ].map((link) => (
                             link.url ? (
                               <a

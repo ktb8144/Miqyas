@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const db = getAdminClient();
     const { data: assessmentPackage, error: packageError } = await db
       .from("assessment_packages")
-      .select("id, student_pdf_url, teacher_pdf_url, answer_sheet_pdf_url, published_at")
+      .select("id, student_pdf_url, questions_pdf_url, published_at")
       .eq("id", params.id)
       .maybeSingle();
 
@@ -34,16 +34,16 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: "لم يتم العثور على حزمة الاختبار" }, { status: 404 });
     }
 
-    if (!assessmentPackage.student_pdf_url || !assessmentPackage.teacher_pdf_url || !assessmentPackage.answer_sheet_pdf_url) {
+    if (!assessmentPackage.questions_pdf_url && !assessmentPackage.student_pdf_url) {
       return NextResponse.json(
-        { success: false, error: "يجب إضافة روابط اختبار الطالب ونسخة المعلم وورقة الإجابة قبل النشر" },
+        { success: false, error: "يجب إضافة ملف الأسئلة PDF قبل النشر" },
         { status: 400 }
       );
     }
 
     const { data: questions, error: questionsError } = await db
       .from("package_questions")
-      .select("id, nafs_domain_id, skill_id")
+      .select("id, correct_option, nafs_domain_id, skill_id")
       .eq("package_id", params.id);
 
     if (questionsError) throw questionsError;
@@ -51,9 +51,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: "يجب استيراد مفتاح الإجابة قبل النشر" }, { status: 400 });
     }
 
-    if (questions.some((item) => !item.nafs_domain_id || !item.skill_id)) {
+    if (questions.some((item) => !item.correct_option || !item.nafs_domain_id || !item.skill_id)) {
       return NextResponse.json(
-        { success: false, error: "كل سؤال يجب أن يكون مرتبطًا بمجال نافس ومهارة قبل النشر" },
+        { success: false, error: "كل سؤال يجب أن يحتوي إجابة صحيحة ومجال نافس ومهارة قبل النشر" },
         { status: 400 }
       );
     }

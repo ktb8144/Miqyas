@@ -15,8 +15,10 @@ const packageSchema = z.object({
   duration_minutes: z.coerce.number().int().positive().optional().nullable(),
   package_type: z.string().trim().optional().default("weekly"),
   student_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
+  questions_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   teacher_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   answer_sheet_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
+  answer_key_file_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   status: z.enum(["draft", "published", "archived"]).optional().default("draft"),
 });
 
@@ -33,8 +35,10 @@ type PackageRow = {
   start_date: string | null;
   end_date: string | null;
   student_pdf_url: string | null;
+  questions_pdf_url: string | null;
   teacher_pdf_url: string | null;
   answer_sheet_pdf_url: string | null;
+  answer_key_file_url: string | null;
   published_at: string | null;
   created_at: string;
 };
@@ -82,8 +86,10 @@ export async function GET(req: NextRequest) {
         start_date,
         end_date,
         student_pdf_url,
+        questions_pdf_url,
         teacher_pdf_url,
         answer_sheet_pdf_url,
+        answer_key_file_url,
         published_at,
         created_at
       `)
@@ -142,8 +148,10 @@ export async function POST(req: NextRequest) {
         duration_minutes: body.duration_minutes ?? null,
         package_type: body.package_type || "weekly",
         student_pdf_url: emptyToNull(body.student_pdf_url),
+        questions_pdf_url: emptyToNull(body.questions_pdf_url) ?? emptyToNull(body.student_pdf_url),
         teacher_pdf_url: emptyToNull(body.teacher_pdf_url),
         answer_sheet_pdf_url: emptyToNull(body.answer_sheet_pdf_url),
+        answer_key_file_url: emptyToNull(body.answer_key_file_url),
         status: body.status ?? "draft",
       })
       .select("*")

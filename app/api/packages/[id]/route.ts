@@ -56,7 +56,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         end_date,
         status,
         student_pdf_url,
-        teacher_pdf_url,
+        questions_pdf_url,
         answer_sheet_pdf_url,
         published_at,
         created_at
@@ -79,6 +79,8 @@ export async function GET(req: NextRequest, { params }: Params) {
       success: true,
       package: {
         ...assessmentPackage,
+        student_pdf_url: assessmentPackage.questions_pdf_url ?? assessmentPackage.student_pdf_url,
+        questions_pdf_url: assessmentPackage.questions_pdf_url ?? assessmentPackage.student_pdf_url,
         question_count: count ?? 0,
       },
     });

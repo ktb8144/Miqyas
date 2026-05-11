@@ -29,7 +29,7 @@ type PackageRow = {
   end_date: string | null;
   status: string;
   student_pdf_url: string | null;
-  teacher_pdf_url: string | null;
+  questions_pdf_url: string | null;
   answer_sheet_pdf_url: string | null;
   published_at: string | null;
   created_at: string;
@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
         end_date,
         status,
         student_pdf_url,
-        teacher_pdf_url,
+        questions_pdf_url,
         answer_sheet_pdf_url,
         published_at,
         created_at
@@ -147,8 +147,8 @@ export async function GET(req: NextRequest) {
         package_type: item.package_type ?? "weekly",
         start_date: item.start_date,
         end_date: item.end_date,
-        student_pdf_url: item.student_pdf_url,
-        teacher_pdf_url: item.teacher_pdf_url,
+        student_pdf_url: item.questions_pdf_url ?? item.student_pdf_url,
+        questions_pdf_url: item.questions_pdf_url ?? item.student_pdf_url,
         answer_sheet_pdf_url: item.answer_sheet_pdf_url,
         question_count: countsByPackage.get(item.id) ?? 0,
         schoolAssignmentStatus: assignmentByPackage.get(item.id)?.status ?? "available",
