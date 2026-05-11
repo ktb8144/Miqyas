@@ -256,12 +256,16 @@ export function BatchOMRScanner({
   subject,
   grade,
   weekNumber,
+  mode = "weekly",
+  classPackageAssignmentId,
   onComplete,
 }: {
   totalStudents: number;
   subject: string;
   grade: string | number;
   weekNumber: number;
+  mode?: "weekly" | "package";
+  classPackageAssignmentId?: string;
   onComplete: (results: ScanResult[]) => Promise<void> | void;
 }) {
   const [step, setStep] = useState<Step>("capture");
@@ -344,10 +348,18 @@ export function BatchOMRScanner({
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 20000);
     try {
-      const res = await fetch("/api/scan-omr", {
+      if (mode === "package" && !classPackageAssignmentId) {
+        throw new Error("لم يتم تحديد اختبار مقياس لهذا الفصل");
+      }
+
+      const res = await fetch(mode === "package" ? "/api/scan-package-omr" : "/api/scan-omr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64, mimeType: "image/jpeg", subject, grade, weekNumber }),
+        body: JSON.stringify(
+          mode === "package"
+            ? { classPackageAssignmentId, imageBase64, mimeType: "image/jpeg" }
+            : { imageBase64, mimeType: "image/jpeg", subject, grade, weekNumber }
+        ),
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -432,10 +444,18 @@ export function BatchOMRScanner({
 
   const handleReviewSave = async (paperId: string, answers: Record<string, string>) => {
     try {
-      const res = await fetch("/api/scan-omr", {
+      if (mode === "package" && !classPackageAssignmentId) {
+        throw new Error("لم يتم تحديد اختبار مقياس لهذا الفصل");
+      }
+
+      const res = await fetch(mode === "package" ? "/api/scan-package-omr" : "/api/scan-omr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentAnswers: answers, subject, grade, weekNumber }),
+        body: JSON.stringify(
+          mode === "package"
+            ? { classPackageAssignmentId, studentAnswers: answers }
+            : { studentAnswers: answers, subject, grade, weekNumber }
+        ),
       });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || "تعذّرت إعادة التصحيح");

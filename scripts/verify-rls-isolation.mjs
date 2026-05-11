@@ -133,9 +133,23 @@ async function assertCannotReadWeeklySets(client, label) {
   console.log(`PASS ${label} cannot read weekly_sets/answer_key`);
 }
 
+async function assertCannotReadPackageQuestions(client, label) {
+  const { data, error } = await client.from("package_questions").select("id, correct_option").limit(1);
+  if (error) {
+    if (maybeSkip(error)) {
+      console.warn(`SKIP ${label} package_questions: ${error.message}`);
+      return;
+    }
+    console.log(`PASS ${label} cannot read package_questions: ${error.message}`);
+    return;
+  }
+  assert((data ?? []).length === 0, `${label} can read package_questions or correct answers`);
+  console.log(`PASS ${label} cannot read package_questions/correct answers`);
+}
+
 async function assertAnonymousBlocked() {
   const anon = createClientForTest();
-  for (const table of ["students", "results"]) {
+  for (const table of ["students", "results", "student_package_results", "student_question_results"]) {
     const { data, error } = await anon.from(table).select("id").limit(1);
     if (error) {
       console.log(`PASS anonymous cannot read ${table}: ${error.message}`);
@@ -145,6 +159,7 @@ async function assertAnonymousBlocked() {
     console.log(`PASS anonymous cannot read ${table}`);
   }
   await assertCannotReadWeeklySets(anon, "anonymous");
+  await assertCannotReadPackageQuestions(anon, "anonymous");
 }
 
 async function cleanup(ids) {
@@ -236,6 +251,31 @@ for (const table of ["schools", "users", "classes", "students"]) {
   await assertCanRead(admin, "admin", table);
 }
 
+for (const table of [
+  "nafs_domains",
+  "learning_skills",
+  "assessment_packages",
+  "school_package_assignments",
+  "class_package_assignments",
+  "student_package_results",
+  "student_question_results",
+  "improvement_plans",
+  "teacher_training_tracking",
+]) {
+  await assertCanRead(admin, "admin", table);
+}
+
+for (const [client, label] of [
+  [teacherA, "teacher A"],
+  [teacherB, "teacher B"],
+  [principalA, "principal A"],
+  [principalB, "principal B"],
+]) {
+  await assertCanRead(client, label, "nafs_domains");
+  await assertCanRead(client, label, "learning_skills");
+  await assertCanRead(client, label, "assessment_packages");
+}
+
 for (const table of ["users", "classes", "students"]) {
   await assertCannotReadSchool(principalA, "principal A", table, RLS_TEST_SCHOOL_B_ID);
   await assertCannotReadSchool(principalB, "principal B", table, RLS_TEST_SCHOOL_A_ID);
@@ -250,6 +290,10 @@ await assertCannotReadWeeklySets(teacherA, "teacher A");
 await assertCannotReadWeeklySets(teacherB, "teacher B");
 await assertCannotReadWeeklySets(principalA, "principal A");
 await assertCannotReadWeeklySets(principalB, "principal B");
+await assertCannotReadPackageQuestions(teacherA, "teacher A");
+await assertCannotReadPackageQuestions(teacherB, "teacher B");
+await assertCannotReadPackageQuestions(principalA, "principal A");
+await assertCannotReadPackageQuestions(principalB, "principal B");
 await assertAnonymousBlocked();
 
 console.log("RLS isolation checks completed.");

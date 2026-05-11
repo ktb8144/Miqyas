@@ -74,6 +74,46 @@ interface TeacherProfile {
   schoolName: string | null;
 }
 
+interface TeacherPackage {
+  id: string;
+  title: string;
+  description: string | null;
+  subject: string;
+  grade: number;
+  week_number: number | null;
+  duration_minutes: number | null;
+  package_type: string;
+  start_date: string | null;
+  end_date: string | null;
+  student_pdf_url: string | null;
+  teacher_pdf_url: string | null;
+  answer_sheet_pdf_url: string | null;
+  question_count: number;
+  schoolAssignmentStatus: string;
+  matchingClasses: Array<{ id: string; name: string }>;
+}
+
+interface TeacherPackageAssignment {
+  id: string;
+  packageId: string;
+  packageTitle: string;
+  subject: string;
+  grade: number | null;
+  weekNumber: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  classId: string;
+  className: string;
+  status: string;
+  printedAt: string | null;
+  scannedAt: string | null;
+  completedAt: string | null;
+  studentPdfUrl: string | null;
+  teacherPdfUrl: string | null;
+  answerSheetPdfUrl: string | null;
+  questionCount: number;
+}
+
 // ─── Report Modal ─────────────────────────────────────────────────────────────
 
 function ReportModal({
@@ -253,7 +293,7 @@ export default function TeacherDashboard() {
   const router = useRouter();
 
   // ── View state ──────────────────────────────────────────────────────────────
-  type View = "classes" | "students" | "weeklyPlans";
+  type View = "classes" | "students" | "weeklyPlans" | "packages";
   const [view, setView] = useState<View>("classes");
   const [activeClassId, setActiveClassId] = useState<string | null>(null);
 
@@ -270,6 +310,16 @@ export default function TeacherDashboard() {
   const [upcomingPlans, setUpcomingPlans] = useState<WeeklyPlanItem[]>([]);
   const [planSource, setPlanSource] = useState<"current_week" | "upcoming" | "none">("none");
   const [planLoading, setPlanLoading] = useState(false);
+
+  // ── Miqyas package workflow state ───────────────────────────────────────────
+  const [packages, setPackages] = useState<TeacherPackage[]>([]);
+  const [packageAssignments, setPackageAssignments] = useState<TeacherPackageAssignment[]>([]);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [packagesError, setPackagesError] = useState<string | null>(null);
+  const [selectedPackageClasses, setSelectedPackageClasses] = useState<Record<string, string>>({});
+  const [applyingPackageId, setApplyingPackageId] = useState<string | null>(null);
+  const [packageSuccess, setPackageSuccess] = useState<string | null>(null);
+  const [activePackageAssignment, setActivePackageAssignment] = useState<TeacherPackageAssignment | null>(null);
 
   // ── Student add (manual) state ───────────────────────────────────────────────
   const [showAddStudents, setShowAddStudents] = useState(false);
@@ -293,6 +343,9 @@ export default function TeacherDashboard() {
   const weeklyClass = activeClass ?? classes[0] ?? null;
   const teacherDisplayName = teacherProfile?.name?.trim() || "المعلم";
   const teacherSubtitle = `${teacherDisplayName}${teacherProfile?.subject ? ` — ${teacherProfile.subject}` : ""}`;
+  const activePackageStudents = activePackageAssignment
+    ? classStudents[activePackageAssignment.classId] ?? []
+    : [];
 
   const calcAvg = (students: Student[]) => {
     const scored = students.filter((s) => s.score > 0);
@@ -328,6 +381,36 @@ export default function TeacherDashboard() {
       nafs_simulation: "محاكاة نافس",
     };
     return value ? labels[value] ?? value : "غير محدد";
+  };
+
+  const packageStatusLabel = (value?: string | null) => {
+    const labels: Record<string, string> = {
+      assigned: "مُعيّن",
+      printed: "تمت الطباعة",
+      in_progress: "قيد التنفيذ",
+      scanned: "تم التصحيح",
+      completed: "مكتمل",
+      available: "متاح",
+      active: "نشط",
+      completed_school: "مكتمل",
+    };
+    return value ? labels[value] ?? value : "غير محدد";
+  };
+
+  const packageTypeLabel = (value?: string | null) => {
+    const labels: Record<string, string> = {
+      weekly: "اختبار أسبوعي",
+      diagnostic: "اختبار تشخيصي",
+      nafs_simulation: "محاكاة نافس",
+    };
+    return value ? labels[value] ?? value : "اختبار مقياس";
+  };
+
+  const packageDateLabel = (item: { start_date?: string | null; end_date?: string | null; startDate?: string | null; endDate?: string | null }) => {
+    const start = item.start_date ?? item.startDate;
+    const end = item.end_date ?? item.endDate;
+    if (!start || !end) return "تاريخ غير محدد";
+    return `${toEnglishDigits(start)} - ${toEnglishDigits(end)}`;
   };
 
   const normalizeStudentName = (name: string) => name.trim().replace(/\s+/g, " ").toLowerCase();
@@ -442,6 +525,51 @@ export default function TeacherDashboard() {
   useEffect(() => {
     void loadCurrentPlan();
   }, [loadCurrentPlan]);
+
+  const loadPackageWorkflow = useCallback(async () => {
+    setPackagesLoading(true);
+    setPackagesError(null);
+    try {
+      const [packagesRes, assignmentsRes] = await Promise.all([
+        fetch("/api/teacher/assessment-packages", { cache: "no-store" }),
+        fetch("/api/teacher/class-package-assignments", { cache: "no-store" }),
+      ]);
+
+      const [packagesJson, assignmentsJson] = await Promise.all([
+        packagesRes.json().catch(() => ({})),
+        assignmentsRes.json().catch(() => ({})),
+      ]);
+
+      if (!packagesRes.ok || !packagesJson.success) {
+        throw new Error(packagesJson.error || "تعذر تحميل اختبارات مقياس");
+      }
+
+      if (!assignmentsRes.ok || !assignmentsJson.success) {
+        throw new Error(assignmentsJson.error || "تعذر تحميل اختبارات الفصول");
+      }
+
+      const nextPackages = (packagesJson.packages ?? []) as TeacherPackage[];
+      setPackages(nextPackages);
+      setPackageAssignments((assignmentsJson.assignments ?? []) as TeacherPackageAssignment[]);
+      setSelectedPackageClasses((prev) => {
+        const next = { ...prev };
+        nextPackages.forEach((item) => {
+          if (!next[item.id] && item.matchingClasses[0]) {
+            next[item.id] = item.matchingClasses[0].id;
+          }
+        });
+        return next;
+      });
+    } catch (err) {
+      setPackagesError(err instanceof Error ? err.message : "تعذر تحميل اختبارات مقياس");
+    } finally {
+      setPackagesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPackageWorkflow();
+  }, [loadPackageWorkflow]);
 
   // ── Report generation ────────────────────────────────────────────────────────
   const generateReport = async () => {
@@ -582,6 +710,121 @@ export default function TeacherDashboard() {
     });
   };
 
+  const handleApplyPackage = async (assessmentPackage: TeacherPackage) => {
+    const classId = selectedPackageClasses[assessmentPackage.id] ?? assessmentPackage.matchingClasses[0]?.id;
+    if (!classId) {
+      setPackagesError("أضف فصلًا مطابقًا للصف والمادة لتطبيق هذا الاختبار.");
+      return;
+    }
+
+    setApplyingPackageId(assessmentPackage.id);
+    setPackagesError(null);
+    setPackageSuccess(null);
+    try {
+      const res = await fetch("/api/teacher/class-package-assignments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageId: assessmentPackage.id, classId }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تطبيق الاختبار على الفصل");
+
+      setPackageSuccess(json.alreadyExists ? "هذا الاختبار مطبق على الفصل مسبقًا." : "تم تطبيق الاختبار على الفصل بنجاح.");
+      await loadPackageWorkflow();
+    } catch (err) {
+      setPackagesError(err instanceof Error ? err.message : "تعذر تطبيق الاختبار على الفصل");
+    } finally {
+      setApplyingPackageId(null);
+    }
+  };
+
+  const handlePackageScanComplete = async (
+    results: { editedName: string; studentName: string; answers: Record<string, string>; score: number; total: number }[]
+  ) => {
+    if (!activePackageAssignment) return;
+
+    const students = classStudents[activePackageAssignment.classId] ?? [];
+    if (!students.length) {
+      throw new Error("لا يوجد طلاب في الفصل لحفظ نتائج التصحيح");
+    }
+
+    const usedStudentIds = new Set<string>();
+    const updates: Array<{ student: Student; result: { answers: Record<string, string>; score: number; total: number } }> = [];
+
+    results.forEach((result, index) => {
+      const detectedName = result.editedName || result.studentName;
+      const matchedByName = students.find(
+        (student) => !usedStudentIds.has(student.id) && normalizeStudentName(student.name) === normalizeStudentName(detectedName)
+      );
+      const fallbackByOrder = students.find((student, studentIndex) => studentIndex === index && !usedStudentIds.has(student.id));
+      const student = matchedByName ?? fallbackByOrder;
+      if (student) {
+        usedStudentIds.add(student.id);
+        updates.push({ student, result });
+      }
+    });
+
+    if (!updates.length) {
+      throw new Error("لم يتم العثور على طلاب مطابقين لحفظ نتائج اختبار مقياس");
+    }
+
+    const failures: string[] = [];
+    await Promise.all(
+      updates.map(async ({ student, result }) => {
+        const res = await fetch("/api/scan-package-omr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            classPackageAssignmentId: activePackageAssignment.id,
+            studentId: student.id,
+            save: true,
+            studentAnswers: result.answers,
+          }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json.success) failures.push(student.name);
+      })
+    );
+
+    if (failures.length) {
+      throw new Error(`تعذر حفظ نتائج ${toEnglishDigits(failures.length)} طالب`);
+    }
+
+    setClassStudents((prev) => {
+      const updated = [...(prev[activePackageAssignment.classId] ?? [])];
+      updates.forEach(({ student, result }) => {
+        const index = updated.findIndex((item) => item.id === student.id);
+        if (index >= 0) updated[index] = { ...updated[index], score: result.score, total: result.total };
+      });
+      return { ...prev, [activePackageAssignment.classId]: updated };
+    });
+
+    setPackageSuccess("تم حفظ نتائج اختبار مقياس بنجاح.");
+    setActivePackageAssignment(null);
+    await loadPackageWorkflow();
+  };
+
+  const markPackagePrinted = async (assignmentId: string) => {
+    try {
+      const res = await fetch("/api/teacher/class-package-assignments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignmentId, action: "mark_printed" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحديث حالة الطباعة");
+      setPackageAssignments((prev) =>
+        prev.map((item) =>
+          item.id === assignmentId
+            ? { ...item, status: "printed", printedAt: new Date().toISOString() }
+            : item
+        )
+      );
+    } catch (err) {
+      console.error("mark package printed failed", err);
+    }
+  };
+
   const handleAddClass = async (input: { name: string; grade: number; subject: string }) => {
     if (!teacherProfile) throw new Error("تعذر تحديد حساب المعلم");
 
@@ -636,6 +879,46 @@ export default function TeacherDashboard() {
     <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
       {reportOpen && (
         <ReportModal report={report} loading={reportLoading} error={reportError} onClose={() => setReportOpen(false)} />
+      )}
+
+      {activePackageAssignment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" dir="rtl">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
+              <div>
+                <p className="text-sm font-extrabold text-[#159f91]">تصحيح اختبار مقياس</p>
+                <h2 className="mt-1 text-xl font-black text-[#0b2447]">{activePackageAssignment.packageTitle}</h2>
+                <p className="mt-1 text-sm font-bold text-slate-400">
+                  {activePackageAssignment.className} | {toEnglishDigits(activePackageStudents.length)} طالب
+                </p>
+              </div>
+              <button
+                onClick={() => setActivePackageAssignment(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+              >
+                إغلاق
+              </button>
+            </div>
+            <div className="p-5">
+              {activePackageStudents.length ? (
+                <BatchOMRScanner
+                  mode="package"
+                  classPackageAssignmentId={activePackageAssignment.id}
+                  totalStudents={activePackageStudents.length}
+                  subject={activePackageAssignment.subject}
+                  grade={activePackageAssignment.grade ?? ""}
+                  weekNumber={activePackageAssignment.weekNumber ?? 0}
+                  onComplete={handlePackageScanComplete}
+                />
+              ) : (
+                <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
+                  <h3 className="text-xl font-black text-[#0b2447]">أضف طلابًا لهذا الفصل قبل بدء التصحيح.</h3>
+                  <p className="mt-2 text-sm font-bold text-slate-400">يعتمد حفظ النتائج على ربط كل ورقة بطالب محفوظ في الفصل.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {showAddClass && (
@@ -750,6 +1033,9 @@ export default function TeacherDashboard() {
                       <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => setView("weeklyPlans")}>
                         عرض خطة الأسابيع
                       </button>
+                      <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => setView("packages")}>
+                        اختبارات مقياس
+                      </button>
                     </div>
                   </div>
                 ) : (
@@ -843,6 +1129,251 @@ export default function TeacherDashboard() {
               </button>
             </section>
           </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            VIEW: MIQYAS PACKAGES
+        ══════════════════════════════════════════════════════════════════════ */}
+        {view === "packages" && !pageLoading && !pageError && (
+          <section className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-extrabold text-[#159f91]">اختبارات مقياس</p>
+                <h2 className="mt-1 text-2xl font-black tracking-normal text-[#0b2447]">حزم التقييم المنشورة</h2>
+                <p className="mt-2 text-sm font-bold text-slate-400">طبّق الاختبار على فصل مطابق، ثم اطبع الأوراق وابدأ التصحيح.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={loadPackageWorkflow}
+                  disabled={packagesLoading}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
+                >
+                  {packagesLoading ? "جارٍ التحديث..." : "تحديث"}
+                </button>
+                <button
+                  onClick={() => setView("classes")}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                >
+                  ← العودة للفصول
+                </button>
+              </div>
+            </div>
+
+            {packagesError && (
+              <div className="rounded-[1.25rem] border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">
+                {packagesError}
+              </div>
+            )}
+
+            {packageSuccess && (
+              <div className="rounded-[1.25rem] border border-teal-100 bg-teal-50 p-4 text-sm font-bold text-[#159f91]">
+                {packageSuccess}
+              </div>
+            )}
+
+            <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-black text-[#0b2447]">الاختبارات المتاحة</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-400">اختبارات منشورة من إدارة مقياس ومفعّلة لمدرستك.</p>
+                </div>
+                <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                  {toEnglishDigits(packages.length)} اختبار
+                </span>
+              </div>
+
+              {packagesLoading ? (
+                <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
+                  جارٍ تحميل اختبارات مقياس...
+                </div>
+              ) : packages.length ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {packages.map((item) => {
+                    const selectedClassId = selectedPackageClasses[item.id] ?? item.matchingClasses[0]?.id ?? "";
+                    const hasMatchingClass = item.matchingClasses.length > 0;
+                    return (
+                      <div key={item.id} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/40 p-5">
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-extrabold text-[#159f91]">
+                              {packageTypeLabel(item.package_type)} | الأسبوع {toEnglishDigits(item.week_number ?? "—")}
+                            </div>
+                            <h4 className="mt-1 text-lg font-black text-[#0b2447]">{item.title}</h4>
+                            <p className="mt-1 text-sm font-bold text-slate-400">
+                              {item.subject} | الصف {toEnglishDigits(item.grade)} | {packageDateLabel(item)}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
+                            {toEnglishDigits(item.question_count)} سؤال
+                          </span>
+                        </div>
+
+                        <div className="mb-4 flex flex-wrap gap-2">
+                          {[
+                            { label: "تحميل اختبار الطالب", url: item.student_pdf_url },
+                            { label: "تحميل ورقة الإجابة", url: item.answer_sheet_pdf_url },
+                            { label: "تحميل نسخة المعلم", url: item.teacher_pdf_url },
+                          ].map((link) => (
+                            link.url ? (
+                              <a
+                                key={link.label}
+                                href={link.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                              >
+                                {link.label}
+                              </a>
+                            ) : (
+                              <button
+                                key={link.label}
+                                disabled
+                                className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs font-extrabold text-slate-300"
+                              >
+                                {link.label}
+                              </button>
+                            )
+                          ))}
+                        </div>
+
+                        {hasMatchingClass ? (
+                          <div className="flex flex-col gap-3 sm:flex-row">
+                            <select
+                              value={selectedClassId}
+                              onChange={(event) => setSelectedPackageClasses((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]"
+                            >
+                              {item.matchingClasses.map((classItem) => (
+                                <option key={classItem.id} value={classItem.id}>{classItem.name}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => handleApplyPackage(item)}
+                              disabled={!selectedClassId || applyingPackageId === item.id}
+                              className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
+                            >
+                              {applyingPackageId === item.id ? "جارٍ التطبيق..." : "تطبيق على فصل"}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
+                            أضف فصلًا مطابقًا للصف والمادة لتطبيق هذا الاختبار.
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
+                  <h3 className="text-xl font-black text-[#0b2447]">لا توجد اختبارات منشورة حاليًا من إدارة مقياس.</h3>
+                  <p className="mt-2 text-sm font-bold text-slate-400">ستظهر هنا الحزم الأسبوعية عند نشرها وتفعيلها لمدرستك.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-black text-[#0b2447]">اختبارات فصولي</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-400">الحزم التي تم تطبيقها على فصولك.</p>
+                </div>
+                <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
+                  {toEnglishDigits(packageAssignments.length)} تعيين
+                </span>
+              </div>
+
+              {packagesLoading ? (
+                <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
+                  جارٍ تحميل اختبارات الفصول...
+                </div>
+              ) : packageAssignments.length ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {packageAssignments.map((item) => {
+                    const studentCount = classStudents[item.classId]?.length ?? 0;
+                    return (
+                      <div key={item.id} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/40 p-5">
+                        <div className="mb-4 flex items-start justify-between gap-3">
+                          <div>
+                            <div className="text-xs font-extrabold text-[#159f91]">
+                              {item.className} | الأسبوع {toEnglishDigits(item.weekNumber ?? "—")}
+                            </div>
+                            <h4 className="mt-1 text-lg font-black text-[#0b2447]">{item.packageTitle}</h4>
+                            <p className="mt-1 text-sm font-bold text-slate-400">
+                              {item.subject} | الصف {toEnglishDigits(item.grade ?? "—")} | {packageDateLabel(item)}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#159f91]">
+                            {packageStatusLabel(item.status)}
+                          </span>
+                        </div>
+
+                        <div className="mb-4 flex flex-wrap gap-2">
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
+                            {toEnglishDigits(item.questionCount)} سؤال
+                          </span>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
+                            {toEnglishDigits(studentCount)} طالب
+                          </span>
+                        </div>
+
+                        <div className="mb-4 flex flex-wrap gap-2">
+                          {[
+                            { label: "تحميل اختبار الطالب", url: item.studentPdfUrl },
+                            { label: "تحميل ورقة الإجابة", url: item.answerSheetPdfUrl },
+                            { label: "تحميل نسخة المعلم", url: item.teacherPdfUrl },
+                          ].map((link) => (
+                            link.url ? (
+                              <a
+                                key={link.label}
+                                href={link.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={() => void markPackagePrinted(item.id)}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                              >
+                                {link.label}
+                              </a>
+                            ) : (
+                              <button
+                                key={link.label}
+                                disabled
+                                className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs font-extrabold text-slate-300"
+                              >
+                                {link.label}
+                              </button>
+                            )
+                          ))}
+                        </div>
+
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            onClick={() => setActivePackageAssignment(item)}
+                            disabled={!studentCount}
+                            className="rounded-xl bg-[#0b2447] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#12345f] disabled:opacity-50"
+                          >
+                            بدء التصحيح
+                          </button>
+                          <button
+                            disabled
+                            className="rounded-xl border border-slate-100 bg-white px-4 py-2 text-sm font-extrabold text-slate-300"
+                            title="قريبًا"
+                          >
+                            عرض النتائج قريبًا
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
+                  <h3 className="text-xl font-black text-[#0b2447]">لم يتم تطبيق أي اختبار على فصولك بعد.</h3>
+                  <p className="mt-2 text-sm font-bold text-slate-400">اختر اختبارًا منشورًا ثم طبّقه على فصل مطابق للبدء.</p>
+                </div>
+              )}
+            </div>
+          </section>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════════

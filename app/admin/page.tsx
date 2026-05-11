@@ -11,10 +11,12 @@ import {
   CheckCircle2,
   ClipboardList,
   Download,
+  FileJson,
   GraduationCap,
   LayoutDashboard,
   LogOut,
   MoreHorizontal,
+  PackageCheck,
   Plus,
   Search,
   Settings,
@@ -28,7 +30,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
 import { toEnglishDigits } from "@/lib/format";
 
-type Tab = "overview" | "schools" | "users" | "questions" | "trialRequests" | "reports";
+type Tab = "overview" | "schools" | "users" | "questions" | "packages" | "trialRequests" | "reports";
 type ModalType = "school" | "user" | "question";
 
 type OverviewData = {
@@ -129,6 +131,42 @@ type AdminTrialRequest = {
   created_at: string;
 };
 
+type AdminAssessmentPackage = {
+  id: string;
+  title: string;
+  description: string | null;
+  subject: string;
+  grade: number;
+  week_number: number | null;
+  package_type: string | null;
+  duration_minutes: number | null;
+  status: string;
+  start_date: string | null;
+  end_date: string | null;
+  student_pdf_url: string | null;
+  teacher_pdf_url: string | null;
+  answer_sheet_pdf_url: string | null;
+  question_count: number;
+  assigned_school_count: number;
+  published_at: string | null;
+  created_at: string;
+};
+
+type PackageFormData = {
+  title: string;
+  description: string;
+  subject: string;
+  grade: string;
+  week_number: string;
+  package_type: string;
+  duration_minutes: string;
+  start_date: string;
+  end_date: string;
+  student_pdf_url: string;
+  teacher_pdf_url: string;
+  answer_sheet_pdf_url: string;
+};
+
 const emptyOverview: OverviewData = {
   schools: { total: 0 },
   users: {
@@ -148,6 +186,7 @@ const navItems = [
   { id: "schools", label: "المدارس", icon: Building2 },
   { id: "users", label: "المستخدمون", icon: UsersRound },
   { id: "questions", label: "الأسئلة الأسبوعية", icon: BookOpenCheck },
+  { id: "packages", label: "حزم الاختبارات", icon: PackageCheck },
   { id: "trialRequests", label: "طلبات التجربة", icon: ClipboardList },
   { id: "reports", label: "التقارير", icon: BarChart3 },
 ] satisfies { id: Tab; label: string; icon: typeof LayoutDashboard }[];
@@ -163,6 +202,24 @@ function difficultyLabel(value: string) {
     hard: "متقدم",
   };
   return labels[value] ?? value;
+}
+
+function packageStatusLabel(value: string) {
+  const labels: Record<string, string> = {
+    draft: "مسودة",
+    published: "منشورة",
+    archived: "مؤرشفة",
+  };
+  return labels[value] ?? value;
+}
+
+function packageTypeLabel(value?: string | null) {
+  const labels: Record<string, string> = {
+    weekly: "أسبوعي",
+    nafs_simulation: "محاكاة نافس",
+    diagnostic: "تشخيصي",
+  };
+  return value ? labels[value] ?? value : "أسبوعي";
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -971,6 +1028,347 @@ function TrialRequestsTab({
   );
 }
 
+function PackageModal({
+  initialValues,
+  onClose,
+  onSubmit,
+}: {
+  initialValues?: AdminAssessmentPackage | null;
+  onClose: () => void;
+  onSubmit: (payload: PackageFormData) => Promise<void>;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const payload = Object.fromEntries(formData.entries()) as PackageFormData;
+    try {
+      setSubmitting(true);
+      setError(null);
+      await onSubmit(payload);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر حفظ الحزمة");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4" dir="rtl">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-xl font-black text-[#0b2447]">{initialValues ? "تعديل حزمة اختبار" : "إنشاء حزمة اختبار"}</h2>
+          <button onClick={onClose} className="rounded-xl px-3 py-1 text-xl font-bold text-slate-400 hover:bg-slate-50">×</button>
+        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
+        <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
+          <label className="md:col-span-2">
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">عنوان الحزمة</span>
+            <input name="title" required defaultValue={initialValues?.title ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label className="md:col-span-2">
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">الوصف</span>
+            <textarea name="description" rows={3} defaultValue={initialValues?.description ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">المادة</span>
+            <select name="subject" defaultValue={initialValues?.subject ?? "رياضيات"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white">
+              <option value="رياضيات">رياضيات</option>
+              <option value="لغة عربية">لغة عربية</option>
+              <option value="علوم">علوم</option>
+            </select>
+          </label>
+          <label>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">الصف</span>
+            <select name="grade" defaultValue={String(initialValues?.grade ?? 6)} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white">
+              {[3, 4, 5, 6].map((grade) => <option key={grade} value={grade}>{toEnglishDigits(grade)}</option>)}
+            </select>
+          </label>
+          <label>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">رقم الأسبوع</span>
+            <input name="week_number" type="number" min={1} defaultValue={initialValues?.week_number ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">نوع الحزمة</span>
+            <select name="package_type" defaultValue={initialValues?.package_type ?? "weekly"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white">
+              <option value="weekly">أسبوعي</option>
+              <option value="diagnostic">تشخيصي</option>
+              <option value="nafs_simulation">محاكاة نافس</option>
+            </select>
+          </label>
+          <label>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">مدة الاختبار بالدقائق</span>
+            <input name="duration_minutes" type="number" min={1} defaultValue={initialValues?.duration_minutes ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">تاريخ البداية</span>
+            <input name="start_date" type="date" defaultValue={initialValues?.start_date ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">تاريخ النهاية</span>
+            <input name="end_date" type="date" defaultValue={initialValues?.end_date ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label className="md:col-span-2">
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط اختبار الطالب PDF</span>
+            <input name="student_pdf_url" type="url" defaultValue={initialValues?.student_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label className="md:col-span-2">
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط نسخة المعلم PDF</span>
+            <input name="teacher_pdf_url" type="url" defaultValue={initialValues?.teacher_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label className="md:col-span-2">
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ورقة الإجابة PDF</span>
+            <input name="answer_sheet_pdf_url" type="url" defaultValue={initialValues?.answer_sheet_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <div className="flex gap-3 md:col-span-2">
+            <button disabled={submitting} className="flex-1 rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
+              {submitting ? "جارٍ الحفظ..." : "حفظ الحزمة"}
+            </button>
+            <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-extrabold text-slate-500">إلغاء</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function QuestionImportModal({
+  assessmentPackage,
+  onClose,
+  onSubmit,
+}: {
+  assessmentPackage: AdminAssessmentPackage;
+  onClose: () => void;
+  onSubmit: (jsonText: string) => Promise<void>;
+}) {
+  const sample = `[
+  {
+    "question_number": 1,
+    "correct_option": "أ",
+    "nafs_domain_id": "00000000-0000-0000-0000-000000000000",
+    "skill_id": "00000000-0000-0000-0000-000000000000",
+    "difficulty_level": "easy",
+    "points": 1,
+    "question_text": ""
+  }
+]`;
+  const [text, setText] = useState(sample);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit() {
+    try {
+      setSubmitting(true);
+      setError(null);
+      await onSubmit(text);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر استيراد الأسئلة");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4" dir="rtl">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-black text-[#0b2447]">استيراد مفتاح الإجابة</h2>
+            <p className="mt-1 text-sm font-bold text-slate-400">{assessmentPackage.title}</p>
+          </div>
+          <button onClick={onClose} className="rounded-xl px-3 py-1 text-xl font-bold text-slate-400 hover:bg-slate-50">×</button>
+        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
+        <div className="mb-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold leading-7 text-amber-700">
+          ألصق مصفوفة JSON للأسئلة. هذه البيانات تحتوي مفتاح الإجابة ولا تظهر للمعلم أو قائد المدرسة.
+        </div>
+        <textarea
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          rows={16}
+          dir="ltr"
+          className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-mono text-sm text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white"
+        />
+        <div className="mt-4 flex gap-3">
+          <button onClick={handleSubmit} disabled={submitting} className="rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
+            {submitting ? "جارٍ الاستيراد..." : "استيراد واستبدال الأسئلة"}
+          </button>
+          <button onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-extrabold text-slate-500">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PublishPackageModal({
+  assessmentPackage,
+  schools,
+  onClose,
+  onSubmit,
+}: {
+  assessmentPackage: AdminAssessmentPackage;
+  schools: AdminSchool[];
+  onClose: () => void;
+  onSubmit: (schoolIds: string[]) => Promise<void>;
+}) {
+  const activeSchools = schools.filter((school) => school.status !== "موقوفة");
+  const [selected, setSelected] = useState<string[]>(activeSchools.map((school) => school.id));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function toggle(id: string) {
+    setSelected((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]);
+  }
+
+  async function handleSubmit() {
+    try {
+      setSubmitting(true);
+      setError(null);
+      await onSubmit(selected);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر نشر الحزمة");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4" dir="rtl">
+      <div className="w-full max-w-xl rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
+        <div className="mb-5 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-black text-[#0b2447]">نشر الحزمة للمدارس</h2>
+            <p className="mt-1 text-sm font-bold text-slate-400">{assessmentPackage.title}</p>
+          </div>
+          <button onClick={onClose} className="rounded-xl px-3 py-1 text-xl font-bold text-slate-400 hover:bg-slate-50">×</button>
+        </div>
+        {error && <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
+        <div className="max-h-72 space-y-2 overflow-y-auto">
+          {activeSchools.map((school) => (
+            <label key={school.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447]">
+              <input type="checkbox" checked={selected.includes(school.id)} onChange={() => toggle(school.id)} />
+              <span>{school.name}</span>
+              <span className="text-slate-400">{school.city}</span>
+            </label>
+          ))}
+          {!activeSchools.length && <EmptyState message="لا توجد مدارس نشطة للنشر." />}
+        </div>
+        <div className="mt-5 flex gap-3">
+          <button onClick={handleSubmit} disabled={submitting || selected.length === 0} className="rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
+            {submitting ? "جارٍ النشر..." : "نشر الحزمة"}
+          </button>
+          <button onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-extrabold text-slate-500">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PackagesTab({
+  packages,
+  loading,
+  error,
+  search,
+  onSearch,
+  onRetry,
+  onCreate,
+  onEdit,
+  onImport,
+  onPublish,
+  onArchive,
+  busyPackageId,
+}: {
+  packages: AdminAssessmentPackage[];
+  loading: boolean;
+  error: string | null;
+  search: string;
+  onSearch: (value: string) => void;
+  onRetry: () => void;
+  onCreate: () => void;
+  onEdit: (item: AdminAssessmentPackage) => void;
+  onImport: (item: AdminAssessmentPackage) => void;
+  onPublish: (item: AdminAssessmentPackage) => void;
+  onArchive: (item: AdminAssessmentPackage) => void;
+  busyPackageId: string | null;
+}) {
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        title="حزم الاختبارات"
+        description="إنشاء حزم مقياس الأسبوعية، ربط ملفات PDF، استيراد مفتاح الإجابة وخريطة المهارات، ثم نشرها للمدارس."
+        action={<PrimaryButton onClick={onCreate}>إنشاء حزمة</PrimaryButton>}
+      />
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <SearchBar placeholder="ابحث بعنوان الحزمة أو المادة أو الحالة..." value={search} onChange={onSearch} />
+        <SoftButton disabled title="Excel قريبًا">
+          <FileJson className="h-4 w-4" />
+          استيراد Excel · قريبًا
+        </SoftButton>
+      </div>
+      {error && <ErrorState message={error} onRetry={onRetry} />}
+      <div className="grid gap-4">
+        {packages.map((item) => {
+          const pdfReady = Boolean(item.student_pdf_url && item.teacher_pdf_url && item.answer_sheet_pdf_url);
+          const busy = busyPackageId === item.id;
+          return (
+            <div key={item.id} className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge status={packageStatusLabel(item.status)} />
+                    <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{packageTypeLabel(item.package_type)}</span>
+                    <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{item.subject}</span>
+                    <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">صف {toEnglishDigits(item.grade)}</span>
+                  </div>
+                  <h3 className="mt-3 text-xl font-black text-[#0b2447]">{item.title}</h3>
+                  <p className="mt-2 text-sm font-bold text-slate-400">
+                    الأسبوع {toEnglishDigits(item.week_number ?? "—")} · {toEnglishDigits(item.duration_minutes ?? "—")} دقيقة
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
+                  <div className="rounded-xl bg-slate-50 px-4 py-3">
+                    <div className="text-lg font-black text-[#0b2447]">{toEnglishDigits(item.question_count)}</div>
+                    <div className="text-xs font-bold text-slate-400">سؤال</div>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-4 py-3">
+                    <div className="text-lg font-black text-[#0b2447]">{toEnglishDigits(item.assigned_school_count)}</div>
+                    <div className="text-xs font-bold text-slate-400">مدرسة</div>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-4 py-3">
+                    <div className={`text-lg font-black ${pdfReady ? "text-[#159f91]" : "text-amber-600"}`}>{pdfReady ? "جاهز" : "ناقص"}</div>
+                    <div className="text-xs font-bold text-slate-400">PDF</div>
+                  </div>
+                  <div className="rounded-xl bg-slate-50 px-4 py-3">
+                    <div className="text-lg font-black text-[#0b2447]">{item.published_at ? "نُشر" : "—"}</div>
+                    <div className="text-xs font-bold text-slate-400">النشر</div>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <SoftButton onClick={() => onEdit(item)} disabled={busy}>تعديل</SoftButton>
+                <SoftButton onClick={() => onImport(item)} disabled={busy}>استيراد/تعديل مفتاح الإجابة</SoftButton>
+                <SoftButton onClick={() => onPublish(item)} disabled={busy || item.status === "archived"}>نشر للمدارس</SoftButton>
+                <SoftButton onClick={() => onArchive(item)} disabled={busy || item.status === "archived"} title={item.status === "archived" ? "مؤرشفة بالفعل" : undefined}>
+                  أرشفة
+                </SoftButton>
+              </div>
+            </div>
+          );
+        })}
+        {!loading && packages.length === 0 && (
+          <EmptyState message="لا توجد حزم اختبارات بعد. أنشئ أول حزمة للأسبوع التجريبي." />
+        )}
+        {loading && <EmptyState message="جارٍ تحميل حزم الاختبارات..." />}
+      </div>
+    </div>
+  );
+}
+
 function ReportsTab() {
   return (
     <div className="space-y-8">
@@ -1004,25 +1402,34 @@ export default function AdminPage() {
   const [editingSchool, setEditingSchool] = useState<AdminSchool | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [editingQuestion, setEditingQuestion] = useState<AdminQuestion | null>(null);
+  const [editingPackage, setEditingPackage] = useState<AdminAssessmentPackage | null>(null);
+  const [packageModalOpen, setPackageModalOpen] = useState(false);
+  const [importingPackage, setImportingPackage] = useState<AdminAssessmentPackage | null>(null);
+  const [publishingPackage, setPublishingPackage] = useState<AdminAssessmentPackage | null>(null);
   const [schoolRows, setSchoolRows] = useState<AdminSchool[]>([]);
   const [userRows, setUserRows] = useState<AdminUser[]>([]);
   const [questionRows, setQuestionRows] = useState<AdminQuestion[]>([]);
+  const [packageRows, setPackageRows] = useState<AdminAssessmentPackage[]>([]);
   const [trialRequestRows, setTrialRequestRows] = useState<AdminTrialRequest[]>([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [questionsLoading, setQuestionsLoading] = useState(false);
+  const [packagesLoading, setPackagesLoading] = useState(false);
   const [trialRequestsLoading, setTrialRequestsLoading] = useState(false);
   const [schoolsError, setSchoolsError] = useState<string | null>(null);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [questionsError, setQuestionsError] = useState<string | null>(null);
+  const [packagesError, setPackagesError] = useState<string | null>(null);
   const [trialRequestsError, setTrialRequestsError] = useState<string | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [schoolSearch, setSchoolSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
   const [questionSearch, setQuestionSearch] = useState("");
+  const [packageSearch, setPackageSearch] = useState("");
   const [busySchoolId, setBusySchoolId] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [busyQuestionId, setBusyQuestionId] = useState<string | null>(null);
+  const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
   const [busyTrialRequestId, setBusyTrialRequestId] = useState<string | null>(null);
   const [overview, setOverview] = useState<OverviewData>(emptyOverview);
   const [apiState, setApiState] = useState<ApiState>("idle");
@@ -1062,6 +1469,17 @@ export default function AdminPage() {
         .includes(query)
     );
   }, [questionRows, questionSearch]);
+
+  const filteredPackages = useMemo(() => {
+    const query = packageSearch.trim().toLowerCase();
+    if (!query) return packageRows;
+    return packageRows.filter((item) =>
+      [item.title, item.subject, item.status, packageTypeLabel(item.package_type), String(item.grade), String(item.week_number ?? "")]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    );
+  }, [packageRows, packageSearch]);
 
   const loadOverview = useCallback(async () => {
     setApiState("loading");
@@ -1143,6 +1561,23 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadPackages = useCallback(async () => {
+    setPackagesLoading(true);
+    setPackagesError(null);
+    try {
+      const res = await fetch("/api/admin/assessment-packages", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل تحميل حزم الاختبارات");
+      setPackageRows(json.data);
+    } catch (error) {
+      console.error("load admin assessment packages failed", error);
+      setPackageRows([]);
+      setPackagesError(error instanceof Error ? error.message : "فشل تحميل حزم الاختبارات");
+    } finally {
+      setPackagesLoading(false);
+    }
+  }, []);
+
   const loadTrialRequests = useCallback(async () => {
     setTrialRequestsLoading(true);
     setTrialRequestsError(null);
@@ -1175,10 +1610,14 @@ export default function AdminPage() {
     if (activeTab === "questions") {
       void loadQuestions();
     }
+    if (activeTab === "packages") {
+      void loadPackages();
+      void loadSchools();
+    }
     if (activeTab === "trialRequests") {
       void loadTrialRequests();
     }
-  }, [activeTab, loadSchools, loadQuestions, loadTrialRequests, loadUsers]);
+  }, [activeTab, loadPackages, loadSchools, loadQuestions, loadTrialRequests, loadUsers]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -1214,6 +1653,16 @@ export default function AdminPage() {
   function openEditQuestionModal(question: AdminQuestion) {
     setEditingQuestion(question);
     setModalType("question");
+  }
+
+  function openCreatePackageModal() {
+    setEditingPackage(null);
+    setPackageModalOpen(true);
+  }
+
+  function openEditPackageModal(item: AdminAssessmentPackage) {
+    setEditingPackage(item);
+    setPackageModalOpen(true);
   }
 
   async function handleSchoolSubmit(payload: SchoolFormData | Record<string, string>) {
@@ -1404,6 +1853,106 @@ export default function AdminPage() {
     }
   }
 
+  async function handlePackageSubmit(payload: PackageFormData) {
+    const title = payload.title?.trim();
+    if (!title) throw new Error("عنوان الحزمة مطلوب");
+
+    const body = {
+      title,
+      description: payload.description?.trim() || null,
+      subject: payload.subject?.trim() || "رياضيات",
+      grade: Number(payload.grade || 6),
+      week_number: payload.week_number ? Number(payload.week_number) : null,
+      package_type: payload.package_type?.trim() || "weekly",
+      duration_minutes: payload.duration_minutes ? Number(payload.duration_minutes) : null,
+      start_date: payload.start_date || null,
+      end_date: payload.end_date || null,
+      student_pdf_url: payload.student_pdf_url?.trim() || null,
+      teacher_pdf_url: payload.teacher_pdf_url?.trim() || null,
+      answer_sheet_pdf_url: payload.answer_sheet_pdf_url?.trim() || null,
+      status: editingPackage?.status ?? "draft",
+    };
+
+    const endpoint = editingPackage ? `/api/admin/assessment-packages/${editingPackage.id}` : "/api/admin/assessment-packages";
+    const method = editingPackage ? "PATCH" : "POST";
+    setBusyPackageId(editingPackage?.id ?? "new");
+    try {
+      const res = await fetch(endpoint, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل حفظ حزمة الاختبار");
+      await loadPackages();
+      setEditingPackage(null);
+      setPackageModalOpen(false);
+      window.alert(editingPackage ? "تم تحديث الحزمة" : "تم إنشاء الحزمة");
+    } finally {
+      setBusyPackageId(null);
+    }
+  }
+
+  async function handleImportPackageQuestions(jsonText: string) {
+    if (!importingPackage) return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      throw new Error("صيغة JSON غير صحيحة");
+    }
+
+    setBusyPackageId(importingPackage.id);
+    try {
+      const res = await fetch(`/api/admin/assessment-packages/${importingPackage.id}/questions/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل استيراد الأسئلة");
+      await loadPackages();
+      window.alert(`تم استيراد ${toEnglishDigits(json.importedCount ?? 0)} سؤال`);
+    } finally {
+      setBusyPackageId(null);
+    }
+  }
+
+  async function handlePublishPackage(schoolIds: string[]) {
+    if (!publishingPackage) return;
+    setBusyPackageId(publishingPackage.id);
+    try {
+      const res = await fetch(`/api/admin/assessment-packages/${publishingPackage.id}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ school_ids: schoolIds }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل نشر الحزمة");
+      await loadPackages();
+      window.alert("تم نشر الحزمة للمدارس المحددة");
+    } finally {
+      setBusyPackageId(null);
+    }
+  }
+
+  async function handleArchivePackage(item: AdminAssessmentPackage) {
+    if (!window.confirm("سيتم أرشفة الحزمة ولن تظهر كاختبار منشور جديد. هل تريد المتابعة؟")) return;
+    setBusyPackageId(item.id);
+    try {
+      const res = await fetch(`/api/admin/assessment-packages/${item.id}/archive`, { method: "PATCH" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل أرشفة الحزمة");
+      await loadPackages();
+      window.alert("تمت أرشفة الحزمة");
+    } catch (error) {
+      console.error("archive package failed", error);
+      window.alert(error instanceof Error ? error.message : "فشل أرشفة الحزمة");
+    } finally {
+      setBusyPackageId(null);
+    }
+  }
+
   async function handleToggleQuestionStatus(question: AdminQuestion) {
     const nextStatus = question.status === "active" ? "archived" : "active";
     setBusyQuestionId(question.id);
@@ -1479,6 +2028,31 @@ export default function AdminPage() {
           schools={schoolRows}
           onSubmit={modalType === "school" ? handleSchoolSubmit : modalType === "user" ? handleUserSubmit : modalType === "question" ? handleQuestionSubmit : undefined}
           onClose={() => { setModalType(null); setEditingSchool(null); setEditingUser(null); setEditingQuestion(null); }}
+        />
+      )}
+
+      {packageModalOpen && (
+        <PackageModal
+          initialValues={editingPackage}
+          onSubmit={handlePackageSubmit}
+          onClose={() => { setPackageModalOpen(false); setEditingPackage(null); }}
+        />
+      )}
+
+      {importingPackage && (
+        <QuestionImportModal
+          assessmentPackage={importingPackage}
+          onSubmit={handleImportPackageQuestions}
+          onClose={() => setImportingPackage(null)}
+        />
+      )}
+
+      {publishingPackage && (
+        <PublishPackageModal
+          assessmentPackage={publishingPackage}
+          schools={schoolRows}
+          onSubmit={handlePublishPackage}
+          onClose={() => setPublishingPackage(null)}
         />
       )}
 
@@ -1618,6 +2192,22 @@ export default function AdminPage() {
               onAddQuestion={openAddQuestionModal}
               onEditQuestion={openEditQuestionModal}
               onToggleQuestionStatus={handleToggleQuestionStatus}
+            />
+          )}
+          {activeTab === "packages" && (
+            <PackagesTab
+              packages={filteredPackages}
+              loading={packagesLoading}
+              error={packagesError}
+              search={packageSearch}
+              onSearch={setPackageSearch}
+              onRetry={loadPackages}
+              onCreate={openCreatePackageModal}
+              onEdit={openEditPackageModal}
+              onImport={setImportingPackage}
+              onPublish={setPublishingPackage}
+              onArchive={handleArchivePackage}
+              busyPackageId={busyPackageId}
             />
           )}
           {activeTab === "trialRequests" && (
