@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 
     const { data: existingRows, error: existingError } = await db
       .from("students")
-      .select("name")
+      .select("name, student_code")
       .eq("class_id", classId)
       .eq("school_id", auth.profile.school_id);
 
@@ -80,6 +80,11 @@ export async function POST(req: NextRequest) {
     }
 
     const existingNames = new Set((existingRows ?? []).map((row) => normalizeName(row.name)));
+    const existingCodes = new Set(
+      (existingRows ?? [])
+        .map((row) => Number(String(row.student_code ?? "").replace(/^0+/, "")))
+        .filter((value) => Number.isInteger(value) && value > 0)
+    );
     const namesToInsert = uniqueNames.filter((name) => !existingNames.has(normalizeName(name)));
 
     if (namesToInsert.length === 0) {
@@ -92,19 +97,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const rows = namesToInsert.map((name) => ({
-      name,
-      school_id: auth.profile.school_id,
-      class_id: classId,
-      student_number: null,
-      score: 0,
-      total: 10,
-    }));
+    let nextCode = 1;
+    const rows = namesToInsert.map((name) => {
+      while (existingCodes.has(nextCode)) nextCode += 1;
+      const studentCode = String(nextCode);
+      existingCodes.add(nextCode);
+      nextCode += 1;
+      return {
+        name,
+        school_id: auth.profile.school_id,
+        class_id: classId,
+        student_number: null,
+        student_code: studentCode,
+        score: 0,
+        total: 10,
+      };
+    });
 
     const { data: students, error: insertError } = await db
       .from("students")
       .insert(rows)
-      .select("id, name, class_id, school_id, student_number, score, total, created_at");
+      .select("id, name, class_id, school_id, student_number, student_code, score, total, created_at");
 
     if (insertError) {
       console.error("save students insert failed", {

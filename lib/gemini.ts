@@ -38,6 +38,18 @@ function normalizeQuestionKey(key: string) {
   return match ? `q${match[1]}` : null;
 }
 
+function toEnglishDigitString(value: string) {
+  return value.replace(/[٠-٩]/g, (digit) => ARABIC_DIGITS[digit] ?? digit);
+}
+
+function normalizeStudentCode(value: unknown) {
+  if (typeof value !== "string" && typeof value !== "number") return "";
+  const digits = toEnglishDigitString(String(value)).replace(/[^\d]/g, "");
+  if (!digits) return "";
+  const numeric = Number(digits);
+  return Number.isFinite(numeric) ? String(numeric) : digits;
+}
+
 function normalizeOption(value: unknown) {
   if (typeof value !== "string") return null;
   const option = value.trim().replace(/^ا$/, "أ");
@@ -56,11 +68,19 @@ function normalizeScannedAnswers(raw: unknown, totalQuestions: number): OMRResul
       ? String((raw as { studentName: string }).studentName).trim()
       : "",
   };
+  if (raw && typeof raw === "object") {
+    const object = raw as Record<string, unknown>;
+    result.studentCode = normalizeStudentCode(
+      object.studentCode ?? object.student_code ?? object["رقم الطالب"] ?? object["رقم_الطالب"]
+    );
+  } else {
+    result.studentCode = "";
+  }
   let detectedAnswerCount = 0;
 
   if (source && typeof source === "object" && !Array.isArray(source)) {
     Object.entries(source as Record<string, unknown>).forEach(([key, value]) => {
-      if (key === "studentName") return;
+      if (["studentName", "studentCode", "student_code", "رقم الطالب", "رقم_الطالب"].includes(key)) return;
       const normalizedKey = normalizeQuestionKey(key);
       const normalizedOption = normalizeOption(value);
       if (!normalizedKey || !normalizedOption) return;
@@ -183,7 +203,8 @@ There may be circles or bubbles next to the options.
 Your task:
 1. Read the student's visible markings only.
 2. Identify which option the student selected, shaded, circled, ticked, or marked for each question.
-3. Extract the student name if clearly visible.
+3. Extract the student name from the top of the paper if clearly visible.
+4. Extract the student code/number from the top of the paper if clearly visible.
 
 CRITICAL RULES:
 - Do NOT solve the math/science/reading questions.
@@ -193,13 +214,17 @@ CRITICAL RULES:
 - If no clear mark exists for a question, return "blank".
 - If multiple options are marked, or the shading is unclear, return "unclear".
 - If a corner marker is missing, ignore it and still inspect the page.
+- The student code is usually a number from 1 to 40.
+- The student code may be written in Arabic digits or English digits.
+- Normalize the student code to English digits in the returned JSON.
 - Return strict JSON only. No markdown. No explanation.
 
 Valid answer values are exactly: أ ب ج د blank unclear
 
 Return this exact shape:
 {
-  "studentName": "",
+  "studentName": "أحمد محمد",
+  "studentCode": "17",
   "answers": {
     "q1": "أ",
     "q2": "ب",

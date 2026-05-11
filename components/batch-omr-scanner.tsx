@@ -20,7 +20,10 @@ interface CapturedPaper {
 interface ScanResult {
   paperId: string;
   studentName: string;    // extracted by AI
+  studentCode: string;    // extracted class student code
   editedName: string;     // teacher-editable
+  matchedStudentId?: string | null;
+  matchConfidence?: "strong" | "code_only" | "name_only" | "conflict" | "needs_review";
   answers: Record<string, string>;
   score: number;
   total: number;
@@ -32,7 +35,93 @@ interface ScanResult {
   thumbBase64: string;
 }
 
+type ScannerStudent = {
+  id: string;
+  name: string;
+  studentCode?: string | null;
+};
+
 type Step = "capture" | "processing" | "review" | "done";
+
+const DIACRITICS = /[\u064B-\u065F\u0670]/g;
+const ARABIC_DIGITS: Record<string, string> = {
+  "٠": "0",
+  "١": "1",
+  "٢": "2",
+  "٣": "3",
+  "٤": "4",
+  "٥": "5",
+  "٦": "6",
+  "٧": "7",
+  "٨": "8",
+  "٩": "9",
+};
+
+function normalizeStudentCode(value?: string | null) {
+  const digits = String(value ?? "")
+    .replace(/[٠-٩]/g, (digit) => ARABIC_DIGITS[digit] ?? digit)
+    .replace(/[^\d]/g, "");
+  if (!digits) return "";
+  const numeric = Number(digits);
+  return Number.isFinite(numeric) ? String(numeric) : digits;
+}
+
+function normalizeArabicName(name: string) {
+  return name
+    .trim()
+    .replace(DIACRITICS, "")
+    .replace(/ـ/g, "")
+    .replace(/[إأآ]/g, "ا")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function namesSimilar(a: string, b: string) {
+  const first = normalizeArabicName(a);
+  const second = normalizeArabicName(b);
+  if (!first || !second) return false;
+  if (first === second) return true;
+  return first.length >= 6 && second.length >= 6 && (first.includes(second) || second.includes(first));
+}
+
+function confidenceLabel(value?: ScanResult["matchConfidence"]) {
+  const labels: Record<NonNullable<ScanResult["matchConfidence"]>, string> = {
+    strong: "مطابق بالرقم والاسم",
+    code_only: "مطابق بالرقم فقط",
+    name_only: "مطابق بالاسم فقط",
+    conflict: "تعارض بين الرقم والاسم",
+    needs_review: "يحتاج اختيار يدوي",
+  };
+  return value ? labels[value] : "يحتاج اختيار يدوي";
+}
+
+function resolveStudentMatch(result: Pick<ScanResult, "studentCode" | "studentName" | "editedName">, students: ScannerStudent[]) {
+  const code = normalizeStudentCode(result.studentCode);
+  const scannedName = result.editedName || result.studentName;
+  const codeMatch = code
+    ? students.find((student) => normalizeStudentCode(student.studentCode) === code)
+    : undefined;
+  const nameMatch = scannedName
+    ? students.find((student) => namesSimilar(student.name, scannedName))
+    : undefined;
+
+  if (codeMatch && (!scannedName || !nameMatch || codeMatch.id === nameMatch.id)) {
+    return {
+      matchedStudentId: codeMatch.id,
+      matchConfidence: scannedName && nameMatch ? "strong" as const : "code_only" as const,
+    };
+  }
+
+  if (codeMatch && nameMatch && codeMatch.id !== nameMatch.id) {
+    return { matchedStudentId: null, matchConfidence: "conflict" as const };
+  }
+
+  if (!codeMatch && nameMatch) {
+    return { matchedStudentId: nameMatch.id, matchConfidence: "name_only" as const };
+  }
+
+  return { matchedStudentId: null, matchConfidence: "needs_review" as const };
+}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -258,6 +347,7 @@ export function BatchOMRScanner({
   weekNumber,
   mode = "weekly",
   classPackageAssignmentId,
+  students = [],
   onComplete,
 }: {
   totalStudents: number;
@@ -266,6 +356,7 @@ export function BatchOMRScanner({
   weekNumber: number;
   mode?: "weekly" | "package";
   classPackageAssignmentId?: string;
+  students?: ScannerStudent[];
   onComplete: (results: ScanResult[]) => Promise<void> | void;
 }) {
   const [step, setStep] = useState<Step>("capture");
@@ -370,6 +461,7 @@ export function BatchOMRScanner({
 
       const result = json.result as {
         studentName?: string;
+        studentCode?: string;
         answers?: Record<string, string>;
         score?: number;
         total?: number;
@@ -378,9 +470,15 @@ export function BatchOMRScanner({
         weakSkills?: { question: string; skill: string }[];
       };
       const studentName = (result.studentName ?? "").trim();
+      const studentCode = normalizeStudentCode(result.studentCode ?? "");
+      const match: Pick<ScanResult, "matchedStudentId" | "matchConfidence"> = mode === "package"
+        ? resolveStudentMatch({ studentName, studentCode, editedName: studentName }, students)
+        : { matchedStudentId: null, matchConfidence: undefined };
 
       return {
-        paperId, studentName, editedName: studentName,
+        paperId, studentName, studentCode, editedName: studentName,
+        matchedStudentId: match.matchedStudentId,
+        matchConfidence: match.matchConfidence,
         answers: result.answers ?? {},
         score: result.score ?? 0,
         total: result.total ?? Q_COUNT,
@@ -393,7 +491,7 @@ export function BatchOMRScanner({
       clearTimeout(timer);
       const isTimeout = e instanceof Error && e.name === "AbortError";
       return {
-        paperId, studentName: "", editedName: "", answers: {}, score: 0,
+        paperId, studentName: "", studentCode: "", editedName: "", answers: {}, score: 0,
         total: Q_COUNT, percentage: 0, level: "دون الأساسي", weakSkills: [], error: true,
         errorMsg: isTimeout ? `انتهت المهلة (${toEnglishDigits(mode === "package" ? 40 : 20)} ثانية) — أعد التصوير` : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
         thumbBase64,
@@ -431,10 +529,10 @@ export function BatchOMRScanner({
     const thumb = await compressImage(newBase64, 120, 0.6);
     setRetakingPaperId(null);
     // Show scanning indicator for this row
-    setResults((prev) =>
-      prev.map((r) =>
-        r.paperId === retakingPaperId
-          ? { ...r, error: false, errorMsg: undefined, editedName: "جارٍ التحليل..." }
+      setResults((prev) =>
+        prev.map((r) =>
+          r.paperId === retakingPaperId
+          ? { ...r, error: false, errorMsg: undefined, editedName: "جارٍ التحليل...", matchConfidence: undefined, matchedStudentId: null }
           : r
       )
     );
@@ -478,11 +576,28 @@ export function BatchOMRScanner({
   // ── Review actions ──────────────────────────────────────────────────────────
 
   const updateName = (paperId: string, name: string) =>
-    setResults((prev) => prev.map((r) => (r.paperId === paperId ? { ...r, editedName: name } : r)));
+    setResults((prev) => prev.map((r) => {
+      if (r.paperId !== paperId) return r;
+      const match: Pick<ScanResult, "matchedStudentId" | "matchConfidence"> = mode === "package"
+        ? resolveStudentMatch({ studentName: r.studentName, studentCode: r.studentCode, editedName: name }, students)
+        : { matchedStudentId: null, matchConfidence: undefined };
+      return { ...r, editedName: name, matchedStudentId: match.matchedStudentId, matchConfidence: match.matchConfidence };
+    }));
+
+  const updateMatchedStudent = (paperId: string, studentId: string) =>
+    setResults((prev) => prev.map((r) => (
+      r.paperId === paperId
+        ? { ...r, matchedStudentId: studentId || null, matchConfidence: studentId ? "strong" : "needs_review" }
+        : r
+    )));
 
   const saveAll = async () => {
     const valid = results.filter((r) => !r.error);
     if (!valid.length) return;
+    if (mode === "package" && valid.some((r) => !r.matchedStudentId)) {
+      setSaveError("راجع المطابقة واختر الطالب لكل ورقة قبل الحفظ");
+      return;
+    }
 
     setSaveError(null);
     try {
@@ -724,7 +839,10 @@ export function BatchOMRScanner({
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">#</th>
+                    {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">رقم الطالب المقروء</th>}
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">اسم الطالب</th>
+                    {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الطالب المطابق</th>}
+                    {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">حالة المطابقة</th>}
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الدرجة</th>
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">المستوى</th>
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">إجراء</th>
@@ -743,6 +861,11 @@ export function BatchOMRScanner({
                             <span className="text-gray-400 text-sm">{formatCount(i + 1)}</span>
                           </div>
                         </td>
+                        {mode === "package" && (
+                          <td className="px-3 py-3 text-sm font-bold text-gray-700">
+                            {r.error ? "—" : r.studentCode ? toEnglishDigits(r.studentCode) : <span className="text-gray-300">غير مقروء</span>}
+                          </td>
+                        )}
                         <td className="px-3 py-3">
                           {r.error ? (
                             <span className="text-red-400 text-sm italic">{r.errorMsg ?? "تعذّرت القراءة"}</span>
@@ -763,6 +886,39 @@ export function BatchOMRScanner({
                             </div>
                           )}
                         </td>
+                        {mode === "package" && (
+                          <td className="px-3 py-3">
+                            {r.error ? "—" : (
+                              <select
+                                value={r.matchedStudentId ?? ""}
+                                onChange={(e) => updateMatchedStudent(r.paperId, e.target.value)}
+                                className="w-full min-w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-[#1D9E75]"
+                              >
+                                <option value="">اختر الطالب يدويًا</option>
+                                {students.map((student) => (
+                                  <option key={student.id} value={student.id}>
+                                    {toEnglishDigits(normalizeStudentCode(student.studentCode) || "—")} - {student.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </td>
+                        )}
+                        {mode === "package" && (
+                          <td className="px-3 py-3">
+                            {r.error ? "—" : (
+                              <span className={`rounded-full px-2 py-1 text-xs font-bold ${
+                                r.matchConfidence === "conflict"
+                                  ? "bg-rose-50 text-rose-700"
+                                  : r.matchConfidence === "needs_review"
+                                    ? "bg-amber-50 text-amber-700"
+                                    : "bg-teal-50 text-teal-700"
+                              }`}>
+                                {confidenceLabel(r.matchConfidence)}
+                              </span>
+                            )}
+                          </td>
+                        )}
                         <td className="px-3 py-3 text-sm font-bold text-gray-900">
                           {r.error ? "—" : toEnglishDigits(`${r.score}/${r.total}`)}
                         </td>

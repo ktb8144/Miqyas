@@ -13,6 +13,7 @@ import { formatSchoolDateRange, toEnglishDigits } from "@/lib/format";
 interface Student {
   id: string;
   name: string;
+  studentCode: string | null;
   score: number;
   total: number;
 }
@@ -417,11 +418,13 @@ export default function TeacherDashboard() {
   const mapStudentRow = (row: {
     id: string;
     name: string;
+    student_code?: string | null;
     score?: number | null;
     total?: number | null;
   }): Student => ({
     id: row.id,
     name: row.name,
+    studentCode: row.student_code ?? null,
     score: row.score ?? 0,
     total: row.total ?? 10,
   });
@@ -467,7 +470,7 @@ export default function TeacherDashboard() {
 
       const { data: classRows, error: classesError } = await supabase
         .from("classes")
-        .select("id, name, grade, subject, teacher_id, school_id, students(id, name, class_id, score, total)")
+        .select("id, name, grade, subject, teacher_id, school_id, students(id, name, class_id, student_code, score, total)")
         .eq("teacher_id", profile.id)
         .eq("school_id", profile.school_id)
         .order("created_at", { ascending: false });
@@ -738,7 +741,7 @@ export default function TeacherDashboard() {
   };
 
   const handlePackageScanComplete = async (
-    results: { editedName: string; studentName: string; answers: Record<string, string>; score: number; total: number }[]
+    results: { editedName: string; studentName: string; answers: Record<string, string>; score: number; total: number; matchedStudentId?: string | null }[]
   ) => {
     if (!activePackageAssignment) return;
 
@@ -747,18 +750,14 @@ export default function TeacherDashboard() {
       throw new Error("لا يوجد طلاب في الفصل لحفظ نتائج التصحيح");
     }
 
-    const usedStudentIds = new Set<string>();
     const updates: Array<{ student: Student; result: { answers: Record<string, string>; score: number; total: number } }> = [];
 
     results.forEach((result, index) => {
       const detectedName = result.editedName || result.studentName;
-      const matchedByName = students.find(
-        (student) => !usedStudentIds.has(student.id) && normalizeStudentName(student.name) === normalizeStudentName(detectedName)
-      );
-      const fallbackByOrder = students.find((student, studentIndex) => studentIndex === index && !usedStudentIds.has(student.id));
-      const student = matchedByName ?? fallbackByOrder;
+      const student = result.matchedStudentId
+        ? students.find((item) => item.id === result.matchedStudentId)
+        : students.find((item) => normalizeStudentName(item.name) === normalizeStudentName(detectedName)) ?? students[index];
       if (student) {
-        usedStudentIds.add(student.id);
         updates.push({ student, result });
       }
     });
@@ -908,6 +907,7 @@ export default function TeacherDashboard() {
                   grade={activePackageAssignment.grade ?? ""}
                   weekNumber={activePackageAssignment.weekNumber ?? 0}
                   onComplete={handlePackageScanComplete}
+                  students={activePackageStudents.map((student) => ({ id: student.id, name: student.name, studentCode: student.studentCode }))}
                 />
               ) : (
                 <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
@@ -1530,6 +1530,7 @@ export default function TeacherDashboard() {
                     <thead className="bg-gray-50 border-b border-gray-100">
                       <tr>
                         <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">#</th>
+                        <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">رقم الطالب</th>
                         <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">اسم الطالب</th>
                         <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">آخر درجة</th>
                         <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">المستوى</th>
@@ -1540,6 +1541,11 @@ export default function TeacherDashboard() {
                       {activeStudents.map((s, i) => (
                         <tr key={s.id} className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-gray-400 text-sm">{toEnglishDigits(i + 1)}</td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-[#159f91]">
+                              رقم الطالب: {toEnglishDigits(s.studentCode ?? i + 1)}
+                            </span>
+                          </td>
                           <td className="px-4 py-3 font-medium text-gray-900">{s.name}</td>
                           <td className="px-4 py-3">
                             {s.score > 0 ? (

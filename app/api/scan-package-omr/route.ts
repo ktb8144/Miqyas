@@ -392,6 +392,7 @@ export async function POST(req: NextRequest) {
     }
 
     const studentName = typeof scanned.studentName === "string" ? scanned.studentName.trim() : "";
+    const studentCode = typeof scanned.studentCode === "string" ? scanned.studentCode.trim() : "";
     const graded = gradePackageAnswers(scanned, loaded.questions, studentName);
 
     let saved: { resultId?: string } | undefined;
@@ -413,6 +414,7 @@ export async function POST(req: NextRequest) {
       success: true,
       result: {
         studentName: graded.studentName,
+        studentCode,
         answers: graded.answers,
         score: graded.score,
         total: graded.total,
