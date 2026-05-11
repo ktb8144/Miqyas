@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 const VALID_ANSWERS = new Set(["أ", "ب", "ج", "د"]);
 const VALID_EMPTY_ANSWERS = new Set(["blank", "unclear"]);
+const DEBUG_SCAN =
+  process.env.NODE_ENV !== "production" || process.env.DEBUG_SCAN === "true";
 
 type AssignmentRow = {
   id: string;
@@ -62,6 +64,18 @@ type GradedResult = {
   gradedQuestions: GradedQuestion[];
 };
 
+type ScanDebugInfo = {
+  scanMode: "answer_sheet" | "question_paper";
+  classPackageAssignmentId: string;
+  totalQuestions: number;
+  packageQuestionCount: number;
+  didGeminiReturnText: boolean;
+  didParseJson: boolean;
+  detectedAnswerCount: number;
+  errorStage?: string;
+  rawResponsePreview?: string;
+};
+
 const scanSchema = z.object({
   classPackageAssignmentId: z.string().uuid(),
   imageBase64: z.string().min(100).optional(),
@@ -98,6 +112,49 @@ function countDetectedAnswers(scanned: Record<string, string>, totalQuestions: n
     if (value && ["أ", "ب", "ج", "د", "unclear"].includes(value)) count += 1;
   }
   return count;
+}
+
+function buildScanDebug({
+  body,
+  totalQuestions,
+  scanned,
+  detectedAnswerCount,
+  errorStage,
+}: {
+  body: z.infer<typeof scanSchema>;
+  totalQuestions: number;
+  scanned?: Record<string, string>;
+  detectedAnswerCount: number;
+  errorStage?: string;
+}): ScanDebugInfo {
+  return {
+    scanMode: body.scanMode,
+    classPackageAssignmentId: body.classPackageAssignmentId,
+    totalQuestions,
+    packageQuestionCount: totalQuestions,
+    didGeminiReturnText: scanned?._geminiReturnedText === "true",
+    didParseJson: scanned?._parseableJson === "true",
+    detectedAnswerCount,
+    errorStage,
+    rawResponsePreview: scanned?._rawTextPreview,
+  };
+}
+
+function scanLogPayload(debug: ScanDebugInfo) {
+  return {
+    scanMode: debug.scanMode,
+    classPackageAssignmentId: debug.classPackageAssignmentId,
+    packageQuestionCount: debug.packageQuestionCount,
+    detectedAnswerCount: debug.detectedAnswerCount,
+    didGeminiReturnText: debug.didGeminiReturnText,
+    didParseJson: debug.didParseJson,
+    errorStage: debug.errorStage,
+    rawResponsePreview: debug.rawResponsePreview,
+  };
+}
+
+function debugResponse(debug: ScanDebugInfo) {
+  return DEBUG_SCAN ? { debug } : {};
 }
 
 async function loadPackageQuestionsForAssignment(classPackageAssignmentId: string, profile: { id: string; school_id?: string | null }) {
@@ -368,6 +425,7 @@ export async function POST(req: NextRequest) {
 
     const totalQuestions = loaded.questions.length;
     let scanned: Record<string, string>;
+    let errorStage: ScanDebugInfo["errorStage"] = body.studentAnswers ? "manual_answers" : "gemini_scan";
     if (body.studentAnswers) {
       scanned = body.studentAnswers;
     } else if (body.scanMode === "question_paper") {
@@ -377,16 +435,25 @@ export async function POST(req: NextRequest) {
     }
 
     const detectedAnswerCount = body.studentAnswers ? totalQuestions : countDetectedAnswers(scanned, totalQuestions);
-    console.info("scan-package-omr", {
-      scanMode: body.scanMode,
+    const scanDebug = buildScanDebug({
+      body,
       totalQuestions,
-      parseableJson: scanned._parseableJson ?? "unknown",
+      scanned,
       detectedAnswerCount,
+      errorStage,
     });
+    console.info("scan-package-omr", scanLogPayload(scanDebug));
 
     if (!body.studentAnswers && body.scanMode === "question_paper" && detectedAnswerCount < 1) {
+      errorStage = "no_detected_answers";
+      const noAnswersDebug = { ...scanDebug, errorStage };
+      console.warn("scan-package-omr no detected answers", scanLogPayload(noAnswersDebug));
       return NextResponse.json(
-        { success: false, error: "لم يتم العثور على اختيارات مظللة بوضوح في الورقة" },
+        {
+          success: false,
+          error: "لم يتم العثور على اختيارات مظللة بوضوح في الورقة",
+          ...debugResponse(noAnswersDebug),
+        },
         { status: 422 }
       );
     }
@@ -424,11 +491,24 @@ export async function POST(req: NextRequest) {
       },
       saved: Boolean(saved),
       resultId: saved?.resultId,
+      ...debugResponse({ ...scanDebug, errorStage: undefined }),
     });
   } catch (err) {
-    console.error("scan package OMR failed", err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("scan package OMR failed", { errorStage: "unhandled_exception", message });
     return NextResponse.json(
-      { success: false, error: "تعذر تصحيح حزمة التقييم حاليًا" },
+      {
+        success: false,
+        error: "تعذر تصحيح حزمة التقييم حاليًا",
+        ...(DEBUG_SCAN
+          ? {
+              debug: {
+                errorStage: "unhandled_exception",
+                message,
+              },
+            }
+          : {}),
+      },
       { status: 500 }
     );
   }

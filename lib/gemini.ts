@@ -244,10 +244,14 @@ Return this exact shape:
   try {
     const normalized = normalizeScannedAnswers(JSON.parse(jsonText), totalQuestions);
     normalized._parseableJson = "true";
+    normalized._geminiReturnedText = text ? "true" : "false";
+    normalized._rawTextPreview = text.slice(0, 300);
     return normalized;
   } catch {
     const normalized = normalizeScannedAnswers({}, totalQuestions);
     normalized._parseableJson = "false";
+    normalized._geminiReturnedText = text ? "true" : "false";
+    normalized._rawTextPreview = text.slice(0, 300);
     return normalized;
   }
 }

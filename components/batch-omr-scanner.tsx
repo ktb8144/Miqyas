@@ -160,9 +160,13 @@ function formatCount(value: number) {
 function RetakeModal({
   onCapture,
   onClose,
+  maxWidth = 800,
+  quality = 0.8,
 }: {
   onCapture: (base64: string) => void;
   onClose: () => void;
+  maxWidth?: number;
+  quality?: number;
 }) {
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -194,7 +198,7 @@ function RetakeModal({
     canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
     const raw = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
     streamRef.current?.getTracks().forEach((t) => t.stop());
-    const compressed = await compressImage(raw, 800, 0.8);
+    const compressed = await compressImage(raw, maxWidth, quality);
     onCapture(compressed);
   };
 
@@ -414,7 +418,7 @@ export function BatchOMRScanner({
       canvas.height = 1754;
       canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
       const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
-      const maxWidth = mode === "package" ? 1500 : 800;
+      const maxWidth = mode === "package" ? 1600 : 800;
       const quality = mode === "package" ? 0.9 : 0.8;
       const [compressed, thumb] = await Promise.all([
         compressImage(raw, maxWidth, quality),
@@ -622,6 +626,8 @@ export function BatchOMRScanner({
         <RetakeModal
           onCapture={handleRetakeCapture}
           onClose={() => setRetakingPaperId(null)}
+          maxWidth={mode === "package" ? 1600 : 800}
+          quality={mode === "package" ? 0.9 : 0.8}
         />
       )}
 
