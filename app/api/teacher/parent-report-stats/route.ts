@@ -20,16 +20,27 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const schoolId = auth.profile.school_id;
+    const db = getAdminClient();
+    const { data: currentUser, error: currentUserError } = await db
+      .from("users")
+      .select("id, auth_id, role, school_id")
+      .eq("auth_id", auth.user.id)
+      .maybeSingle();
+
+    if (currentUserError) throw currentUserError;
+    if (!currentUser || currentUser.role !== "teacher") {
+      return NextResponse.json({ success: false, error: "تعذر تحديد حساب المعلم الحالي" }, { status: 403 });
+    }
+
+    const schoolId = currentUser.school_id;
     if (!schoolId) {
       return NextResponse.json({ success: false, error: "حساب المعلم غير مرتبط بمدرسة" }, { status: 400 });
     }
 
-    const db = getAdminClient();
-    const { data: tokens, error: tokenError } = await db
+    const { data: tokens, error: tokenError, count: totalLinksCount } = await db
       .from("parent_report_tokens")
-      .select("id, open_count")
-      .eq("created_by", auth.profile.id)
+      .select("id, open_count", { count: "exact" })
+      .eq("created_by", currentUser.id)
       .eq("school_id", schoolId);
 
     if (tokenError) throw tokenError;
@@ -49,7 +60,17 @@ export async function GET(req: NextRequest) {
     const openedReports = tokenRows.filter((item) => Number(item.open_count ?? 0) > 0).length;
     const missionOpens = eventRows.filter((item) => item.event_type === "open_mission").length;
     const missionCompleted = eventRows.filter((item) => item.event_type === "mission_completed").length;
-    const totalLinks = tokenRows.length;
+    const totalLinks = totalLinksCount ?? tokenRows.length;
+
+    console.info("teacher parent report stats", {
+      authUserId: auth.user.id,
+      currentUserId: currentUser.id,
+      currentUserRole: currentUser.role,
+      currentUserSchoolId: currentUser.school_id,
+      totalLinks,
+      openedReports,
+      eventsCount: eventRows.length,
+    });
 
     return NextResponse.json({
       success: true,

@@ -42,8 +42,10 @@ alter table public.parent_report_events force row level security;
 
 drop policy if exists "parent_report_tokens_admin_all" on public.parent_report_tokens;
 drop policy if exists "parent_report_tokens_staff_school_read" on public.parent_report_tokens;
+drop policy if exists "parent_report_tokens_teacher_created_by_read" on public.parent_report_tokens;
 drop policy if exists "parent_report_events_admin_all" on public.parent_report_events;
 drop policy if exists "parent_report_events_staff_school_read" on public.parent_report_events;
+drop policy if exists "parent_report_events_teacher_created_by_read" on public.parent_report_events;
 
 create policy "parent_report_tokens_admin_all"
 on public.parent_report_tokens for all
@@ -69,6 +71,18 @@ using (
     select 1 from public.users u
     where u.auth_id = auth.uid()
       and u.role in ('principal', 'supervisor', 'teacher')
+      and u.school_id = parent_report_tokens.school_id
+  )
+);
+
+create policy "parent_report_tokens_teacher_created_by_read"
+on public.parent_report_tokens for select
+using (
+  exists (
+    select 1 from public.users u
+    where u.auth_id = auth.uid()
+      and u.role = 'teacher'
+      and u.id = parent_report_tokens.created_by
       and u.school_id = parent_report_tokens.school_id
   )
 );
@@ -100,6 +114,20 @@ using (
     where t.id = parent_report_events.token_id
       and u.auth_id = auth.uid()
       and u.role in ('principal', 'supervisor', 'teacher')
+  )
+);
+
+create policy "parent_report_events_teacher_created_by_read"
+on public.parent_report_events for select
+using (
+  exists (
+    select 1
+    from public.parent_report_tokens t
+    join public.users u on u.id = t.created_by
+    where t.id = parent_report_events.token_id
+      and u.auth_id = auth.uid()
+      and u.role = 'teacher'
+      and u.school_id = t.school_id
   )
 );
 
