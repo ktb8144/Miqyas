@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, requireUserRole } from "@/lib/supabase-admin";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+const NO_STORE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+};
 
 type TokenRow = {
   id: string;
@@ -16,7 +21,10 @@ type EventRow = {
 export async function GET(req: NextRequest) {
   const auth = await requireUserRole(req, ["teacher"]);
   if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+    return NextResponse.json(
+      { success: false, error: auth.error, generatedAt: new Date().toISOString() },
+      { status: auth.status, headers: NO_STORE_HEADERS }
+    );
   }
 
   try {
@@ -29,12 +37,18 @@ export async function GET(req: NextRequest) {
 
     if (currentUserError) throw currentUserError;
     if (!currentUser || currentUser.role !== "teacher") {
-      return NextResponse.json({ success: false, error: "تعذر تحديد حساب المعلم الحالي" }, { status: 403 });
+      return NextResponse.json(
+        { success: false, error: "تعذر تحديد حساب المعلم الحالي", generatedAt: new Date().toISOString() },
+        { status: 403, headers: NO_STORE_HEADERS }
+      );
     }
 
     const schoolId = currentUser.school_id;
     if (!schoolId) {
-      return NextResponse.json({ success: false, error: "حساب المعلم غير مرتبط بمدرسة" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: "حساب المعلم غير مرتبط بمدرسة", generatedAt: new Date().toISOString() },
+        { status: 400, headers: NO_STORE_HEADERS }
+      );
     }
 
     const { data: tokens, error: tokenError, count: totalLinksCount } = await db
@@ -60,6 +74,7 @@ export async function GET(req: NextRequest) {
     const openedReports = tokenRows.filter((item) => Number(item.open_count ?? 0) > 0).length;
     const missionOpens = eventRows.filter((item) => item.event_type === "open_mission").length;
     const missionCompleted = eventRows.filter((item) => item.event_type === "mission_completed").length;
+    const subscriptionInterestCount = eventRows.filter((item) => item.event_type === "subscription_interest").length;
     const totalLinks = totalLinksCount ?? tokenRows.length;
 
     console.info("teacher parent report stats", {
@@ -70,21 +85,28 @@ export async function GET(req: NextRequest) {
       totalLinks,
       openedReports,
       eventsCount: eventRows.length,
+      subscriptionInterestCount,
+      generatedAt: new Date().toISOString(),
     });
 
     return NextResponse.json({
       success: true,
+      generatedAt: new Date().toISOString(),
       data: {
         totalLinks,
         openedReports,
         openRate: totalLinks ? Math.round((openedReports / totalLinks) * 100) : null,
         missionOpens,
         missionCompleted,
+        subscriptionInterestCount,
         unopenedLinks: totalLinks - openedReports,
       },
-    });
+    }, { headers: NO_STORE_HEADERS });
   } catch (err) {
     console.error("teacher parent report stats failed", err);
-    return NextResponse.json({ success: false, error: "تعذر تحميل تفاعل أولياء الأمور" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: "تعذر تحميل تفاعل أولياء الأمور", generatedAt: new Date().toISOString() },
+      { status: 500, headers: NO_STORE_HEADERS }
+    );
   }
 }

@@ -10,6 +10,7 @@ const schema = z.object({
   score: z.coerce.number().int().min(0),
   totalQuestions: z.coerce.number().int().min(1).max(50),
   skillName: z.string().trim().min(1).max(180),
+  eventType: z.enum(["mission_completed", "subscription_interest"]).optional().default("mission_completed"),
 });
 
 export async function POST(req: NextRequest) {
@@ -19,7 +20,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "بيانات التدريب غير مكتملة" }, { status: 400 });
     }
 
-    const { token, score, totalQuestions, skillName } = parsed.data;
+    const { token, score, totalQuestions, skillName, eventType } = parsed.data;
     const db = getAdminClient();
     const now = new Date().toISOString();
     const { data: tokenRow, error: tokenError } = await db
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
       .from("parent_report_events")
       .insert({
         token_id: tokenRow.id,
-        event_type: "mission_completed",
+        event_type: eventType,
         metadata: {
           score: Math.min(score, totalQuestions),
           total_questions: totalQuestions,

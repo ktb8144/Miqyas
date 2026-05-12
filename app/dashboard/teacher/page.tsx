@@ -147,7 +147,9 @@ type ParentReportStats = {
   openRate: number | null;
   missionOpens: number;
   missionCompleted: number;
+  subscriptionInterestCount: number;
   unopenedLinks: number;
+  generatedAt?: string;
 };
 
 // ─── Report Modal ─────────────────────────────────────────────────────────────
@@ -625,10 +627,13 @@ export default function TeacherDashboard() {
     setParentStatsLoading(true);
     setParentStatsError(null);
     try {
-      const res = await fetch("/api/teacher/parent-report-stats", { cache: "no-store" });
+      const res = await fetch(`/api/teacher/parent-report-stats?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-store" },
+      });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل تفاعل أولياء الأمور");
-      setParentStats(json.data as ParentReportStats);
+      setParentStats({ ...(json.data as ParentReportStats), generatedAt: json.generatedAt });
     } catch (err) {
       setParentStatsError(err instanceof Error ? err.message : "تعذر تحميل تفاعل أولياء الأمور");
     } finally {
@@ -1332,13 +1337,14 @@ ${json.url}
                     {parentStatsError}
                   </div>
                 ) : parentStats && parentStats.totalLinks > 0 ? (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
                     {[
                       { label: "روابط منشأة", value: parentStats.totalLinks },
                       { label: "تقارير مفتوحة", value: parentStats.openedReports },
                       { label: "نسبة الفتح", value: parentStats.openRate === null ? "—" : `${toEnglishDigits(parentStats.openRate)}٪` },
                       { label: "ضغطات التدريب", value: parentStats.missionOpens },
                       { label: "تدريبات مكتملة", value: parentStats.missionCompleted },
+                      { label: "مهتمون بالتدريبات الإضافية", value: parentStats.subscriptionInterestCount },
                       { label: "روابط غير مفتوحة", value: parentStats.unopenedLinks },
                     ].map((item) => (
                       <div key={item.label} className="rounded-xl bg-slate-50 p-3 text-center">
@@ -1356,6 +1362,11 @@ ${json.url}
                 {parentStats && parentStats.totalLinks > 0 && parentStats.openedReports === 0 && (
                   <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
                     لم يفتح أولياء الأمور التقارير بعد.
+                  </p>
+                )}
+                {parentStats?.generatedAt && (
+                  <p className="mt-2 text-xs font-bold text-slate-300">
+                    آخر تحديث: {toEnglishDigits(new Date(parentStats.generatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}
                   </p>
                 )}
               </div>

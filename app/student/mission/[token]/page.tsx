@@ -68,7 +68,7 @@ export default async function StudentMissionPage({ params }: { params: { token: 
           ))}
         </div>
 
-        <MissionCompletionCard token={token} skillName={weak.name} />
+        <MissionCompletionCard token={token} skillName={weak.name} studentName={student.name} />
 
         <div className="rounded-[1.5rem] border border-teal-100 bg-teal-50/70 p-5">
           <h3 className="font-black">تدريب اليوم</h3>

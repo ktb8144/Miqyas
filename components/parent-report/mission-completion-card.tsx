@@ -13,9 +13,11 @@ type MissionQuestion = {
 export function MissionCompletionCard({
   token,
   skillName,
+  studentName,
 }: {
   token: string;
   skillName: string;
+  studentName: string;
 }) {
   const questions = useMemo<MissionQuestion[]>(() => [
     {
@@ -40,7 +42,9 @@ export function MissionCompletionCard({
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [interestSent, setInterestSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [interestMessage, setInterestMessage] = useState<string | null>(null);
 
   const answeredCount = Object.keys(answers).length;
   const score = questions.reduce((sum, question) => sum + (answers[question.id] === question.correctIndex ? 1 : 0), 0);
@@ -69,6 +73,80 @@ export function MissionCompletionCard({
       setSaving(false);
     }
   };
+
+  const registerInterest = async () => {
+    setSaving(true);
+    setError(null);
+    setInterestMessage(null);
+    try {
+      const res = await fetch("/api/parent-report-events/mission-completed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          score,
+          totalQuestions: questions.length,
+          skillName,
+          eventType: "subscription_interest",
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تسجيل الاهتمام");
+      setInterestSent(true);
+      setInterestMessage("شكرًا لكم، سيتم تفعيل خطة التدريب الشهرية قريبًا.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر تسجيل الاهتمام");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (completed) {
+    return (
+      <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+        <p className="text-sm font-extrabold text-[#159f91]">نتيجة التدريب</p>
+        <h2 className="mt-2 text-3xl font-black text-[#0b2447]">أحسنت يا {studentName}</h2>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-50 p-4 text-center">
+            <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(`${score}/${questions.length}`)}</div>
+            <div className="mt-1 text-xs font-bold text-slate-400">الدرجة</div>
+          </div>
+          <div className="rounded-xl bg-teal-50 p-4 text-center">
+            <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(20)}</div>
+            <div className="mt-1 text-xs font-bold text-slate-400">النقاط المكتسبة</div>
+          </div>
+          <div className="rounded-xl bg-amber-50 p-4 text-center">
+            <div className="text-sm font-black text-[#BA7517]">{skillName}</div>
+            <div className="mt-1 text-xs font-bold text-slate-400">المهارة</div>
+          </div>
+        </div>
+        <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm font-bold leading-7 text-slate-600">
+          أكمل الطالب التدريب المجاني. يمكنه لاحقًا متابعة خطة تدريب قصيرة حسب مستواه.
+        </p>
+        {interestMessage && (
+          <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm font-bold text-[#159f91]">
+            {interestMessage}
+          </div>
+        )}
+        {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <a
+            href={`/parent/report/${token}`}
+            className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+          >
+            العودة للتقرير
+          </a>
+          <button
+            onClick={registerInterest}
+            disabled={saving || interestSent}
+            className="flex-1 rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
+          >
+            {interestSent ? "تم تسجيل الاهتمام" : "أريد تدريبات أكثر لطفلي"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
