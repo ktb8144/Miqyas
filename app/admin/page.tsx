@@ -150,6 +150,7 @@ type AdminAssessmentPackage = {
   answer_key_file_url: string | null;
   question_count: number;
   assigned_school_count: number;
+  incomplete_question_count: number;
   published_at: string | null;
   created_at: string;
 };
@@ -1342,6 +1343,15 @@ function PackagesTab({
       <div className="grid gap-4">
         {packages.map((item) => {
           const pdfReady = Boolean(item.questions_pdf_url || item.student_pdf_url);
+          const readiness = !pdfReady
+            ? { label: "ناقصة ملف الأسئلة", color: "#BA7517", bg: "#fffbeb" }
+            : item.question_count <= 0
+              ? { label: "ناقصة مفتاح الإجابة", color: "#BA7517", bg: "#fffbeb" }
+              : item.incomplete_question_count > 0
+                ? { label: "تحتاج ربط مهارات", color: "#E24B4A", bg: "#fff5f5" }
+                : item.status !== "published" || item.assigned_school_count <= 0
+                  ? { label: "غير منشورة", color: "#64748b", bg: "#f8fafc" }
+                  : { label: "جاهزة للتجربة", color: "#159f91", bg: "#f0fdf8" };
           const busy = busyPackageId === item.id;
           return (
             <div key={item.id} className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
@@ -1350,6 +1360,7 @@ function PackagesTab({
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={packageStatusLabel(item.status)} />
                     <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{packageTypeLabel(item.package_type)}</span>
+                    <span className="rounded-full px-3 py-1 text-xs font-bold" style={{ color: readiness.color, background: readiness.bg }}>{readiness.label}</span>
                     <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{item.subject}</span>
                     <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">صف {toEnglishDigits(item.grade)}</span>
                   </div>

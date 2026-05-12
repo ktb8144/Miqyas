@@ -114,6 +114,33 @@ interface TeacherPackageAssignment {
   questionCount: number;
 }
 
+type PackageResultDetails = {
+  assignment: {
+    id: string;
+    packageTitle: string;
+    className: string;
+    subject: string;
+    grade: number | null;
+    weekNumber: number | null;
+  };
+  summary: {
+    studentsTestedCount: number;
+    averagePercentage: number | null;
+  };
+  students: Array<{
+    id: string;
+    studentId: string;
+    studentCode: string | null;
+    studentName: string;
+    score: number;
+    total: number;
+    percentage: number;
+    level: string;
+  }>;
+  weakestSkills: Array<{ name: string; wrong: number; total: number }>;
+  weakestDomains: Array<{ name: string; wrong: number; total: number }>;
+};
+
 // ─── Report Modal ─────────────────────────────────────────────────────────────
 
 function ReportModal({
@@ -320,6 +347,12 @@ export default function TeacherDashboard() {
   const [applyingPackageId, setApplyingPackageId] = useState<string | null>(null);
   const [packageSuccess, setPackageSuccess] = useState<string | null>(null);
   const [activePackageAssignment, setActivePackageAssignment] = useState<TeacherPackageAssignment | null>(null);
+  const [packageResultsAssignment, setPackageResultsAssignment] = useState<TeacherPackageAssignment | null>(null);
+  const [packageResults, setPackageResults] = useState<PackageResultDetails | null>(null);
+  const [packageResultsLoading, setPackageResultsLoading] = useState(false);
+  const [packageResultsError, setPackageResultsError] = useState<string | null>(null);
+  const [selectedClassAssignment, setSelectedClassAssignment] = useState<Record<string, string>>({});
+  const [showLegacyScanner, setShowLegacyScanner] = useState(false);
 
   // ── Student add (manual) state ───────────────────────────────────────────────
   const [showAddStudents, setShowAddStudents] = useState(false);
@@ -346,6 +379,10 @@ export default function TeacherDashboard() {
   const activePackageStudents = activePackageAssignment
     ? classStudents[activePackageAssignment.classId] ?? []
     : [];
+  const packageAssignmentsByClass = packageAssignments.reduce<Record<string, TeacherPackageAssignment[]>>((acc, item) => {
+    acc[item.classId] = [...(acc[item.classId] ?? []), item];
+    return acc;
+  }, {});
 
   const calcAvg = (students: Student[]) => {
     const scored = students.filter((s) => s.score > 0);
@@ -752,11 +789,10 @@ export default function TeacherDashboard() {
 
     const updates: Array<{ student: Student; result: { answers: Record<string, string>; score: number; total: number } }> = [];
 
-    results.forEach((result, index) => {
-      const detectedName = result.editedName || result.studentName;
+    results.forEach((result) => {
       const student = result.matchedStudentId
         ? students.find((item) => item.id === result.matchedStudentId)
-        : students.find((item) => normalizeStudentName(item.name) === normalizeStudentName(detectedName)) ?? students[index];
+        : null;
       if (student) {
         updates.push({ student, result });
       }
@@ -800,6 +836,23 @@ export default function TeacherDashboard() {
     setPackageSuccess("تم حفظ نتائج اختبار مقياس بنجاح.");
     setActivePackageAssignment(null);
     await loadPackageWorkflow();
+  };
+
+  const openPackageResults = async (assignment: TeacherPackageAssignment) => {
+    setPackageResultsAssignment(assignment);
+    setPackageResults(null);
+    setPackageResultsError(null);
+    setPackageResultsLoading(true);
+    try {
+      const res = await fetch(`/api/teacher/class-package-assignments/${assignment.id}/results`, { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل نتائج الاختبار");
+      setPackageResults(json.data as PackageResultDetails);
+    } catch (err) {
+      setPackageResultsError(err instanceof Error ? err.message : "تعذر تحميل نتائج الاختبار");
+    } finally {
+      setPackageResultsLoading(false);
+    }
   };
 
   const markPackagePrinted = async (assignmentId: string) => {
@@ -913,6 +966,110 @@ export default function TeacherDashboard() {
                 <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
                   <h3 className="text-xl font-black text-[#0b2447]">أضف طلابًا لهذا الفصل قبل بدء التصحيح.</h3>
                   <p className="mt-2 text-sm font-bold text-slate-400">يعتمد حفظ النتائج على ربط كل ورقة بطالب محفوظ في الفصل.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {packageResultsAssignment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" dir="rtl">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
+              <div>
+                <p className="text-sm font-extrabold text-[#159f91]">نتائج اختبار مقياس</p>
+                <h2 className="mt-1 text-xl font-black text-[#0b2447]">{packageResultsAssignment.packageTitle}</h2>
+                <p className="mt-1 text-sm font-bold text-slate-400">{packageResultsAssignment.className}</p>
+              </div>
+              <button
+                onClick={() => setPackageResultsAssignment(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+              >
+                إغلاق
+              </button>
+            </div>
+            <div className="p-5">
+              {packageResultsLoading && (
+                <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
+                  جارٍ تحميل النتائج...
+                </div>
+              )}
+              {packageResultsError && (
+                <div className="rounded-[1.25rem] border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">
+                  {packageResultsError}
+                </div>
+              )}
+              {!packageResultsLoading && !packageResultsError && packageResults && (
+                <div className="space-y-5">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(packageResults.summary.studentsTestedCount)}</div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">طلاب تم اختبارهم</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-4">
+                      <div className="text-2xl font-black text-[#159f91]">
+                        {packageResults.summary.averagePercentage === null ? "—" : `${toEnglishDigits(packageResults.summary.averagePercentage)}٪`}
+                      </div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">متوسط النسبة</div>
+                    </div>
+                  </div>
+
+                  {packageResults.students.length ? (
+                    <div className="overflow-x-auto rounded-xl border border-slate-100">
+                      <table className="w-full">
+                        <thead className="bg-slate-50">
+                          <tr>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">رقم الطالب</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">اسم الطالب</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">الدرجة</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">النسبة</th>
+                            <th className="px-4 py-3 text-right text-xs font-bold text-slate-500">المستوى</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {packageResults.students.map((student) => (
+                            <tr key={student.id}>
+                              <td className="px-4 py-3 text-sm font-black text-[#159f91]">{toEnglishDigits(student.studentCode ?? "—")}</td>
+                              <td className="px-4 py-3 text-sm font-bold text-[#0b2447]">{student.studentName}</td>
+                              <td className="px-4 py-3 text-sm font-bold text-slate-600">{toEnglishDigits(`${student.score}/${student.total}`)}</td>
+                              <td className="px-4 py-3 text-sm font-bold text-slate-600">{toEnglishDigits(student.percentage)}٪</td>
+                              <td className="px-4 py-3 text-sm font-bold text-slate-600">{student.level || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
+                      لم يتم حفظ نتائج لهذا الاختبار بعد.
+                    </div>
+                  )}
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
+                      <h3 className="font-black text-[#0b2447]">أضعف المهارات</h3>
+                      <div className="mt-3 space-y-2">
+                        {packageResults.weakestSkills.length ? packageResults.weakestSkills.map((item) => (
+                          <div key={item.name} className="flex justify-between rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-600">
+                            <span>{item.name}</span>
+                            <span>{toEnglishDigits(`${item.wrong}/${item.total}`)}</span>
+                          </div>
+                        )) : <p className="text-sm font-bold text-slate-400">لا توجد مهارات ضعيفة محفوظة بعد.</p>}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
+                      <h3 className="font-black text-[#0b2447]">أضعف مجالات نافس</h3>
+                      <div className="mt-3 space-y-2">
+                        {packageResults.weakestDomains.length ? packageResults.weakestDomains.map((item) => (
+                          <div key={item.name} className="flex justify-between rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-600">
+                            <span>{item.name}</span>
+                            <span>{toEnglishDigits(`${item.wrong}/${item.total}`)}</span>
+                          </div>
+                        )) : <p className="text-sm font-bold text-slate-400">لا توجد مجالات ضعيفة محفوظة بعد.</p>}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -1064,6 +1221,9 @@ export default function TeacherDashboard() {
                 {classes.map((cls) => {
                   const students = classStudents[cls.id] ?? [];
                   const avg = calcAvg(students);
+                  const classAssignments = packageAssignmentsByClass[cls.id] ?? [];
+                  const selectedAssignmentId = selectedClassAssignment[cls.id] ?? classAssignments[0]?.id ?? "";
+                  const selectedAssignment = classAssignments.find((item) => item.id === selectedAssignmentId);
                   return (
                     <div
                       key={cls.id}
@@ -1114,6 +1274,32 @@ export default function TeacherDashboard() {
                       >
                         عرض الطلاب
                       </button>
+                      {classAssignments.length ? (
+                        <div className="space-y-2 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
+                          <div className="text-xs font-extrabold text-[#159f91]">حزمة مقياس مطبقة</div>
+                          {classAssignments.length > 1 && (
+                            <select
+                              value={selectedAssignmentId}
+                              onChange={(event) => setSelectedClassAssignment((prev) => ({ ...prev, [cls.id]: event.target.value }))}
+                              className="w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm font-bold text-[#0b2447] outline-none"
+                            >
+                              {classAssignments.map((assignment) => (
+                                <option key={assignment.id} value={assignment.id}>{assignment.packageTitle}</option>
+                              ))}
+                            </select>
+                          )}
+                          <button
+                            onClick={() => selectedAssignment && setActivePackageAssignment(selectedAssignment)}
+                            className="w-full rounded-xl bg-[#0b2447] py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
+                          >
+                            بدء تصحيح حزمة مقياس
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-xs font-bold leading-6 text-slate-400">
+                          لا توجد حزمة مقياس مطبقة على هذا الفصل. انتقل إلى اختبارات مقياس لتطبيق حزمة.
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1352,11 +1538,10 @@ export default function TeacherDashboard() {
                             بدء التصحيح
                           </button>
                           <button
-                            disabled
-                            className="rounded-xl border border-slate-100 bg-white px-4 py-2 text-sm font-extrabold text-slate-300"
-                            title="قريبًا"
+                            onClick={() => void openPackageResults(item)}
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
                           >
-                            عرض النتائج قريبًا
+                            عرض النتائج
                           </button>
                         </div>
                       </div>
@@ -1639,14 +1824,38 @@ export default function TeacherDashboard() {
               </div>
             )}
 
-            {/* Batch OMR Scanner */}
-            <BatchOMRScanner
-              totalStudents={activeStudents.length}
-              subject={activeClass.subject}
-              grade={activeClass.grade}
-              weekNumber={activeClassPlanItem?.plan.week_number ?? 0}
-              onComplete={handleScanComplete}
-            />
+            <div className="rounded-[1.5rem] border border-amber-100 bg-amber-50/70 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-black text-[#0b2447]">تصحيح قديم - لا يستخدم حزم مقياس</h3>
+                  <p className="mt-2 text-sm font-bold leading-7 text-amber-800">
+                    للتصحيح باستخدام حزم مقياس، انتقل إلى تبويب اختبارات مقياس واختر الحزمة المطبقة على الفصل.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setView("packages")}
+                  className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b]"
+                >
+                  فتح اختبارات مقياس
+                </button>
+              </div>
+              <button
+                onClick={() => setShowLegacyScanner((value) => !value)}
+                className="mt-4 rounded-xl border border-amber-200 bg-white px-4 py-2 text-sm font-extrabold text-amber-700 transition hover:bg-amber-50"
+              >
+                {showLegacyScanner ? "إخفاء التصحيح القديم" : "إظهار التصحيح القديم"}
+              </button>
+            </div>
+
+            {showLegacyScanner && (
+              <BatchOMRScanner
+                totalStudents={activeStudents.length}
+                subject={activeClass.subject}
+                grade={activeClass.grade}
+                weekNumber={activeClassPlanItem?.plan.week_number ?? 0}
+                onComplete={handleScanComplete}
+              />
+            )}
           </>
         )}
       </main>

@@ -63,6 +63,22 @@ async function countPackageRows(packageIds: string[], table: "package_questions"
   return new Map(entries);
 }
 
+async function countIncompletePackageQuestions(packageIds: string[]) {
+  const db = getAdminClient();
+  const entries = await Promise.all(
+    packageIds.map(async (packageId) => {
+      const { count, error } = await db
+        .from("package_questions")
+        .select("id", { count: "exact", head: true })
+        .eq("package_id", packageId)
+        .or("nafs_domain_id.is.null,skill_id.is.null");
+      if (error) throw error;
+      return [packageId, count ?? 0] as const;
+    })
+  );
+  return new Map(entries);
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (!auth.ok) {
@@ -99,9 +115,10 @@ export async function GET(req: NextRequest) {
 
     const packages = (data ?? []) as PackageRow[];
     const packageIds = packages.map((item) => item.id);
-    const [questionCounts, schoolCounts] = await Promise.all([
+    const [questionCounts, schoolCounts, incompleteQuestionCounts] = await Promise.all([
       countPackageRows(packageIds, "package_questions"),
       countPackageRows(packageIds, "school_package_assignments"),
+      countIncompletePackageQuestions(packageIds),
     ]);
 
     return NextResponse.json({
@@ -111,6 +128,7 @@ export async function GET(req: NextRequest) {
         package_type: item.package_type ?? "weekly",
         question_count: questionCounts.get(item.id) ?? 0,
         assigned_school_count: schoolCounts.get(item.id) ?? 0,
+        incomplete_question_count: incompleteQuestionCounts.get(item.id) ?? 0,
       })),
     });
   } catch (err) {

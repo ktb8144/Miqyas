@@ -446,10 +446,19 @@ export function BatchOMRScanner({
     const timer = setTimeout(() => controller.abort(), mode === "package" ? 40000 : 20000);
     try {
       if (mode === "package" && !classPackageAssignmentId) {
-        throw new Error("لم يتم تحديد اختبار مقياس لهذا الفصل");
+        throw new Error("لا يمكن بدء تصحيح حزمة مقياس بدون تعيين الحزمة على الفصل.");
       }
 
-      const res = await fetch(mode === "package" ? "/api/scan-package-omr" : "/api/scan-omr", {
+      const endpoint = mode === "package" ? "/api/scan-package-omr" : "/api/scan-omr";
+      const scanMode = mode === "package" ? "question_paper" : undefined;
+      console.debug("miqyas scan request", {
+        packageMode: mode === "package",
+        endpoint,
+        classPackageAssignmentId: classPackageAssignmentId ?? null,
+        scanMode,
+      });
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
@@ -507,6 +516,10 @@ export function BatchOMRScanner({
 
   const processAll = async () => {
     if (!papers.length) return;
+    if (mode === "package" && !classPackageAssignmentId) {
+      setSaveError("لا يمكن بدء تصحيح حزمة مقياس بدون تعيين الحزمة على الفصل.");
+      return;
+    }
     closeCamera();
     setStep("processing");
     setProcessingCount(0);
@@ -549,10 +562,18 @@ export function BatchOMRScanner({
   const handleReviewSave = async (paperId: string, answers: Record<string, string>) => {
     try {
       if (mode === "package" && !classPackageAssignmentId) {
-        throw new Error("لم يتم تحديد اختبار مقياس لهذا الفصل");
+        throw new Error("لا يمكن بدء تصحيح حزمة مقياس بدون تعيين الحزمة على الفصل.");
       }
 
-      const res = await fetch(mode === "package" ? "/api/scan-package-omr" : "/api/scan-omr", {
+      const endpoint = mode === "package" ? "/api/scan-package-omr" : "/api/scan-omr";
+      console.debug("miqyas scan request", {
+        packageMode: mode === "package",
+        endpoint,
+        classPackageAssignmentId: classPackageAssignmentId ?? null,
+        scanMode: mode === "package" ? "question_paper" : undefined,
+      });
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
@@ -654,12 +675,22 @@ export function BatchOMRScanner({
             {step === "done" && "✅ تم حفظ نتائج الفصل"}
           </p>
         </div>
-        <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "#e6f7f1", color: "#1D9E75" }}>
-          الذكاء الاصطناعي
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: mode === "package" ? "#e6f7f1" : "#fff7ed", color: mode === "package" ? "#1D9E75" : "#c2410c" }}>
+            {mode === "package" ? "وضع التصحيح: حزمة مقياس" : "وضع التصحيح: قديم"}
+          </span>
+          <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "#e6f7f1", color: "#1D9E75" }}>
+            الذكاء الاصطناعي
+          </span>
+        </div>
       </div>
 
       <div className="p-5">
+        <div className={`mb-4 rounded-xl border p-3 text-sm font-bold ${mode === "package" ? "border-teal-100 bg-teal-50/70 text-teal-800" : "border-amber-100 bg-amber-50 text-amber-800"}`}>
+          {mode === "package"
+            ? "يتم قراءة اختيارات الطالب من ورقة الأسئلة وتصحيحها بمفتاح الإجابة المحمي."
+            : "هذا المسار لا يستخدم حزم مقياس. للتصحيح بالحزم افتح تبويب اختبارات مقياس واختر الحزمة المطبقة على الفصل."}
+        </div>
 
         {/* ── Capture ── */}
         {step === "capture" && (
@@ -846,7 +877,7 @@ export function BatchOMRScanner({
                   <tr>
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">#</th>
                     {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">رقم الطالب المقروء</th>}
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">اسم الطالب</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">{mode === "package" ? "الاسم المقروء" : "اسم الطالب"}</th>
                     {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الطالب المطابق</th>}
                     {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">حالة المطابقة</th>}
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الدرجة</th>

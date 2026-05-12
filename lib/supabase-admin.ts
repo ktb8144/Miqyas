@@ -93,7 +93,7 @@ export async function requireAdmin(req: NextRequest) {
 
 export async function requireUserRole(
   req: NextRequest,
-  roles: Array<"admin" | "principal" | "teacher">
+  roles: Array<"admin" | "principal" | "supervisor" | "teacher">
 ) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

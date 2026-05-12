@@ -64,6 +64,20 @@ type PrincipalReport = {
   notes: string[];
 };
 
+type PrincipalPackageSummary = {
+  packageId: string;
+  title: string;
+  subject: string;
+  grade: number | null;
+  weekNumber: number | null;
+  classesAssigned: number;
+  classesScanned: number;
+  studentsTested: number;
+  averagePercentage: number | null;
+  weakestDomains: Array<{ name: string; wrong: number; total: number }>;
+  weakestSkills: Array<{ name: string; wrong: number; total: number }>;
+};
+
 function formatNumber(value: number) {
   return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
 }
@@ -155,6 +169,9 @@ export default function PrincipalDashboard() {
   const [inviteSubject, setInviteSubject] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const [packageSummaries, setPackageSummaries] = useState<PrincipalPackageSummary[]>([]);
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [packagesError, setPackagesError] = useState<string | null>(null);
 
   const chartData = useMemo(() => {
     if (!report) return [];
@@ -186,9 +203,28 @@ export default function PrincipalDashboard() {
     }
   }, [router]);
 
+  const loadPackageSummaries = useCallback(async () => {
+    setPackagesLoading(true);
+    setPackagesError(null);
+    try {
+      const res = await fetch("/api/principal/package-results", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل اختبارات مقياس");
+      setPackageSummaries(json.data ?? []);
+    } catch (err) {
+      setPackagesError(err instanceof Error ? err.message : "تعذر تحميل اختبارات مقياس");
+    } finally {
+      setPackagesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadReport();
   }, [loadReport]);
+
+  useEffect(() => {
+    void loadPackageSummaries();
+  }, [loadPackageSummaries]);
 
   const inviteTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -375,6 +411,75 @@ export default function PrincipalDashboard() {
                   ))}
                 </div>
               ) : null}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-extrabold text-[#159f91]">اختبارات مقياس</p>
+                  <h3 className="mt-1 text-xl font-black text-[#0b2447]">تنفيذ الحزم ونتائجها</h3>
+                </div>
+                <button onClick={loadPackageSummaries} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500">
+                  تحديث
+                </button>
+              </div>
+              {packagesLoading ? (
+                <EmptyState>جارٍ تحميل اختبارات مقياس...</EmptyState>
+              ) : packagesError ? (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">{packagesError}</div>
+              ) : packageSummaries.length ? (
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {packageSummaries.map((item) => (
+                    <div key={item.packageId} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/50 p-5">
+                      <div className="mb-4 flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-extrabold text-[#159f91]">
+                            {item.subject} | الصف {toEnglishDigits(item.grade ?? "—")} | الأسبوع {toEnglishDigits(item.weekNumber ?? "—")}
+                          </div>
+                          <h4 className="mt-1 text-lg font-black text-[#0b2447]">{item.title}</h4>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
+                          {formatPct(item.averagePercentage)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-xl bg-white p-3">
+                          <div className="text-xl font-black text-[#0b2447]">{toEnglishDigits(item.classesAssigned)}</div>
+                          <div className="text-xs font-bold text-slate-400">فصول مطبقة</div>
+                        </div>
+                        <div className="rounded-xl bg-white p-3">
+                          <div className="text-xl font-black text-[#159f91]">{toEnglishDigits(item.classesScanned)}</div>
+                          <div className="text-xs font-bold text-slate-400">فصول مصححة</div>
+                        </div>
+                        <div className="rounded-xl bg-white p-3">
+                          <div className="text-xl font-black text-[#0b2447]">{toEnglishDigits(item.studentsTested)}</div>
+                          <div className="text-xs font-bold text-slate-400">طلاب مختبرون</div>
+                        </div>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <div>
+                          <div className="mb-2 text-xs font-black text-slate-500">أضعف المجالات</div>
+                          {item.weakestDomains.length ? item.weakestDomains.slice(0, 3).map((domain) => (
+                            <div key={domain.name} className="mb-1 rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-600">
+                              {domain.name} · {toEnglishDigits(`${domain.wrong}/${domain.total}`)}
+                            </div>
+                          )) : <p className="text-xs font-bold text-slate-400">لا توجد بيانات كافية</p>}
+                        </div>
+                        <div>
+                          <div className="mb-2 text-xs font-black text-slate-500">أضعف المهارات</div>
+                          {item.weakestSkills.length ? item.weakestSkills.slice(0, 3).map((skill) => (
+                            <div key={skill.name} className="mb-1 rounded-lg bg-white px-3 py-2 text-xs font-bold text-slate-600">
+                              {skill.name} · {toEnglishDigits(`${skill.wrong}/${skill.total}`)}
+                            </div>
+                          )) : <p className="text-xs font-bold text-slate-400">لا توجد بيانات كافية</p>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <EmptyState>لا توجد اختبارات مقياس مطبقة على فصول المدرسة بعد.</EmptyState>
+              )}
             </div>
 
             <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">

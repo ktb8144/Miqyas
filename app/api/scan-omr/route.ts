@@ -39,23 +39,30 @@ function normalizeAnswer(value: unknown) {
 
 function normalizeGrade(value: unknown) {
   if (typeof value === "number") {
-    const labels: Record<number, string> = {
-      1: "الأول",
-      2: "الثاني",
-      3: "الثالث",
-      4: "الرابع",
-      5: "الخامس",
-      6: "السادس",
-    };
-    return labels[value] ?? String(value);
+    return Number.isFinite(value) ? value : undefined;
   }
-  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  if (typeof value !== "string") return undefined;
+  const normalized = value
+    .trim()
+    .replace(/[٠-٩]/g, (digit) => "٠١٢٣٤٥٦٧٨٩".indexOf(digit).toString());
+  const labelMap: Record<string, number> = {
+    "الأول": 1,
+    "الاول": 1,
+    "الثاني": 2,
+    "الثالث": 3,
+    "الرابع": 4,
+    "الخامس": 5,
+    "السادس": 6,
+  };
+  if (labelMap[normalized]) return labelMap[normalized];
+  const numeric = Number(normalized.replace(/[^\d]/g, ""));
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : undefined;
 }
 
 async function loadAssessmentQuestions(body: ScanBody, profile: { school_id?: string | null; grade?: string | number | null; subject?: string | null }) {
   const db = getAdminClient();
   const subject = body.subject?.trim() || profile.subject || "رياضيات";
-  const grade = normalizeGrade(body.grade) || normalizeGrade(profile.grade) || "الثالث";
+  const grade = normalizeGrade(body.grade) || normalizeGrade(profile.grade) || 3;
   const weekNumber = Number(body.weekNumber || 0);
 
   let query = db
