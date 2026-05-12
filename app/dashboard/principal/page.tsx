@@ -78,6 +78,17 @@ type PrincipalPackageSummary = {
   weakestSkills: Array<{ name: string; wrong: number; total: number }>;
 };
 
+type PrincipalParentStats = {
+  totalLinks: number;
+  openedReports: number;
+  openRate: number | null;
+  missionClicks: number;
+  completedMissions: number;
+  subscriptionInterestCount: number;
+  unopenedLinks: number;
+  topInterestedSkill: { skillName: string; count: number } | null;
+};
+
 function formatNumber(value: number) {
   return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
 }
@@ -172,6 +183,9 @@ export default function PrincipalDashboard() {
   const [packageSummaries, setPackageSummaries] = useState<PrincipalPackageSummary[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [packagesError, setPackagesError] = useState<string | null>(null);
+  const [parentStats, setParentStats] = useState<PrincipalParentStats | null>(null);
+  const [parentStatsLoading, setParentStatsLoading] = useState(false);
+  const [parentStatsError, setParentStatsError] = useState<string | null>(null);
 
   const chartData = useMemo(() => {
     if (!report) return [];
@@ -218,13 +232,32 @@ export default function PrincipalDashboard() {
     }
   }, []);
 
+  const loadParentStats = useCallback(async () => {
+    setParentStatsLoading(true);
+    setParentStatsError(null);
+    try {
+      const res = await fetch(`/api/principal/parent-report-stats?t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-store" },
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل تفاعل أولياء الأمور");
+      setParentStats(json.data);
+    } catch (err) {
+      setParentStatsError(err instanceof Error ? err.message : "تعذر تحميل تفاعل أولياء الأمور");
+    } finally {
+      setParentStatsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadReport();
   }, [loadReport]);
 
   useEffect(() => {
     void loadPackageSummaries();
-  }, [loadPackageSummaries]);
+    void loadParentStats();
+  }, [loadPackageSummaries, loadParentStats]);
 
   const inviteTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -479,6 +512,66 @@ export default function PrincipalDashboard() {
                 </div>
               ) : (
                 <EmptyState>لا توجد اختبارات مقياس مطبقة على فصول المدرسة بعد.</EmptyState>
+              )}
+            </div>
+
+            <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-extrabold text-[#159f91]">تفاعل أولياء الأمور</p>
+                  <h3 className="mt-1 text-xl font-black text-[#0b2447]">مؤشرات عامة على مستوى المدرسة</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-400">لا تعرض هذه البطاقة أسماء الطلاب أو بيانات التواصل.</p>
+                </div>
+                <button onClick={loadParentStats} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500">
+                  تحديث
+                </button>
+              </div>
+              {parentStatsLoading ? (
+                <EmptyState>جارٍ تحميل تفاعل أولياء الأمور...</EmptyState>
+              ) : parentStatsError ? (
+                <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">{parentStatsError}</div>
+              ) : parentStats ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                    <div className="rounded-xl bg-slate-50 p-4 text-center">
+                      <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(parentStats.totalLinks)}</div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">روابط ولي الأمر</div>
+                    </div>
+                    <div className="rounded-xl bg-teal-50 p-4 text-center">
+                      <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(parentStats.openedReports)}</div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">تقارير مفتوحة</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-4 text-center">
+                      <div className="text-2xl font-black text-[#0b2447]">{formatPct(parentStats.openRate)}</div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">نسبة الفتح</div>
+                    </div>
+                    <div className="rounded-xl bg-slate-50 p-4 text-center">
+                      <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(parentStats.missionClicks)}</div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">ضغطات التدريب</div>
+                    </div>
+                    <div className="rounded-xl bg-emerald-50 p-4 text-center">
+                      <div className="text-2xl font-black text-emerald-700">{toEnglishDigits(parentStats.completedMissions)}</div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">تدريبات مكتملة</div>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 p-4 text-center">
+                      <div className="text-2xl font-black text-[#BA7517]">{toEnglishDigits(parentStats.subscriptionInterestCount)}</div>
+                      <div className="mt-1 text-xs font-bold text-slate-400">مهتمون بالتدريب</div>
+                    </div>
+                  </div>
+                  {parentStats.totalLinks === 0 ? (
+                    <EmptyState>لم يتم إنشاء روابط ولي أمر بعد.</EmptyState>
+                  ) : parentStats.openedReports === 0 ? (
+                    <div className="rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-500">
+                      تم إنشاء روابط، لكن لم يفتح أولياء الأمور التقارير بعد.
+                    </div>
+                  ) : (
+                    <div className="rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-500">
+                      أكثر مهارة ظهر عليها اهتمام: {parentStats.topInterestedSkill ? `${parentStats.topInterestedSkill.skillName} (${toEnglishDigits(parentStats.topInterestedSkill.count)})` : "لا توجد بيانات كافية بعد"}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <EmptyState>لا توجد بيانات تفاعل بعد.</EmptyState>
               )}
             </div>
 

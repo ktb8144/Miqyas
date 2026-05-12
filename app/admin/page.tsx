@@ -2153,6 +2153,13 @@ export default function AdminPage() {
             <BookOpenCheck className="h-5 w-5" />
             إدارة الخطة الأسبوعية
           </Link>
+          <Link
+            href="/admin/parent-interests"
+            className="mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:bg-slate-50 hover:text-[#0b2447]"
+          >
+            <UserRoundCog className="h-5 w-5" />
+            اهتمامات أولياء الأمور
+          </Link>
           <button
             onClick={handleLogout}
             disabled={loggingOut}
@@ -2202,6 +2209,13 @@ export default function AdminPage() {
                 </button>
               );
             })}
+            <Link
+              href="/admin/parent-interests"
+              className="flex shrink-0 items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-xs font-extrabold text-slate-500"
+            >
+              <UserRoundCog className="h-4 w-4" />
+              اهتمامات أولياء الأمور
+            </Link>
           </div>
         </header>
 

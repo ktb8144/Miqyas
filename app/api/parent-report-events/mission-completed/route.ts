@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "رابط التدريب غير صالح أو منتهي" }, { status: 404 });
     }
 
-    const { error: insertError } = await db
+    const { data: eventRow, error: insertError } = await db
       .from("parent_report_events")
       .insert({
         token_id: tokenRow.id,
@@ -45,12 +45,15 @@ export async function POST(req: NextRequest) {
           score: Math.min(score, totalQuestions),
           total_questions: totalQuestions,
           skill_name: skillName,
+          ...(eventType === "subscription_interest" ? { source: "student_mission_result" } : {}),
         },
-      });
+      })
+      .select("id")
+      .single();
 
     if (insertError) throw insertError;
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, eventId: eventRow?.id ?? null });
   } catch (err) {
     console.error("mission completed event failed", err);
     return NextResponse.json({ success: false, error: "تعذر حفظ إكمال التدريب" }, { status: 500 });

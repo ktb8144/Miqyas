@@ -43,6 +43,13 @@ export function MissionCompletionCard({
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [interestSent, setInterestSent] = useState(false);
+  const [interestEventId, setInterestEventId] = useState<string | null>(null);
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [contactSaving, setContactSaving] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [relation, setRelation] = useState("ولي أمر");
+  const [consentAccepted, setConsentAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [interestMessage, setInterestMessage] = useState<string | null>(null);
 
@@ -93,11 +100,49 @@ export function MissionCompletionCard({
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) throw new Error(json.error || "تعذر تسجيل الاهتمام");
       setInterestSent(true);
-      setInterestMessage("شكرًا لكم، سيتم تفعيل خطة التدريب الشهرية قريبًا.");
+      setInterestEventId(typeof json.eventId === "string" ? json.eventId : null);
+      setShowContactForm(true);
+      setInterestMessage("تم تسجيل اهتمامكم بالتدريبات الإضافية.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر تسجيل الاهتمام");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveContact = async () => {
+    setContactSaving(true);
+    setError(null);
+    setInterestMessage(null);
+    try {
+      if (!interestEventId) throw new Error("تعذر ربط بيانات التواصل بطلب الاهتمام");
+      if (!whatsappPhone.trim() && !email.trim()) {
+        throw new Error("أدخل رقم واتساب أو بريدًا إلكترونيًا لحفظ بيانات التواصل");
+      }
+      if (!consentAccepted) {
+        throw new Error("يجب الموافقة على استخدام بيانات التواصل لهذا الغرض قبل الحفظ");
+      }
+
+      const res = await fetch("/api/parent-interest-contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token,
+          eventId: interestEventId,
+          whatsappPhone,
+          email,
+          relation,
+          consentAccepted,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر حفظ بيانات التواصل");
+      setShowContactForm(false);
+      setInterestMessage("شكرًا لكم، سيتم إشعاركم عند توفر خطة التدريب الشهرية.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذر حفظ بيانات التواصل");
+    } finally {
+      setContactSaving(false);
     }
   };
 
@@ -129,6 +174,78 @@ export function MissionCompletionCard({
           </div>
         )}
         {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
+        {showContactForm && (
+          <div className="mt-5 rounded-[1.25rem] border border-slate-100 bg-slate-50/70 p-4">
+            <h3 className="text-lg font-black text-[#0b2447]">هل ترغب أن نبلغك عند تفعيل خطة التدريب الشهرية؟</h3>
+            <p className="mt-2 text-sm font-bold leading-7 text-slate-500">
+              يمكنك ترك رقم الواتساب أو البريد الإلكتروني، وسنستخدمه فقط لإبلاغك عند توفر التدريب الإضافي المناسب لطفلك. إدخال البيانات اختياري.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm font-bold text-slate-500">
+                رقم الواتساب
+                <input
+                  value={whatsappPhone}
+                  onChange={(event) => setWhatsappPhone(event.target.value)}
+                  placeholder="05xxxxxxxx أو +9665xxxxxxxx"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]"
+                />
+              </label>
+              <label className="text-sm font-bold text-slate-500">
+                البريد الإلكتروني
+                <input
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="name@example.com"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]"
+                />
+              </label>
+              <label className="text-sm font-bold text-slate-500">
+                صفة ولي الأمر
+                <select
+                  value={relation}
+                  onChange={(event) => setRelation(event.target.value)}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]"
+                >
+                  <option>أب</option>
+                  <option>أم</option>
+                  <option>ولي أمر</option>
+                  <option>أخرى</option>
+                </select>
+              </label>
+            </div>
+            <label className="mt-4 flex items-start gap-3 rounded-xl bg-white p-3 text-sm font-bold leading-7 text-slate-600">
+              <input
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={(event) => setConsentAccepted(event.target.checked)}
+                className="mt-1 h-4 w-4 accent-[#159f91]"
+              />
+              <span>أوافق على استخدام رقم الواتساب أو البريد الإلكتروني للتواصل معي بخصوص خطة التدريب الإضافية في مِقياس لهذا الطالب فقط.</span>
+            </label>
+            <p className="mt-3 text-xs font-bold leading-6 text-slate-400">
+              لن نستخدم هذه البيانات إلا للتواصل معكم بخصوص خطة التدريب الإضافية في مِقياس، ويمكنكم طلب حذفها لاحقًا.
+            </p>
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+              <button
+                onClick={saveContact}
+                disabled={contactSaving}
+                className="flex-1 rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
+              >
+                {contactSaving ? "جارٍ الحفظ..." : "حفظ بيانات التواصل"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowContactForm(false);
+                  setInterestMessage("شكرًا لكم، سيتم تفعيل خطة التدريب الشهرية قريبًا.");
+                }}
+                disabled={contactSaving}
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
+              >
+                تخطي الآن
+              </button>
+            </div>
+          </div>
+        )}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <a
             href={`/parent/report/${token}`}
