@@ -289,6 +289,10 @@ export default function PrincipalDashboard() {
     }
   };
 
+  const executedClassesCount = packageSummaries.reduce((sum, item) => sum + item.classesScanned, 0);
+  const measuredStudentsCount = packageSummaries.reduce((sum, item) => sum + item.studentsTested, 0);
+  const criticalSkillsCount = report?.weakSkills.length ?? 0;
+
   return (
     <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
@@ -372,13 +376,12 @@ export default function PrincipalDashboard() {
 
         {!loading && !loadError && report && activeTab === 0 && (
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-              <KpiCard label="المعلمون" value={formatNumber(report.kpis.teachersCount)} sub="داخل المدرسة" icon="👨‍🏫" />
-              <KpiCard label="الفصول" value={formatNumber(report.kpis.classesCount)} sub="فصول نشطة" icon="🏫" />
-              <KpiCard label="الطلاب" value={formatNumber(report.kpis.studentsCount)} sub="طلاب مسجلون" icon="👥" />
-              <KpiCard label="متوسط الأداء" value={formatPct(report.kpis.performanceAverage)} sub="حسب النتائج" icon="📊" />
-              <KpiCard label="طلاب متعثرون" value={formatNumber(report.kpis.atRiskCount)} sub="أقل من 50%" icon="⚠️" color="#E24B4A" />
-              <KpiCard label="تنفيذ الأسبوع" value={formatPct(report.kpis.implementationRate)} sub="فصول لديها نتائج" icon="✅" />
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
+              <KpiCard label="جاهزية مقياس" value={report.readinessIndex.value === null ? "—" : `${toEnglishDigits(report.readinessIndex.value)}%`} sub="مؤشر عام" icon="📊" />
+              <KpiCard label="الفصول المنفذة" value={formatNumber(executedClassesCount)} sub="اختبارات مصححة" icon="✅" />
+              <KpiCard label="الطلاب المقاسون" value={formatNumber(measuredStudentsCount)} sub="نتائج محفوظة" icon="👥" />
+              <KpiCard label="المهارات الحرجة" value={formatNumber(criticalSkillsCount)} sub="تحتاج متابعة" icon="⚠️" color="#E24B4A" />
+              <KpiCard label="تفاعل أولياء الأمور" value={parentStats ? formatNumber(parentStats.openedReports) : "—"} sub="تقارير مفتوحة" icon="💬" />
             </div>
 
             <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">

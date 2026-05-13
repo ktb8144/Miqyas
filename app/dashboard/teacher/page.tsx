@@ -1337,15 +1337,13 @@ ${json.url}
                     {parentStatsError}
                   </div>
                 ) : parentStats && parentStats.totalLinks > 0 ? (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-7">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     {[
                       { label: "روابط منشأة", value: parentStats.totalLinks },
                       { label: "تقارير مفتوحة", value: parentStats.openedReports },
                       { label: "نسبة الفتح", value: parentStats.openRate === null ? "—" : `${toEnglishDigits(parentStats.openRate)}٪` },
-                      { label: "ضغطات التدريب", value: parentStats.missionOpens },
                       { label: "تدريبات مكتملة", value: parentStats.missionCompleted },
-                      { label: "مهتمون بالتدريبات الإضافية", value: parentStats.subscriptionInterestCount },
-                      { label: "روابط غير مفتوحة", value: parentStats.unopenedLinks },
+                      { label: "مهتمون بالتدريب", value: parentStats.subscriptionInterestCount },
                     ].map((item) => (
                       <div key={item.label} className="rounded-xl bg-slate-50 p-3 text-center">
                         <div className="text-2xl font-black text-[#0b2447]">{typeof item.value === "number" ? toEnglishDigits(item.value) : item.value}</div>
@@ -1362,11 +1360,6 @@ ${json.url}
                 {parentStats && parentStats.totalLinks > 0 && parentStats.openedReports === 0 && (
                   <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
                     لم يفتح أولياء الأمور التقارير بعد.
-                  </p>
-                )}
-                {parentStats?.generatedAt && (
-                  <p className="mt-2 text-xs font-bold text-slate-300">
-                    آخر تحديث: {toEnglishDigits(new Date(parentStats.generatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }))}
                   </p>
                 )}
               </div>

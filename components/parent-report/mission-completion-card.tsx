@@ -39,6 +39,7 @@ export function MissionCompletionCard({
       correctIndex: 1,
     },
   ], []);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -50,11 +51,16 @@ export function MissionCompletionCard({
   const [email, setEmail] = useState("");
   const [relation, setRelation] = useState("ولي أمر");
   const [consentAccepted, setConsentAccepted] = useState(false);
+  const [contactSaved, setContactSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [interestMessage, setInterestMessage] = useState<string | null>(null);
 
   const answeredCount = Object.keys(answers).length;
   const score = questions.reduce((sum, question) => sum + (answers[question.id] === question.correctIndex ? 1 : 0), 0);
+  const currentQuestion = questions[currentIndex];
+  const selectedAnswer = answers[currentQuestion.id];
+  const hasAnsweredCurrent = selectedAnswer !== undefined;
+  const progress = Math.round(((currentIndex + (hasAnsweredCurrent ? 1 : 0)) / questions.length) * 100);
 
   const complete = async () => {
     if (answeredCount !== questions.length) return;
@@ -138,7 +144,8 @@ export function MissionCompletionCard({
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) throw new Error(json.error || "تعذر حفظ بيانات التواصل");
       setShowContactForm(false);
-      setInterestMessage("شكرًا لكم، سيتم إشعاركم عند توفر خطة التدريب الشهرية.");
+      setContactSaved(true);
+      setInterestMessage("تم حفظ بيانات التواصل بنجاح. سنبلغكم عند توفر خطة التدريب المناسبة لطفلكم.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر حفظ بيانات التواصل");
     } finally {
@@ -148,9 +155,10 @@ export function MissionCompletionCard({
 
   if (completed) {
     return (
-      <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+      <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 text-center shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <p className="text-sm font-extrabold text-[#159f91]">نتيجة التدريب</p>
         <h2 className="mt-2 text-3xl font-black text-[#0b2447]">أحسنت يا {studentName}</h2>
+        <p className="mt-2 text-sm font-bold text-slate-500">أكملت التدريب المجاني بنجاح</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl bg-slate-50 p-4 text-center">
             <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(`${score}/${questions.length}`)}</div>
@@ -165,9 +173,6 @@ export function MissionCompletionCard({
             <div className="mt-1 text-xs font-bold text-slate-400">المهارة</div>
           </div>
         </div>
-        <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm font-bold leading-7 text-slate-600">
-          أكمل الطالب التدريب المجاني. يمكنه لاحقًا متابعة خطة تدريب قصيرة حسب مستواه.
-        </p>
         {interestMessage && (
           <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm font-bold text-[#159f91]">
             {interestMessage}
@@ -175,10 +180,11 @@ export function MissionCompletionCard({
         )}
         {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
         {showContactForm && (
-          <div className="mt-5 rounded-[1.25rem] border border-slate-100 bg-slate-50/70 p-4">
-            <h3 className="text-lg font-black text-[#0b2447]">هل ترغب أن نبلغك عند تفعيل خطة التدريب الشهرية؟</h3>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4 text-right" dir="rtl">
+          <div className="w-full max-w-lg rounded-[1.25rem] border border-slate-100 bg-white p-5 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
+            <h3 className="text-lg font-black text-[#0b2447]">تم تسجيل اهتمامك ✅</h3>
             <p className="mt-2 text-sm font-bold leading-7 text-slate-500">
-              يمكنك ترك رقم الواتساب أو البريد الإلكتروني، وسنستخدمه فقط لإبلاغك عند توفر التدريب الإضافي المناسب لطفلك. إدخال البيانات اختياري.
+              هل ترغب أن نبلغك عند تفعيل خطة التدريب الشهرية؟ يمكنك ترك رقم الواتساب أو البريد الإلكتروني اختياريًا.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-sm font-bold text-slate-500">
@@ -241,25 +247,28 @@ export function MissionCompletionCard({
                 disabled={contactSaving}
                 className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
               >
-                تخطي الآن
+                ليس الآن
               </button>
             </div>
+          </div>
           </div>
         )}
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <a
             href={`/parent/report/${token}`}
-            className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-center text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+            className={`${contactSaved ? "w-full" : "flex-1"} rounded-xl bg-[#159f91] px-5 py-3 text-center text-sm font-extrabold text-white transition hover:bg-[#10877b]`}
           >
             العودة للتقرير
           </a>
-          <button
-            onClick={registerInterest}
-            disabled={saving || interestSent}
-            className="flex-1 rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
-          >
-            {interestSent ? "تم تسجيل الاهتمام" : "أريد تدريبات أكثر لطفلي"}
-          </button>
+          {!contactSaved && (
+            <button
+              onClick={registerInterest}
+              disabled={saving || interestSent}
+              className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
+            >
+              {interestSent ? "تم تسجيل الاهتمام" : "أريد تدريبات أكثر لطفلي"}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -267,35 +276,47 @@ export function MissionCompletionCard({
 
   return (
     <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-      <h2 className="text-xl font-black text-[#0b2447]">أسئلة تدريب قصيرة</h2>
-      <p className="mt-2 text-sm font-bold text-slate-500">
-        أجب عن الأسئلة ثم اضغط إكمال التدريب.
-      </p>
-
-      <div className="mt-5 space-y-4">
-        {questions.map((question, questionIndex) => (
-          <div key={question.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
-            <p className="font-black text-[#0b2447]">
-              {toEnglishDigits(questionIndex + 1)}. {question.prompt}
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {question.options.map((option, optionIndex) => (
-                <button
-                  key={option}
-                  onClick={() => setAnswers((prev) => ({ ...prev, [question.id]: optionIndex }))}
-                  className={`rounded-xl border px-3 py-2 text-right text-sm font-bold transition ${
-                    answers[question.id] === optionIndex
-                      ? "border-[#159f91] bg-teal-50 text-[#159f91]"
-                      : "border-slate-100 bg-white text-slate-600 hover:border-[#159f91]/40"
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="mb-5">
+        <div className="flex items-center justify-between text-sm font-bold text-slate-400">
+          <span>السؤال {toEnglishDigits(currentIndex + 1)} من {toEnglishDigits(questions.length)}</span>
+          <span>{toEnglishDigits(progress)}٪</span>
+        </div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full rounded-full bg-[#159f91] transition-all" style={{ width: `${progress}%` }} />
+        </div>
       </div>
+
+      <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-5">
+        <p className="text-lg font-black leading-8 text-[#0b2447]">{currentQuestion.prompt}</p>
+        <div className="mt-4 grid gap-2">
+          {currentQuestion.options.map((option, optionIndex) => {
+            const selected = selectedAnswer === optionIndex;
+            const correct = currentQuestion.correctIndex === optionIndex;
+            return (
+              <button
+                key={option}
+                onClick={() => setAnswers((prev) => ({ ...prev, [currentQuestion.id]: optionIndex }))}
+                disabled={hasAnsweredCurrent}
+                className={`rounded-xl border px-4 py-3 text-right text-sm font-bold transition ${
+                  selected && correct
+                    ? "border-[#159f91] bg-teal-50 text-[#159f91]"
+                    : selected && !correct
+                      ? "border-amber-200 bg-amber-50 text-amber-700"
+                      : "border-slate-100 bg-white text-slate-600 hover:border-[#159f91]/40"
+                } disabled:cursor-default`}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {hasAnsweredCurrent && (
+        <div className={`mt-4 rounded-xl p-3 text-sm font-bold ${selectedAnswer === currentQuestion.correctIndex ? "bg-teal-50 text-[#159f91]" : "bg-amber-50 text-amber-700"}`}>
+          {selectedAnswer === currentQuestion.correctIndex ? "إجابة موفقة. تابع للسؤال التالي." : "محاولة جيدة. ركّز على المطلوب من السؤال ثم تابع."}
+        </div>
+      )}
 
       {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
       {completed && (
@@ -305,11 +326,17 @@ export function MissionCompletionCard({
       )}
 
       <button
-        onClick={complete}
-        disabled={answeredCount !== questions.length || saving || completed}
+        onClick={() => {
+          if (currentIndex < questions.length - 1) {
+            setCurrentIndex((value) => value + 1);
+          } else {
+            void complete();
+          }
+        }}
+        disabled={!hasAnsweredCurrent || saving || completed}
         className="mt-5 w-full rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
       >
-        {saving ? "جارٍ الحفظ..." : completed ? "تم إكمال التدريب" : "إكمال التدريب"}
+        {saving ? "جارٍ الحفظ..." : currentIndex === questions.length - 1 ? "إكمال التدريب" : "السؤال التالي"}
       </button>
     </div>
   );
