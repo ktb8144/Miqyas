@@ -10,6 +10,7 @@ const inviteUserSchema = z.object({
   role: z.enum(["admin", "principal", "supervisor", "teacher"]),
   school_id: z.string().uuid().nullable().optional(),
   subject: z.string().trim().max(80).nullable().optional(),
+  phone: z.string().trim().max(20).nullable().optional(),
 });
 
 function publicUser(row: Record<string, unknown>) {
@@ -21,6 +22,7 @@ function publicUser(row: Record<string, unknown>) {
     role: String(row.role ?? "teacher"),
     school_id: row.school_id ? String(row.school_id) : null,
     subject: row.subject ? String(row.subject) : null,
+    phone: row.phone ? String(row.phone) : null,
     status: String(row.status ?? "invited"),
   };
 }
@@ -169,9 +171,10 @@ export async function POST(req: NextRequest) {
         role: requestedRole,
         school_id: requestedRole === "admin" ? null : targetSchoolId,
         subject: requestedRole === "teacher" ? parsed.data.subject ?? null : null,
+        phone: parsed.data.phone ?? null,
         status: "invited",
       })
-      .select("id, auth_id, name, email, role, school_id, subject, status")
+      .select("id, auth_id, name, email, role, school_id, subject, phone, status")
       .single();
 
     if (insertError) throw insertError;

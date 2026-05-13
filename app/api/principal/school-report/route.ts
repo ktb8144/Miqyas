@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     const [schoolRes, teachersRes, classesRes, assessmentsRes] = await Promise.all([
       db.from("schools").select("id, name, city, region, active, trial").eq("id", schoolId).single(),
-      db.from("users").select("id, name, email, subject, status, created_at").eq("school_id", schoolId).eq("role", "teacher").order("created_at", { ascending: false }),
+      db.from("users").select("id, name, email, phone, subject, status, created_at").eq("school_id", schoolId).eq("role", "teacher").order("created_at", { ascending: false }),
       db.from("classes").select("id, name, grade, subject, teacher_id, school_id, students(id, name, class_id, score, total)").eq("school_id", schoolId).order("created_at", { ascending: false }),
       db.from("assessments").select("id, teacher_id, school_id, grade, subject, skill, status, created_at").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(50),
     ]);
@@ -144,8 +144,10 @@ export async function GET(req: NextRequest) {
         id: teacher.id,
         name: teacher.name,
         email: teacher.email,
+        phone: teacher.phone ?? null,
         subject: teacher.subject ?? "غير محدد",
         status: teacher.status ?? "active",
+        classNames: teacherClasses.map((classRow) => classRow.name),
         classesCount: teacherClasses.length,
         studentsCount: teacherStudents.length,
         average: avg(teacherScores),

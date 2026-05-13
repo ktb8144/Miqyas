@@ -10,6 +10,7 @@ const userCreateSchema = z.object({
   role: z.enum(["admin", "principal", "supervisor", "teacher"]),
   school_id: z.string().uuid().nullable().optional(),
   subject: z.string().trim().nullable().optional(),
+  phone: z.string().trim().max(20).nullable().optional(),
 });
 
 function normalizeUser(row: Record<string, unknown>) {
@@ -21,6 +22,7 @@ function normalizeUser(row: Record<string, unknown>) {
     email: String(row.email ?? ""),
     role: String(row.role ?? "teacher"),
     school_id: row.school_id ? String(row.school_id) : null,
+    phone: row.phone ? String(row.phone) : null,
     school: school?.name ?? "كل المدارس",
     status: String(row.status ?? "نشط"),
   };
@@ -94,7 +96,7 @@ export async function GET(req: NextRequest) {
   try {
     const { data, error } = await getAdminClient()
       .from("users")
-      .select("id, auth_id, name, email, role, school_id, schools(name)")
+      .select("id, auth_id, name, email, role, school_id, phone, schools(name)")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -168,9 +170,10 @@ export async function POST(req: NextRequest) {
         role,
         school_id: role === "admin" ? null : schoolId,
         subject: role === "teacher" ? parsed.data.subject ?? null : null,
+        phone: parsed.data.phone ?? null,
         status: "invited",
       })
-      .select("id, auth_id, name, email, role, school_id, schools(name)")
+      .select("id, auth_id, name, email, role, school_id, phone, schools(name)")
       .single();
 
     if (error) throw error;

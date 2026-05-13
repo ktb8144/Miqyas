@@ -363,7 +363,6 @@ export default function TeacherDashboard() {
   const [packageResultsLoading, setPackageResultsLoading] = useState(false);
   const [packageResultsError, setPackageResultsError] = useState<string | null>(null);
   const [selectedClassAssignment, setSelectedClassAssignment] = useState<Record<string, string>>({});
-  const [showLegacyScanner, setShowLegacyScanner] = useState(false);
   const [parentLinkLoadingStudentId, setParentLinkLoadingStudentId] = useState<string | null>(null);
   const [parentLinkMessage, setParentLinkMessage] = useState<string | null>(null);
   const [parentLinkStudent, setParentLinkStudent] = useState<Student | null>(null);
@@ -743,49 +742,6 @@ export default function TeacherDashboard() {
     } finally {
       setManualSaving(false);
     }
-  };
-
-  const handleScanComplete = async (results: { editedName: string; studentName: string; score: number; total: number }[]) => {
-    if (!activeClassId) return;
-
-    const currentStudents = classStudents[activeClassId] ?? [];
-    const updates = results
-      .map((result, index) => {
-        const name = result.editedName || result.studentName;
-        const match = currentStudents.find((student) => normalizeStudentName(student.name) === normalizeStudentName(name)) ?? currentStudents[index];
-        return match ? { student: match, result } : null;
-      })
-      .filter(Boolean) as { student: Student; result: { score: number; total: number } }[];
-
-    if (updates.length === 0) {
-      throw new Error("لم يتم العثور على طلاب مطابقين لحفظ النتائج");
-    }
-
-    const failures: string[] = [];
-    await Promise.all(
-      updates.map(async ({ student, result }) => {
-        const { error } = await supabase
-          .from("students")
-          .update({ score: result.score, total: result.total })
-          .eq("id", student.id)
-          .eq("class_id", activeClassId);
-
-        if (error) failures.push(student.name);
-      })
-    );
-
-    if (failures.length > 0) {
-      throw new Error(`تعذر حفظ نتائج ${toEnglishDigits(failures.length)} طالب`);
-    }
-
-    setClassStudents((prev) => {
-      const updated = [...(prev[activeClassId] ?? [])];
-      updates.forEach(({ student, result }) => {
-        const index = updated.findIndex((item) => item.id === student.id);
-        if (index >= 0) updated[index] = { ...updated[index], score: result.score, total: result.total };
-      });
-      return { ...prev, [activeClassId]: updated };
-    });
   };
 
   const handleApplyPackage = async (assessmentPackage: TeacherPackage) => {
@@ -1283,7 +1239,7 @@ ${json.url}
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
                       <button
-                        onClick={() => handleViewStudents(weeklyPlanItem.class.id)}
+                        onClick={() => setView("packages")}
                         className="flex items-center gap-2 rounded-xl bg-[#0b2447] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
                       >
                         بدء التقييم
@@ -1291,11 +1247,8 @@ ${json.url}
                       <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
                         طباعة ورقة الاختبار
                       </button>
-                      <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => setView("weeklyPlans")}>
-                        عرض خطة الأسابيع
-                      </button>
                       <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => setView("packages")}>
-                        اختبارات مقياس
+                        تصحيح النتائج
                       </button>
                     </div>
                   </div>
@@ -1455,7 +1408,7 @@ ${json.url}
                         </div>
                       ) : (
                         <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-xs font-bold leading-6 text-slate-400">
-                          لا توجد حزمة مقياس مطبقة على هذا الفصل. انتقل إلى اختبارات مقياس لتطبيق حزمة.
+                          لا توجد حزمة مقياس مطبقة على هذا الفصل. انتقل إلى التصحيح والنتائج لتطبيق حزمة.
                         </div>
                       )}
                     </div>
@@ -1481,9 +1434,9 @@ ${json.url}
           <section className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-extrabold text-[#159f91]">اختبارات مقياس</p>
-                <h2 className="mt-1 text-2xl font-black tracking-normal text-[#0b2447]">حزم التقييم المنشورة</h2>
-                <p className="mt-2 text-sm font-bold text-slate-400">طبّق الاختبار على فصل مطابق، ثم اطبع الأوراق وابدأ التصحيح.</p>
+                <p className="text-sm font-extrabold text-[#159f91]">التصحيح والنتائج</p>
+                <h2 className="mt-1 text-2xl font-black tracking-normal text-[#0b2447]">مسار واحد لاعتماد نتائج مقياس</h2>
+                <p className="mt-2 text-sm font-bold text-slate-400">طبّق الحزمة على الفصل، ثم صحّح بالكاميرا أو اعرض تقرير الفصل.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -1497,7 +1450,7 @@ ${json.url}
                   onClick={() => setView("classes")}
                   className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
                 >
-                  ← العودة للفصول
+                  ← العودة
                 </button>
               </div>
             </div>
@@ -1527,7 +1480,7 @@ ${json.url}
 
               {packagesLoading ? (
                 <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
-                  جارٍ تحميل اختبارات مقياس...
+                  جارٍ تحميل حزم مقياس...
                 </div>
               ) : packages.length ? (
                 <div className="grid gap-4 lg:grid-cols-2">
@@ -1693,13 +1646,20 @@ ${json.url}
                             disabled={!studentCount}
                             className="rounded-xl bg-[#0b2447] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#12345f] disabled:opacity-50"
                           >
-                            بدء التصحيح
+                            تصحيح بالكاميرا
+                          </button>
+                          <button
+                            disabled
+                            title="سيتوفر الإدخال اليدوي المنظم داخل هذا المسار لاحقًا"
+                            className="rounded-xl border border-slate-100 bg-white px-4 py-2 text-sm font-extrabold text-slate-300"
+                          >
+                            إدخال يدوي
                           </button>
                           <button
                             onClick={() => void openPackageResults(item)}
                             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
                           >
-                            عرض النتائج
+                            عرض تقرير الفصل
                           </button>
                         </div>
                       </div>
@@ -1993,38 +1953,6 @@ ${json.url}
               </div>
             )}
 
-            <div className="rounded-[1.5rem] border border-amber-100 bg-amber-50/70 p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-black text-[#0b2447]">تصحيح قديم - لا يستخدم حزم مقياس</h3>
-                  <p className="mt-2 text-sm font-bold leading-7 text-amber-800">
-                    للتصحيح باستخدام حزم مقياس، انتقل إلى تبويب اختبارات مقياس واختر الحزمة المطبقة على الفصل.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setView("packages")}
-                  className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b]"
-                >
-                  فتح اختبارات مقياس
-                </button>
-              </div>
-              <button
-                onClick={() => setShowLegacyScanner((value) => !value)}
-                className="mt-4 rounded-xl border border-amber-200 bg-white px-4 py-2 text-sm font-extrabold text-amber-700 transition hover:bg-amber-50"
-              >
-                {showLegacyScanner ? "إخفاء التصحيح القديم" : "إظهار التصحيح القديم"}
-              </button>
-            </div>
-
-            {showLegacyScanner && (
-              <BatchOMRScanner
-                totalStudents={activeStudents.length}
-                subject={activeClass.subject}
-                grade={activeClass.grade}
-                weekNumber={activeClassPlanItem?.plan.week_number ?? 0}
-                onComplete={handleScanComplete}
-              />
-            )}
           </>
         )}
       </main>

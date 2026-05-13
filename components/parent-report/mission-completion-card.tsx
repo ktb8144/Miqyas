@@ -48,7 +48,6 @@ export function MissionCompletionCard({
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactSaving, setContactSaving] = useState(false);
   const [whatsappPhone, setWhatsappPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [relation, setRelation] = useState("ولي أمر");
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [contactSaved, setContactSaved] = useState(false);
@@ -61,6 +60,13 @@ export function MissionCompletionCard({
   const selectedAnswer = answers[currentQuestion.id];
   const hasAnsweredCurrent = selectedAnswer !== undefined;
   const progress = Math.round(((currentIndex + (hasAnsweredCurrent ? 1 : 0)) / questions.length) * 100);
+
+  const normalizeSaudiMobile = (value: string) => {
+    const digits = toEnglishDigits(value).replace(/\D/g, "");
+    if (digits.startsWith("9665") && digits.length === 12) return `0${digits.slice(3)}`;
+    if (digits.startsWith("5") && digits.length === 9) return `0${digits}`;
+    return digits;
+  };
 
   const complete = async () => {
     if (answeredCount !== questions.length) return;
@@ -122,11 +128,12 @@ export function MissionCompletionCard({
     setInterestMessage(null);
     try {
       if (!interestEventId) throw new Error("تعذر ربط بيانات التواصل بطلب الاهتمام");
-      if (!whatsappPhone.trim() && !email.trim()) {
-        throw new Error("أدخل رقم واتساب أو بريدًا إلكترونيًا لحفظ بيانات التواصل");
+      const normalizedPhone = normalizeSaudiMobile(whatsappPhone);
+      if (!/^05\d{8}$/.test(normalizedPhone)) {
+        throw new Error("يرجى إدخال الرقم بصيغة 05xxxxxxxx");
       }
       if (!consentAccepted) {
-        throw new Error("يجب الموافقة على استخدام بيانات التواصل لهذا الغرض قبل الحفظ");
+        throw new Error("يجب الموافقة على استخدام رقم الجوال لهذا الغرض قبل الحفظ");
       }
 
       const res = await fetch("/api/parent-interest-contacts", {
@@ -135,8 +142,7 @@ export function MissionCompletionCard({
         body: JSON.stringify({
           token,
           eventId: interestEventId,
-          whatsappPhone,
-          email,
+          whatsappPhone: normalizedPhone,
           relation,
           consentAccepted,
         }),
@@ -145,7 +151,7 @@ export function MissionCompletionCard({
       if (!res.ok || !json.success) throw new Error(json.error || "تعذر حفظ بيانات التواصل");
       setShowContactForm(false);
       setContactSaved(true);
-      setInterestMessage("تم حفظ بيانات التواصل بنجاح. سنبلغكم عند توفر خطة التدريب المناسبة لطفلكم.");
+      setInterestMessage("تم حفظ رقم الجوال بنجاح. سنبلغكم عند توفر خطة التدريب المناسبة لطفلكم.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر حفظ بيانات التواصل");
     } finally {
@@ -184,24 +190,15 @@ export function MissionCompletionCard({
           <div className="w-full max-w-lg rounded-[1.25rem] border border-slate-100 bg-white p-5 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
             <h3 className="text-lg font-black text-[#0b2447]">تم تسجيل اهتمامك ✅</h3>
             <p className="mt-2 text-sm font-bold leading-7 text-slate-500">
-              هل ترغب أن نبلغك عند تفعيل خطة التدريب الشهرية؟ يمكنك ترك رقم الواتساب أو البريد الإلكتروني اختياريًا.
+              هل ترغب أن نبلغك عند تفعيل خطة التدريب الشهرية؟ يمكنك ترك رقم الجوال اختياريًا.
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="text-sm font-bold text-slate-500">
-                رقم الواتساب
+                رقم الجوال للواتساب
                 <input
                   value={whatsappPhone}
                   onChange={(event) => setWhatsappPhone(event.target.value)}
-                  placeholder="05xxxxxxxx أو +9665xxxxxxxx"
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]"
-                />
-              </label>
-              <label className="text-sm font-bold text-slate-500">
-                البريد الإلكتروني
-                <input
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="name@example.com"
+                  placeholder="05xxxxxxxx"
                   className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]"
                 />
               </label>
@@ -215,7 +212,6 @@ export function MissionCompletionCard({
                   <option>أب</option>
                   <option>أم</option>
                   <option>ولي أمر</option>
-                  <option>أخرى</option>
                 </select>
               </label>
             </div>
@@ -226,10 +222,10 @@ export function MissionCompletionCard({
                 onChange={(event) => setConsentAccepted(event.target.checked)}
                 className="mt-1 h-4 w-4 accent-[#159f91]"
               />
-              <span>أوافق على استخدام رقم الواتساب أو البريد الإلكتروني للتواصل معي بخصوص خطة التدريب الإضافية في مِقياس لهذا الطالب فقط.</span>
+              <span>أوافق على استخدام رقم الجوال للتواصل معي بخصوص خطة التدريب الإضافية في مِقياس لهذا الطالب فقط.</span>
             </label>
             <p className="mt-3 text-xs font-bold leading-6 text-slate-400">
-              لن نستخدم هذه البيانات إلا للتواصل معكم بخصوص خطة التدريب الإضافية في مِقياس، ويمكنكم طلب حذفها لاحقًا.
+              لن نستخدم رقم الجوال إلا للتواصل معكم بخصوص خطة التدريب الإضافية في مِقياس، ويمكنكم طلب حذفه لاحقًا.
             </p>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button
@@ -262,14 +258,22 @@ export function MissionCompletionCard({
           </a>
           {!contactSaved && (
             <button
-              onClick={registerInterest}
-              disabled={saving || interestSent}
+              onClick={() => interestSent ? setShowContactForm(true) : registerInterest()}
+              disabled={saving}
               className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
             >
               {interestSent ? "تم تسجيل الاهتمام" : "أريد تدريبات أكثر لطفلي"}
             </button>
           )}
         </div>
+        {interestSent && !contactSaved && !showContactForm && (
+          <button
+            onClick={() => setShowContactForm(true)}
+            className="mt-3 text-xs font-extrabold text-[#159f91] underline underline-offset-4"
+          >
+            أضف رقم الجوال للتحديثات
+          </button>
+        )}
       </div>
     );
   }

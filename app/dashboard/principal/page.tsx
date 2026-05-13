@@ -58,7 +58,7 @@ type PrincipalReport = {
       difficultyLevel: string;
     }[];
   };
-  teachers: { id: string; name: string; email: string; subject: string; status: string; classesCount: number; studentsCount: number; average: number | null; active: boolean }[];
+  teachers: { id: string; name: string; email: string; phone?: string | null; subject: string; status: string; classNames?: string[]; classesCount: number; studentsCount: number; average: number | null; active: boolean }[];
   classes: { id: string; name: string; grade: number | null; subject: string; studentsCount: number; average: number | null }[];
   alerts: { type: string; title: string; detail: string }[];
   notes: string[];
@@ -148,9 +148,12 @@ function TeacherCard({ teacher }: { teacher: PrincipalReport["teachers"][number]
   return (
     <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
       <div className="mb-4 flex items-center justify-between">
-        <div>
-          <div className="font-black text-[#0b2447]">{teacher.name}</div>
-          <div className="text-sm font-bold text-slate-400">{teacher.subject}</div>
+          <div>
+            <div className="font-black text-[#0b2447]">{teacher.name}</div>
+          <div className="text-sm font-bold text-slate-400">{teacher.subject} · {teacher.phone ?? "لا يوجد جوال"}</div>
+          {teacher.classNames?.length ? (
+            <div className="mt-1 text-xs font-bold text-slate-400">{teacher.classNames.join("، ")}</div>
+          ) : null}
         </div>
         <span className="rounded-full px-3 py-1 text-sm font-bold" style={{ color: badge.color, background: badge.bg }}>
           {badge.label}
@@ -176,8 +179,11 @@ export default function PrincipalDashboard() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteName, setInviteName] = useState("");
+  const [invitePhone, setInvitePhone] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteSubject, setInviteSubject] = useState("");
+  const [inviteGrades, setInviteGrades] = useState<string[]>([]);
+  const [inviteClassIds, setInviteClassIds] = useState<string[]>([]);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
   const [packageSummaries, setPackageSummaries] = useState<PrincipalPackageSummary[]>([]);
@@ -259,11 +265,25 @@ export default function PrincipalDashboard() {
     void loadParentStats();
   }, [loadPackageSummaries, loadParentStats]);
 
+  const normalizeSaudiMobile = (value: string) => {
+    const digits = toEnglishDigits(value).replace(/\D/g, "");
+    if (digits.startsWith("9665") && digits.length === 12) return `0${digits.slice(3)}`;
+    if (digits.startsWith("5") && digits.length === 9) return `0${digits}`;
+    return digits;
+  };
+
   const inviteTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
     setInviteLoading(true);
     setInviteMessage(null);
     try {
+      const normalizedPhone = normalizeSaudiMobile(invitePhone);
+      if (!/^05\d{8}$/.test(normalizedPhone)) {
+        throw new Error("يرجى إدخال رقم الجوال بصيغة 05xxxxxxxx");
+      }
+      if (!inviteEmail.trim()) {
+        throw new Error("البريد مطلوب مؤقتًا لإنشاء حساب الدخول عبر Supabase Auth.");
+      }
       const res = await fetch("/api/users/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -272,14 +292,25 @@ export default function PrincipalDashboard() {
           email: inviteEmail,
           role: "teacher",
           subject: inviteSubject || null,
+          phone: normalizedPhone,
         }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "تعذر إرسال الدعوة");
+      if (inviteClassIds.length && json.user?.id) {
+        const { error: assignError } = await supabase
+          .from("classes")
+          .update({ teacher_id: json.user.id })
+          .in("id", inviteClassIds);
+        if (assignError) throw assignError;
+      }
       setInviteMessage("تم إرسال الدعوة بنجاح");
       setInviteName("");
+      setInvitePhone("");
       setInviteEmail("");
       setInviteSubject("");
+      setInviteGrades([]);
+      setInviteClassIds([]);
       setInviteOpen(false);
       await loadReport();
     } catch (err) {
@@ -337,7 +368,7 @@ export default function PrincipalDashboard() {
 
       {inviteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <form onSubmit={inviteTeacher} className="w-full max-w-md rounded-[1.5rem] bg-white p-6 shadow-2xl">
+          <form onSubmit={inviteTeacher} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-[1.5rem] bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-black text-[#0b2447]">إضافة معلم</h2>
               <button type="button" onClick={() => setInviteOpen(false)} className="text-2xl text-slate-300">×</button>
@@ -349,8 +380,52 @@ export default function PrincipalDashboard() {
             )}
             <div className="space-y-3">
               <input required value={inviteName} onChange={(event) => setInviteName(event.target.value)} placeholder="اسم المعلم" className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:bg-white" />
-              <input required type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="البريد الإلكتروني" className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:bg-white" />
-              <input value={inviteSubject} onChange={(event) => setInviteSubject(event.target.value)} placeholder="المادة" className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:bg-white" />
+              <input required value={invitePhone} onChange={(event) => setInvitePhone(event.target.value)} placeholder="رقم الجوال/واتساب 05xxxxxxxx" className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:bg-white" />
+              <select value={inviteSubject} onChange={(event) => setInviteSubject(event.target.value)} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:bg-white">
+                <option value="">اختر المادة</option>
+                <option value="رياضيات">رياضيات</option>
+                <option value="قراءة">قراءة</option>
+                <option value="علوم">علوم</option>
+                <option value="أخرى">أخرى</option>
+              </select>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <div className="mb-2 text-xs font-black text-slate-500">الصفوف التي يدرسها</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {["الثالث", "الرابع", "الخامس", "السادس"].map((grade) => (
+                    <label key={grade} className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={inviteGrades.includes(grade)}
+                        onChange={() => setInviteGrades((prev) => prev.includes(grade) ? prev.filter((item) => item !== grade) : [...prev, grade])}
+                        className="accent-[#159f91]"
+                      />
+                      {grade}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {report?.classes.length ? (
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <div className="mb-2 text-xs font-black text-slate-500">الفصول المسندة</div>
+                  <div className="max-h-36 space-y-2 overflow-y-auto">
+                    {report.classes.map((classItem) => (
+                      <label key={classItem.id} className="flex items-center gap-2 text-sm font-bold text-slate-600">
+                        <input
+                          type="checkbox"
+                          checked={inviteClassIds.includes(classItem.id)}
+                          onChange={() => setInviteClassIds((prev) => prev.includes(classItem.id) ? prev.filter((item) => item !== classItem.id) : [...prev, classItem.id])}
+                          className="accent-[#159f91]"
+                        />
+                        {classItem.name} · {classItem.subject}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="البريد الإلكتروني لإنشاء حساب الدخول" className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:bg-white" />
+              <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold leading-6 text-amber-700">
+                البريد مطلوب مؤقتًا لإنشاء حساب الدخول عبر Supabase Auth، والجوال هو المعلومة الأساسية للمدرسة.
+              </p>
               <button disabled={inviteLoading} className="w-full rounded-xl bg-[#159f91] py-3 text-sm font-extrabold text-white disabled:opacity-60">
                 {inviteLoading ? "جارٍ إرسال الدعوة..." : "إرسال دعوة"}
               </button>

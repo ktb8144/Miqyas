@@ -6,28 +6,21 @@ import { hashParentReportToken } from "@/lib/parent-report";
 export const dynamic = "force-dynamic";
 
 const CONSENT_TEXT =
-  "أوافق على استخدام رقم الواتساب أو البريد الإلكتروني للتواصل معي بخصوص خطة التدريب الإضافية في مِقياس لهذا الطالب فقط.";
+  "أوافق على استخدام رقم الجوال للتواصل معي بخصوص خطة التدريب الإضافية في مِقياس لهذا الطالب فقط.";
 
 const schema = z.object({
   token: z.string().trim().min(20),
   eventId: z.string().uuid(),
   whatsappPhone: z.string().trim().max(30).optional().or(z.literal("")),
-  email: z.string().trim().max(180).optional().or(z.literal("")),
   relation: z.string().trim().max(40).optional().or(z.literal("")),
   consentAccepted: z.boolean().optional().default(false),
 });
 
-function cleanPhone(value: string) {
-  return value.replace(/[\s-]/g, "");
-}
-
-function isValidSaudiPhone(value: string) {
-  const phone = cleanPhone(value);
-  return /^(\+9665\d{8}|05\d{8})$/.test(phone);
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+function normalizeSaudiMobile(value: string) {
+  const digits = value.replace(/[^\d]/g, "");
+  if (digits.startsWith("9665") && digits.length === 12) return `0${digits.slice(3)}`;
+  if (digits.startsWith("5") && digits.length === 9) return `0${digits}`;
+  return digits;
 }
 
 export async function POST(req: NextRequest) {
@@ -38,32 +31,28 @@ export async function POST(req: NextRequest) {
     }
 
     const whatsappPhone = parsed.data.whatsappPhone?.trim() ?? "";
-    const email = parsed.data.email?.trim() ?? "";
     const relation = parsed.data.relation?.trim() ?? null;
+    const normalizedPhone = normalizeSaudiMobile(whatsappPhone);
 
-    if (!whatsappPhone && !email) {
+    if (!normalizedPhone) {
       return NextResponse.json(
-        { success: false, error: "أدخل رقم واتساب أو بريدًا إلكترونيًا لحفظ بيانات التواصل" },
+        { success: false, error: "أدخل رقم الجوال لحفظ بيانات التواصل" },
         { status: 400 }
       );
     }
 
     if (!parsed.data.consentAccepted) {
       return NextResponse.json(
-        { success: false, error: "يجب الموافقة على استخدام بيانات التواصل لهذا الغرض قبل الحفظ" },
+        { success: false, error: "يجب الموافقة على استخدام رقم الجوال لهذا الغرض قبل الحفظ" },
         { status: 400 }
       );
     }
 
-    if (whatsappPhone && !isValidSaudiPhone(whatsappPhone)) {
+    if (!/^05\d{8}$/.test(normalizedPhone)) {
       return NextResponse.json(
-        { success: false, error: "أدخل رقم واتساب سعودي صحيح يبدأ بـ 05 أو +966" },
+        { success: false, error: "يرجى إدخال الرقم بصيغة 05xxxxxxxx" },
         { status: 400 }
       );
-    }
-
-    if (email && !isValidEmail(email)) {
-      return NextResponse.json({ success: false, error: "أدخل بريدًا إلكترونيًا صحيحًا" }, { status: 400 });
     }
 
     const db = getAdminClient();
@@ -99,8 +88,8 @@ export async function POST(req: NextRequest) {
       .insert({
         event_id: eventRow.id,
         token_id: tokenRow.id,
-        whatsapp_phone: whatsappPhone ? cleanPhone(whatsappPhone) : null,
-        email: email || null,
+        whatsapp_phone: normalizedPhone,
+        email: null,
         relation,
         consent_text: CONSENT_TEXT,
       });
