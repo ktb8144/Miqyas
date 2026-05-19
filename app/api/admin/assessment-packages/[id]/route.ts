@@ -31,7 +31,7 @@ function emptyToNull(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
-async function loadCounts(packageId: string) {
+async function loadCounts(packageId: string, assessmentPackage?: { subject?: string | null; grade?: number | string | null; week_number?: number | null; start_date?: string | null }) {
   const db = getAdminClient();
   const [questionResult, schoolResult] = await Promise.all([
     db.from("package_questions").select("id", { count: "exact", head: true }).eq("package_id", packageId),
@@ -40,8 +40,21 @@ async function loadCounts(packageId: string) {
 
   if (questionResult.error) throw questionResult.error;
   if (schoolResult.error) throw schoolResult.error;
+  let weeklyQuestionCount = 0;
+  if (assessmentPackage?.subject && assessmentPackage.grade && assessmentPackage.week_number) {
+    const assessmentDate = assessmentPackage.start_date ?? new Date().toISOString().slice(0, 10);
+    const { data, error } = await db
+      .from("weekly_questions")
+      .select("sort_order")
+      .eq("subject", assessmentPackage.subject)
+      .eq("grade", assessmentPackage.grade)
+      .eq("week_number", assessmentPackage.week_number)
+      .eq("assessment_date", assessmentDate);
+    if (error) throw error;
+    weeklyQuestionCount = new Set((data ?? []).map((item) => Number(item.sort_order)).filter(Number.isFinite)).size;
+  }
   return {
-    question_count: questionResult.count ?? 0,
+    question_count: Math.max(questionResult.count ?? 0, weeklyQuestionCount),
     assigned_school_count: schoolResult.count ?? 0,
   };
 }
@@ -85,7 +98,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         `)
         .eq("package_id", params.id)
         .order("question_number", { ascending: true }),
-      loadCounts(params.id),
+      loadCounts(params.id, assessmentPackage),
     ]);
 
     if (questionsError) throw questionsError;

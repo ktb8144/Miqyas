@@ -81,6 +81,27 @@ async function countIncompletePackageQuestions(packageIds: string[]) {
   return new Map(entries);
 }
 
+async function countWeeklyPackageQuestions(packages: PackageRow[]) {
+  const db = getAdminClient();
+  const entries = await Promise.all(
+    packages.map(async (assessmentPackage) => {
+      const assessmentDate = assessmentPackage.start_date ?? new Date().toISOString().slice(0, 10);
+      const weekNumber = Number(assessmentPackage.week_number ?? 0);
+      const { data, error } = await db
+        .from("weekly_questions")
+        .select("sort_order")
+        .eq("subject", assessmentPackage.subject)
+        .eq("grade", assessmentPackage.grade)
+        .eq("week_number", weekNumber)
+        .eq("assessment_date", assessmentDate);
+      if (error) throw error;
+      const uniqueQuestions = new Set((data ?? []).map((item) => Number(item.sort_order)).filter(Number.isFinite));
+      return [assessmentPackage.id, uniqueQuestions.size] as const;
+    })
+  );
+  return new Map(entries);
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
   if (!auth.ok) {
@@ -117,8 +138,9 @@ export async function GET(req: NextRequest) {
 
     const packages = (data ?? []) as PackageRow[];
     const packageIds = packages.map((item) => item.id);
-    const [questionCounts, schoolCounts, incompleteQuestionCounts] = await Promise.all([
+    const [questionCounts, weeklyQuestionCounts, schoolCounts, incompleteQuestionCounts] = await Promise.all([
       countPackageRows(packageIds, "package_questions"),
+      countWeeklyPackageQuestions(packages),
       countPackageRows(packageIds, "school_package_assignments"),
       countIncompletePackageQuestions(packageIds),
     ]);
@@ -128,9 +150,9 @@ export async function GET(req: NextRequest) {
       data: packages.map((item) => ({
         ...item,
         package_type: item.package_type ?? "weekly",
-        question_count: questionCounts.get(item.id) ?? 0,
+        question_count: Math.max(questionCounts.get(item.id) ?? 0, weeklyQuestionCounts.get(item.id) ?? 0),
         assigned_school_count: schoolCounts.get(item.id) ?? 0,
-        incomplete_question_count: incompleteQuestionCounts.get(item.id) ?? 0,
+        incomplete_question_count: (weeklyQuestionCounts.get(item.id) ?? 0) > 0 ? 0 : incompleteQuestionCounts.get(item.id) ?? 0,
       })),
     });
   } catch (err) {

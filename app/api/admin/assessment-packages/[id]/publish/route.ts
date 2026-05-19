@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     const db = getAdminClient();
     const { data: assessmentPackage, error: packageError } = await db
       .from("assessment_packages")
-      .select("id, student_pdf_url, questions_pdf_url, published_at")
+      .select("id, subject, grade, week_number, start_date, student_pdf_url, questions_pdf_url, published_at")
       .eq("id", params.id)
       .maybeSingle();
 
@@ -47,13 +47,37 @@ export async function POST(req: NextRequest, { params }: Params) {
       .eq("package_id", params.id);
 
     if (questionsError) throw questionsError;
-    if (!questions?.length) {
+    const packageQuestions = questions ?? [];
+    const assessmentDate = assessmentPackage.start_date ?? new Date().toISOString().slice(0, 10);
+    const { data: weeklyQuestions, error: weeklyQuestionsError } = await db
+      .from("weekly_questions")
+      .select("id, sort_order, question_options(option_label, is_correct)")
+      .eq("subject", assessmentPackage.subject)
+      .eq("grade", assessmentPackage.grade)
+      .eq("week_number", Number(assessmentPackage.week_number ?? 0))
+      .eq("assessment_date", assessmentDate);
+    if (weeklyQuestionsError) throw weeklyQuestionsError;
+
+    const weeklyQuestionCount = new Set((weeklyQuestions ?? []).map((item) => Number(item.sort_order)).filter(Number.isFinite)).size;
+    const weeklyHasCorrectOptions = (weeklyQuestions ?? []).some((item) => {
+      const options = item.question_options as Array<{ option_label?: string; is_correct?: boolean }> | null;
+      return options?.some((option) => option.is_correct && option.option_label);
+    });
+
+    if (packageQuestions.length <= 0 && weeklyQuestionCount <= 0) {
       return NextResponse.json({ success: false, error: "يجب استيراد مفتاح الإجابة قبل النشر" }, { status: 400 });
     }
 
-    if (questions.some((item) => !item.correct_option || !item.nafs_domain_id || !item.skill_id)) {
+    if (packageQuestions.length > 0 && packageQuestions.some((item) => !item.correct_option || !item.nafs_domain_id || !item.skill_id) && weeklyQuestionCount <= 0) {
       return NextResponse.json(
         { success: false, error: "كل سؤال يجب أن يحتوي إجابة صحيحة ومجال نافس ومهارة قبل النشر" },
+        { status: 400 }
+      );
+    }
+
+    if (weeklyQuestionCount > 0 && !weeklyHasCorrectOptions) {
+      return NextResponse.json(
+        { success: false, error: "مفتاح الإجابة لا يحتوي على خيار صحيح واحد على الأقل" },
         { status: 400 }
       );
     }

@@ -196,11 +196,16 @@ function validateWeeklyAnswerKeyJson(rawValue: string): AnswerKeyValidationResul
     throw new Error("صيغة JSON غير صحيحة.");
   }
 
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray((parsed as { questions?: unknown }).questions)) {
+  const questions = Array.isArray(parsed)
+    ? parsed as Array<Record<string, unknown>>
+    : parsed && typeof parsed === "object" && !Array.isArray(parsed) && Array.isArray((parsed as { questions?: unknown }).questions)
+      ? (parsed as { questions: Array<Record<string, unknown>> }).questions
+      : null;
+
+  if (!questions) {
     throw new Error("صيغة JSON غير صحيحة. يجب أن يحتوي الملف على questions كمصفوفة.");
   }
 
-  const questions = (parsed as { questions: Array<Record<string, unknown>> }).questions;
   if (questions.length === 0) {
     throw new Error("مفتاح الإجابة لا يحتوي على أسئلة.");
   }
@@ -247,16 +252,16 @@ const ANSWER_KEY_JSON_EXAMPLE = `{
   "questions": [
     {
       "question_number": 1,
-      "correct_answer": "ج",
-      "skill": "تقريب الكسور إلى أقرب نصف",
-      "domain": "العمليات على الكسور الاعتيادية",
+      "correct_answer": "ب",
+      "skill": "المتوسط الحسابي",
+      "domain": "الإحصاء والاحتمال",
       "difficulty": "easy",
-      "explanation": "لأن ٧/٨ قريب من ١.",
+      "explanation": "ملاحظة علاجية أو تفسير",
       "options": {
-        "أ": "٠",
-        "ب": "١/٢",
-        "ج": "١",
-        "د": "٢"
+        "أ": "٥",
+        "ب": "٦",
+        "ج": "٧",
+        "د": "٨"
       }
     }
   ]
@@ -1336,26 +1341,26 @@ function QuestionImportModal({
   onClose: () => void;
   onSubmit: (jsonText: string) => Promise<void>;
 }) {
-  const sample = `[
-  {
-    "question_number": 1,
-    "correct_option": "أ",
-    "nafs_domain_id": "00000000-0000-0000-0000-000000000000",
-    "skill_id": "00000000-0000-0000-0000-000000000000",
-    "difficulty_level": "easy",
-    "points": 1,
-    "question_text": "",
-    "remediation_note": ""
-  }
-]`;
-  const [text, setText] = useState(sample);
+  const [text, setText] = useState("");
+  const [validation, setValidation] = useState<AnswerKeyValidationResult | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function handleValidate() {
+    try {
+      setValidation(validateWeeklyAnswerKeyJson(text));
+      setError(null);
+    } catch (err) {
+      setValidation(null);
+      setError(err instanceof Error ? err.message : "صيغة JSON غير صحيحة.");
+    }
+  }
 
   async function handleSubmit() {
     try {
       setSubmitting(true);
       setError(null);
+      validateWeeklyAnswerKeyJson(text);
       await onSubmit(text);
       onClose();
     } catch (err) {
@@ -1377,16 +1382,37 @@ function QuestionImportModal({
         </div>
         {error && <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
         <div className="mb-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold leading-7 text-amber-700">
-          ألصق مصفوفة JSON للأسئلة. تشمل المجال في نافس، المهارة المستهدفة، مستوى الصعوبة، وملاحظة علاجية اختيارية. هذه البيانات تحتوي مفتاح الإجابة ولا تظهر للمعلم أو قائد المدرسة.
+          ألصق مفتاح الإجابة والمهارات بصيغة JSON العربية البسيطة. لا نحتاج UUID للمهارة أو المجال في هذه المرحلة. هذه البيانات تحتوي مفتاح الإجابة ولا تظهر للمعلم أو قائد المدرسة.
         </div>
         <textarea
           value={text}
-          onChange={(event) => setText(event.target.value)}
+          onChange={(event) => {
+            setText(event.target.value);
+            setValidation(null);
+          }}
           rows={16}
           dir="ltr"
+          placeholder={ANSWER_KEY_JSON_EXAMPLE}
           className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-mono text-sm text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white"
         />
+        {validation ? (
+          <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold leading-7 text-emerald-700">
+            <p>تم التحقق من {toEnglishDigits(validation.count)} سؤال.</p>
+            {validation.summary.slice(0, 6).map((item) => (
+              <p key={item}>{item}</p>
+            ))}
+          </div>
+        ) : null}
+        <details className="mt-3 rounded-xl border border-slate-100 bg-white px-4 py-3">
+          <summary className="cursor-pointer text-xs font-black text-slate-500">مثال على الصيغة المطلوبة</summary>
+          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-left font-mono text-xs leading-6 text-slate-600" dir="ltr">
+            {ANSWER_KEY_JSON_EXAMPLE}
+          </pre>
+        </details>
         <div className="mt-4 flex gap-3">
+          <button onClick={handleValidate} type="button" className="rounded-xl border border-[#159f91]/25 bg-white px-5 py-3 text-sm font-extrabold text-[#159f91]">
+            التحقق من JSON
+          </button>
           <button onClick={handleSubmit} disabled={submitting} className="rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
             {submitting ? "جارٍ الاستيراد..." : "استيراد واستبدال الأسئلة"}
           </button>
@@ -2123,24 +2149,19 @@ export default function AdminPage() {
 
   async function handleImportPackageQuestions(jsonText: string) {
     if (!importingPackage) return;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch {
-      throw new Error("صيغة JSON غير صحيحة");
-    }
+    const validation = validateWeeklyAnswerKeyJson(jsonText);
 
     setBusyPackageId(importingPackage.id);
     try {
-      const res = await fetch(`/api/admin/assessment-packages/${importingPackage.id}/questions/import`, {
-        method: "POST",
+      const res = await fetch(`/api/admin/assessment-packages/${importingPackage.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed),
+        body: JSON.stringify({ answer_key_json: jsonText }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) throw new Error(json.error || "فشل استيراد الأسئلة");
       await loadPackages();
-      window.alert(`تم استيراد ${toEnglishDigits(json.importedCount ?? 0)} سؤال`);
+      window.alert(`تم استيراد ${toEnglishDigits(validation.count)} سؤال`);
     } finally {
       setBusyPackageId(null);
     }

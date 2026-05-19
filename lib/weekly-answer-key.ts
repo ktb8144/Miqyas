@@ -10,6 +10,7 @@ type WeeklyAnswerQuestion = {
   skill: string;
   domain: string;
   difficulty: string;
+  question_text?: string | null;
   explanation?: string | null;
   options: Record<OptionLabel, string>;
 };
@@ -65,15 +66,21 @@ export function parseWeeklyAnswerKey(input: unknown): WeeklyAnswerKey {
     validationError("صيغة JSON غير صحيحة.");
   }
 
-  if (!isPlainObject(parsed) || !Array.isArray(parsed.questions)) {
+  const rawQuestions = Array.isArray(parsed)
+    ? parsed
+    : isPlainObject(parsed) && Array.isArray(parsed.questions)
+      ? parsed.questions
+      : null;
+
+  if (!rawQuestions) {
     validationError("صيغة JSON غير صحيحة. يجب أن يحتوي الملف على questions كمصفوفة.");
   }
 
-  if (parsed.questions.length === 0) {
+  if (rawQuestions.length === 0) {
     validationError("مفتاح الإجابة لا يحتوي على أسئلة.");
   }
 
-  const questions = parsed.questions.map((rawQuestion, index) => {
+  const questions = rawQuestions.map((rawQuestion, index) => {
     const question = isPlainObject(rawQuestion) ? rawQuestion : {};
     const questionNumber = questionNumberLabel(question.question_number, index + 1);
     const correctAnswer = normalizeOption(question.correct_answer);
@@ -110,6 +117,7 @@ export function parseWeeklyAnswerKey(input: unknown): WeeklyAnswerKey {
       skill,
       domain,
       difficulty,
+      question_text: normalizeOption(question.question_text) || null,
       explanation: normalizeOption(question.explanation) || null,
       options: {
         "أ": normalizeOption(options["أ"]),
@@ -191,7 +199,7 @@ async function syncForSchool({
         grade: assessmentPackage.grade,
         skill: question.skill,
         difficulty: question.difficulty,
-        question_text: `سؤال رقم ${question.question_number} - راجع ملف PDF`,
+        question_text: question.question_text?.trim() || `سؤال رقم ${question.question_number} - راجع ملف PDF`,
         week_number: weekNumber,
         assessment_date: assessmentDate,
         status: "active",
