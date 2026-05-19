@@ -169,11 +169,98 @@ type PackageFormData = {
   questions_pdf_url: string;
   answer_sheet_pdf_url: string;
   answer_key_file_url: string;
+  answer_key_json: string;
 };
 
 type PackageSubmitData = PackageFormData & {
   questions_pdf_file?: File | null;
 };
+
+const ANSWER_KEY_OPTION_LABELS = ["أ", "ب", "ج", "د"] as const;
+
+type AnswerKeyValidationResult = {
+  count: number;
+  summary: string[];
+};
+
+function validateWeeklyAnswerKeyJson(rawValue: string): AnswerKeyValidationResult {
+  const raw = rawValue.trim();
+  if (!raw) {
+    return { count: 0, summary: [] };
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("صيغة JSON غير صحيحة.");
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || !Array.isArray((parsed as { questions?: unknown }).questions)) {
+    throw new Error("صيغة JSON غير صحيحة. يجب أن يحتوي الملف على questions كمصفوفة.");
+  }
+
+  const questions = (parsed as { questions: Array<Record<string, unknown>> }).questions;
+  if (questions.length === 0) {
+    throw new Error("مفتاح الإجابة لا يحتوي على أسئلة.");
+  }
+
+  const summary = questions.map((question, index) => {
+    const number = Number(question.question_number || index + 1);
+    const correctAnswer = typeof question.correct_answer === "string" ? question.correct_answer.trim() : "";
+    const skill = typeof question.skill === "string" ? question.skill.trim() : "";
+    const domain = typeof question.domain === "string" ? question.domain.trim() : "";
+    const difficulty = typeof question.difficulty === "string" ? question.difficulty.trim() : "";
+    const options = question.options && typeof question.options === "object" && !Array.isArray(question.options)
+      ? question.options as Record<string, unknown>
+      : null;
+
+    if (!question.question_number || !Number.isFinite(number)) {
+      throw new Error(`السؤال رقم ${number || index + 1} لا يحتوي على رقم سؤال صحيح.`);
+    }
+    if (!correctAnswer) {
+      throw new Error(`السؤال رقم ${number} لا يحتوي على إجابة صحيحة.`);
+    }
+    if (!ANSWER_KEY_OPTION_LABELS.includes(correctAnswer as (typeof ANSWER_KEY_OPTION_LABELS)[number])) {
+      throw new Error(`الإجابة الصحيحة في السؤال رقم ${number} يجب أن تكون أ أو ب أو ج أو د.`);
+    }
+    if (!skill) {
+      throw new Error(`السؤال رقم ${number} لا يحتوي على المهارة.`);
+    }
+    if (!domain) {
+      throw new Error(`السؤال رقم ${number} لا يحتوي على المجال.`);
+    }
+    if (!difficulty) {
+      throw new Error(`السؤال رقم ${number} لا يحتوي على مستوى الصعوبة.`);
+    }
+    if (!options || ANSWER_KEY_OPTION_LABELS.some((label) => typeof options[label] !== "string" || !String(options[label]).trim())) {
+      throw new Error(`السؤال رقم ${number} لا يحتوي على الخيارات الأربعة.`);
+    }
+
+    return `سؤال ${toEnglishDigits(number)}: ${correctAnswer} - ${skill}`;
+  });
+
+  return { count: questions.length, summary };
+}
+
+const ANSWER_KEY_JSON_EXAMPLE = `{
+  "questions": [
+    {
+      "question_number": 1,
+      "correct_answer": "ج",
+      "skill": "تقريب الكسور إلى أقرب نصف",
+      "domain": "العمليات على الكسور الاعتيادية",
+      "difficulty": "easy",
+      "explanation": "لأن ٧/٨ قريب من ١.",
+      "options": {
+        "أ": "٠",
+        "ب": "١/٢",
+        "ج": "١",
+        "د": "٢"
+      }
+    }
+  ]
+}`;
 
 const emptyOverview: OverviewData = {
   schools: { total: 0 },
@@ -1048,6 +1135,20 @@ function PackageModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [questionsPdfFile, setQuestionsPdfFile] = useState<File | null>(null);
+  const [answerKeyJson, setAnswerKeyJson] = useState("");
+  const [answerKeyValidation, setAnswerKeyValidation] = useState<AnswerKeyValidationResult | null>(null);
+  const [answerKeyValidationError, setAnswerKeyValidationError] = useState<string | null>(null);
+
+  function handleValidateAnswerKey() {
+    try {
+      const result = validateWeeklyAnswerKeyJson(answerKeyJson);
+      setAnswerKeyValidation(result);
+      setAnswerKeyValidationError(null);
+    } catch (err) {
+      setAnswerKeyValidation(null);
+      setAnswerKeyValidationError(err instanceof Error ? err.message : "صيغة JSON غير صحيحة.");
+    }
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1056,6 +1157,10 @@ function PackageModal({
     try {
       setSubmitting(true);
       setError(null);
+      const trimmedAnswerKey = answerKeyJson.trim();
+      if (trimmedAnswerKey) {
+        validateWeeklyAnswerKeyJson(trimmedAnswerKey);
+      }
       await onSubmit({ ...payload, questions_pdf_file: questionsPdfFile } as PackageSubmitData);
       onClose();
     } catch (err) {
@@ -1147,8 +1252,67 @@ function PackageModal({
             <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ورقة الإجابة PDF اختياري</span>
             <input name="answer_sheet_pdf_url" type="url" defaultValue={initialValues?.answer_sheet_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
           </label>
+          <section className="md:col-span-2 rounded-2xl border border-[#159f91]/15 bg-[#159f91]/[0.04] p-4">
+            <div className="mb-3">
+              <h3 className="text-base font-black text-[#0b2447]">مفتاح الإجابة والمهارات</h3>
+              <p className="mt-1 text-xs font-bold leading-6 text-slate-500">
+                ألصق مفتاح الإجابة بصيغة JSON. سيتم حفظه للأدمن فقط وتحويله إلى أسئلة وخيارات للتصحيح الآلي من السيرفر.
+              </p>
+            </div>
+            <label>
+              <span className="mb-2 block text-sm font-extrabold text-slate-500">مفتاح الإجابة والمهارات بصيغة JSON</span>
+              <textarea
+                name="answer_key_json"
+                rows={10}
+                value={answerKeyJson}
+                onChange={(event) => {
+                  setAnswerKeyJson(event.target.value);
+                  setAnswerKeyValidation(null);
+                  setAnswerKeyValidationError(null);
+                }}
+                placeholder={ANSWER_KEY_JSON_EXAMPLE}
+                className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 font-mono text-xs font-bold leading-6 text-[#0b2447] outline-none focus:border-[#159f91]/40"
+              />
+            </label>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={handleValidateAnswerKey}
+                className="rounded-xl border border-[#159f91]/25 bg-white px-4 py-2 text-xs font-extrabold text-[#159f91]"
+              >
+                التحقق من JSON
+              </button>
+              {answerKeyValidation ? (
+                <span className="text-xs font-extrabold text-[#159f91]">
+                  تم التحقق من {toEnglishDigits(answerKeyValidation.count)} سؤال
+                </span>
+              ) : null}
+              {answerKeyValidationError ? (
+                <span className="text-xs font-extrabold text-rose-600">{answerKeyValidationError}</span>
+              ) : null}
+            </div>
+            {answerKeyValidation?.summary.length ? (
+              <div className="mt-3 rounded-xl border border-emerald-100 bg-white px-4 py-3">
+                <p className="mb-2 text-xs font-black text-[#0b2447]">ملخص المفتاح</p>
+                <div className="space-y-1 text-xs font-bold text-slate-600">
+                  {answerKeyValidation.summary.slice(0, 8).map((item) => (
+                    <p key={item}>{item}</p>
+                  ))}
+                  {answerKeyValidation.summary.length > 8 ? (
+                    <p className="text-slate-400">و{toEnglishDigits(answerKeyValidation.summary.length - 8)} أسئلة أخرى...</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            <details className="mt-3 rounded-xl border border-slate-100 bg-white px-4 py-3">
+              <summary className="cursor-pointer text-xs font-black text-slate-500">مثال على الصيغة المطلوبة</summary>
+              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-left font-mono text-xs leading-6 text-slate-600" dir="ltr">
+                {ANSWER_KEY_JSON_EXAMPLE}
+              </pre>
+            </details>
+          </section>
           <label className="md:col-span-2">
-            <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ملف مفتاح الإجابة والمهارات اختياري</span>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">خيار متقدم: رابط ملف مفتاح الإجابة والمهارات اختياري</span>
             <input name="answer_key_file_url" type="url" defaultValue={initialValues?.answer_key_file_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
           </label>
           <div className="flex gap-3 md:col-span-2">
@@ -1922,6 +2086,7 @@ export default function AdminPage() {
       questions_pdf_url: payload.questions_pdf_url?.trim() || null,
       answer_sheet_pdf_url: payload.answer_sheet_pdf_url?.trim() || null,
       answer_key_file_url: payload.answer_key_file_url?.trim() || null,
+      answer_key_json: payload.answer_key_json?.trim() || undefined,
       status: editingPackage?.status ?? "draft",
     };
 

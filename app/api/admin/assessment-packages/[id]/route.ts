@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
+import { parseWeeklyAnswerKey, syncWeeklyQuestionsFromAnswerKey, WeeklyAnswerKeyValidationError } from "@/lib/weekly-answer-key";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ const packageUpdateSchema = z.object({
   teacher_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   answer_sheet_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   answer_key_file_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
+  answer_key_json: z.unknown().optional(),
   status: z.enum(["draft", "published", "archived"]).optional(),
 });
 
@@ -136,7 +138,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       );
     }
 
-    const body = parsed.data;
+    const { answer_key_json: answerKeyJson, ...body } = parsed.data;
+    if (answerKeyJson) {
+      parseWeeklyAnswerKey(answerKeyJson);
+    }
+
     const payload = {
       ...body,
       description: body.description === undefined ? undefined : emptyToNull(body.description),
@@ -157,9 +163,27 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       .single();
 
     if (error) throw error;
+    if (answerKeyJson) {
+      await syncWeeklyQuestionsFromAnswerKey({
+        db,
+        authId: auth.user.id,
+        assessmentPackage: {
+          id: data.id,
+          subject: data.subject,
+          grade: data.grade,
+          week_number: data.week_number,
+          start_date: data.start_date,
+        },
+        answerKeyInput: answerKeyJson,
+      });
+    }
+
     return NextResponse.json({ success: true, data });
   } catch (err) {
     console.error("admin assessment package update failed", err);
+    if (err instanceof WeeklyAnswerKeyValidationError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: 400 });
+    }
     return NextResponse.json(
       { success: false, error: "تعذر تحديث حزمة الاختبار" },
       { status: 500 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
+import { parseWeeklyAnswerKey, syncWeeklyQuestionsFromAnswerKey, WeeklyAnswerKeyValidationError } from "@/lib/weekly-answer-key";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ const packageSchema = z.object({
   teacher_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   answer_sheet_pdf_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
   answer_key_file_url: z.string().trim().url().optional().or(z.literal("")).nullable(),
+  answer_key_json: z.unknown().optional(),
   status: z.enum(["draft", "published", "archived"]).optional().default("draft"),
 });
 
@@ -153,7 +155,12 @@ export async function POST(req: NextRequest) {
     }
 
     const body = parsed.data;
-    const { data, error } = await getAdminClient()
+    if (body.answer_key_json) {
+      parseWeeklyAnswerKey(body.answer_key_json);
+    }
+
+    const db = getAdminClient();
+    const { data, error } = await db
       .from("assessment_packages")
       .insert({
         title: body.title,
@@ -176,9 +183,27 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) throw error;
+    if (body.answer_key_json) {
+      await syncWeeklyQuestionsFromAnswerKey({
+        db,
+        authId: auth.user.id,
+        assessmentPackage: {
+          id: data.id,
+          subject: data.subject,
+          grade: data.grade,
+          week_number: data.week_number,
+          start_date: data.start_date,
+        },
+        answerKeyInput: body.answer_key_json,
+      });
+    }
+
     return NextResponse.json({ success: true, data });
   } catch (err) {
     console.error("admin assessment package create failed", err);
+    if (err instanceof WeeklyAnswerKeyValidationError) {
+      return NextResponse.json({ success: false, error: err.message }, { status: 400 });
+    }
     return NextResponse.json(
       { success: false, error: "تعذر إنشاء حزمة الاختبار" },
       { status: 500 }
