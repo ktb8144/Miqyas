@@ -14,6 +14,7 @@ const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
 interface CapturedPaper {
   id: string;
   imageBase64: string; // compressed for API
+  reviewBase64: string; // clearer image for teacher review
   thumbBase64: string; // tiny for UI
 }
 
@@ -32,6 +33,7 @@ interface ScanResult {
   weakSkills: { question: string; skill: string }[];
   error: boolean;
   errorMsg?: string;
+  reviewBase64: string;
   thumbBase64: string;
 }
 
@@ -141,6 +143,18 @@ async function compressImage(base64: string, maxWidth: number, quality: number):
   });
 }
 
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      resolve(result.includes(",") ? result.split(",")[1] : result);
+    };
+    reader.onerror = () => reject(new Error("تعذر قراءة الصورة"));
+    reader.readAsDataURL(file);
+  });
+}
+
 function sendBrowserNotification(body: string) {
   if (!("Notification" in window)) return;
   const show = () => new Notification("مِقياس", { body, icon: "/favicon.ico" });
@@ -153,6 +167,61 @@ function sendBrowserNotification(body: string) {
 
 function formatCount(value: number) {
   return toEnglishDigits(value);
+}
+
+function FullPaperImageModal({
+  imageBase64,
+  title,
+  answers,
+  onClose,
+}: {
+  imageBase64: string;
+  title: string;
+  answers?: Record<string, string>;
+  onClose: () => void;
+}) {
+  const answerEntries = answers
+    ? Object.entries(answers).sort(([a], [b]) => Number(a.replace(/\D/g, "")) - Number(b.replace(/\D/g, "")))
+    : [];
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/80 p-3" dir="rtl">
+      <div className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 p-3">
+          <div>
+            <p className="font-black text-gray-900">{title}</p>
+            <p className="text-xs text-gray-500">يمكنك تمرير الصورة وتكبيرها بإيماءة الجوال للتأكد من الورقة.</p>
+          </div>
+          <button onClick={onClose} className="rounded-full border border-gray-200 px-3 py-1.5 text-sm font-bold text-gray-600">
+            إغلاق
+          </button>
+        </div>
+        <div className="grid min-h-0 flex-1 gap-0 md:grid-cols-[1fr_260px]">
+          <div className="min-h-0 overflow-auto bg-slate-950 p-3">
+            <img
+              src={`data:image/jpeg;base64,${imageBase64}`}
+              alt={title}
+              className="mx-auto h-auto max-w-none rounded-lg bg-white shadow-xl"
+              style={{ width: "min(100%, 980px)" }}
+            />
+          </div>
+          {answerEntries.length > 0 && (
+            <aside className="max-h-full overflow-auto border-t border-gray-100 bg-white p-4 md:border-r md:border-t-0">
+              <h4 className="mb-3 font-black text-gray-900">الإجابات المقروءة</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {answerEntries.map(([key, value]) => (
+                  <div key={key} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
+                    <span className="font-bold text-gray-500">س{toEnglishDigits(key.replace(/\D/g, ""))}</span>
+                    <span className="float-left font-black text-[#1D9E75]">{toEnglishDigits(value || "—")}</span>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── Retake Modal (single paper in review mode) ───────────────────────────────
@@ -193,8 +262,8 @@ function RetakeModal({
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
-    canvas.width = 1240;
-    canvas.height = 1754;
+    canvas.width = video.videoWidth || 1654;
+    canvas.height = video.videoHeight || 2339;
     canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
     const raw = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -260,12 +329,21 @@ function PaperReviewModal({
 }) {
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>(result.answers);
   const [saving, setSaving] = useState(false);
+  const [showFullPaper, setShowFullPaper] = useState(false);
   const total = result.total || Q_COUNT;
   const levelColor = ETEC_LEVELS[result.level as keyof typeof ETEC_LEVELS]?.color ?? "#374151";
   const studentLabel = result.editedName || result.studentName || "ورقة بدون اسم";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" dir="rtl">
+      {showFullPaper && (
+        <FullPaperImageModal
+          imageBase64={result.reviewBase64 || result.thumbBase64}
+          title={`ورقة ${studentLabel}`}
+          answers={localAnswers}
+          onClose={() => setShowFullPaper(false)}
+        />
+      )}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col" style={{ maxHeight: "90vh" }}>
         {/* Header */}
         <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
@@ -280,7 +358,15 @@ function PaperReviewModal({
         </div>
 
         <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 flex-shrink-0">
-          الإجابات الصحيحة لا تظهر في واجهة المعلم.
+          <div className="flex items-center justify-between gap-2">
+            <span>الإجابات الصحيحة لا تظهر في واجهة المعلم.</span>
+            <button
+              onClick={() => setShowFullPaper(true)}
+              className="shrink-0 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-[#1D9E75]"
+            >
+              عرض الورقة كاملة
+            </button>
+          </div>
         </div>
 
         {/* Question rows */}
@@ -374,24 +460,31 @@ export function BatchOMRScanner({
   const [captureMessage, setCaptureMessage] = useState<string | null>(null);
   const [retakingPaperId, setRetakingPaperId] = useState<string | null>(null);
   const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null);
+  const [viewingPaper, setViewingPaper] = useState<ScanResult | CapturedPaper | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const scannerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // ── Camera helpers ──────────────────────────────────────────────────────────
 
   const openCamera = useCallback(async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1240 }, height: { ideal: 1754 }, aspectRatio: { ideal: 0.7071 } },
+        video: { facingMode: "environment", width: { ideal: 1654 }, height: { ideal: 2339 }, aspectRatio: { ideal: 0.7071 } },
       });
       streamRef.current = s;
       setCameraOpen(true);
+      setCaptureMessage("تم فتح الكاميرا، ضع الورقة داخل الإطار");
+      if ("vibrate" in navigator) navigator.vibrate?.(50);
+      window.setTimeout(() => scannerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
       setTimeout(() => {
         if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); }
       }, 80);
+      window.setTimeout(() => setCaptureMessage((message) => message === "تم فتح الكاميرا، ضع الورقة داخل الإطار" ? null : message), 2600);
     } catch {
       alert("تعذّر فتح الكاميرا — تحقق من صلاحيات الكاميرا في المتصفح");
     }
@@ -403,29 +496,26 @@ export function BatchOMRScanner({
     setCameraOpen(false);
   }, []);
 
-  const captureOne = useCallback(async () => {
-    if (papers.length >= MAX_PAPERS || captureBusy) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+  const addPaperFromRaw = useCallback(async (raw: string, qualityHint?: string) => {
     setCaptureBusy(true);
     setCaptureFlash(true);
     setCaptureMessage("تم التقاط الصورة");
     if ("vibrate" in navigator) navigator.vibrate?.(35);
 
     try {
-      canvas.width = 1240;
-      canvas.height = 1754;
-      canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
-      const maxWidth = mode === "package" ? 1600 : 800;
-      const quality = mode === "package" ? 0.9 : 0.8;
-      const [compressed, thumb] = await Promise.all([
-        compressImage(raw, maxWidth, quality),
+      const apiMaxWidth = mode === "package" ? 1900 : 900;
+      const apiQuality = mode === "package" ? 0.85 : 0.8;
+      const reviewMaxWidth = mode === "package" ? 2200 : 1400;
+      const [compressed, review, thumb] = await Promise.all([
+        compressImage(raw, apiMaxWidth, apiQuality),
+        compressImage(raw, reviewMaxWidth, 0.9),
         compressImage(raw, 360, 0.75),
       ]);
-      setCapturedPreview(thumb);
-      setPapers((prev) => [...prev, { id: `p${Date.now()}`, imageBase64: compressed, thumbBase64: thumb }]);
+      setCapturedPreview(review);
+      setPapers((prev) => [...prev, { id: `p${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, imageBase64: compressed, reviewBase64: review, thumbBase64: thumb }]);
+      if (qualityHint) {
+        setCaptureMessage(qualityHint);
+      }
       window.setTimeout(() => {
         setCapturedPreview(null);
         setCaptureMessage(null);
@@ -437,11 +527,40 @@ export function BatchOMRScanner({
       setCaptureFlash(false);
       setCaptureBusy(false);
     }
-  }, [captureBusy, mode, papers.length]);
+  }, [mode]);
+
+  const captureOne = useCallback(async () => {
+    if (papers.length >= MAX_PAPERS || captureBusy) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+
+    const width = video.videoWidth || 1654;
+    const height = video.videoHeight || 2339;
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
+    const qualityHint = width < 1000 || height < 1400
+      ? "تم الالتقاط، لكن جودة الكاميرا منخفضة. قرّب الورقة قليلًا وحافظ على الإضاءة."
+      : undefined;
+    await addPaperFromRaw(raw, qualityHint);
+  }, [addPaperFromRaw, captureBusy, papers.length]);
+
+  const handleGalleryUpload = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const remaining = MAX_PAPERS - papers.length;
+    const selected = Array.from(files).slice(0, remaining);
+    for (const file of selected) {
+      const raw = await fileToBase64(file);
+      await addPaperFromRaw(raw);
+    }
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+  };
 
   // ── Scan a single image against the API ────────────────────────────────────
 
-  const scanImage = async (imageBase64: string, paperId: string, thumbBase64: string): Promise<ScanResult> => {
+  const scanImage = async (imageBase64: string, paperId: string, thumbBase64: string, reviewBase64 = imageBase64): Promise<ScanResult> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), mode === "package" ? 40000 : 20000);
     try {
@@ -487,6 +606,13 @@ export function BatchOMRScanner({
       const match: Pick<ScanResult, "matchedStudentId" | "matchConfidence"> = mode === "package"
         ? resolveStudentMatch({ studentName, studentCode, editedName: studentName }, students)
         : { matchedStudentId: null, matchConfidence: undefined };
+      console.debug("miqyas scan match", {
+        paperId,
+        studentName,
+        studentCode,
+        matchedStudentId: match.matchedStudentId ?? null,
+        matchConfidence: match.matchConfidence ?? null,
+      });
 
       return {
         paperId, studentName, studentCode, editedName: studentName,
@@ -498,7 +624,7 @@ export function BatchOMRScanner({
         percentage: result.percentage ?? 0,
         level: result.level ?? "دون الأساسي",
         weakSkills: result.weakSkills ?? [],
-        error: false, thumbBase64,
+        error: false, reviewBase64, thumbBase64,
       };
     } catch (e) {
       clearTimeout(timer);
@@ -507,6 +633,7 @@ export function BatchOMRScanner({
         paperId, studentName: "", studentCode: "", editedName: "", answers: {}, score: 0,
         total: Q_COUNT, percentage: 0, level: "دون الأساسي", weakSkills: [], error: true,
         errorMsg: isTimeout ? `انتهت المهلة (${toEnglishDigits(mode === "package" ? 40 : 20)} ثانية) — أعد التصوير` : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
+        reviewBase64,
         thumbBase64,
       };
     }
@@ -526,7 +653,7 @@ export function BatchOMRScanner({
     let done = 0;
     const allResults = await Promise.all(
       papers.map(async (paper) => {
-        const result = await scanImage(paper.imageBase64, paper.id, paper.thumbBase64);
+        const result = await scanImage(paper.imageBase64, paper.id, paper.thumbBase64, paper.reviewBase64);
         done++;
         setProcessingCount(done);
         return result;
@@ -543,7 +670,10 @@ export function BatchOMRScanner({
 
   const handleRetakeCapture = async (newBase64: string) => {
     if (!retakingPaperId) return;
-    const thumb = await compressImage(newBase64, 120, 0.6);
+    const [review, thumb] = await Promise.all([
+      compressImage(newBase64, mode === "package" ? 2200 : 1400, 0.9),
+      compressImage(newBase64, 120, 0.6),
+    ]);
     setRetakingPaperId(null);
     // Show scanning indicator for this row
       setResults((prev) =>
@@ -553,7 +683,7 @@ export function BatchOMRScanner({
           : r
       )
     );
-    const newResult = await scanImage(newBase64, retakingPaperId!, thumb);
+    const newResult = await scanImage(newBase64, retakingPaperId!, thumb, review);
     setResults((prev) => prev.map((r) => (r.paperId === retakingPaperId ? { ...newResult, editedName: newResult.studentName } : r)));
   };
 
@@ -612,15 +742,33 @@ export function BatchOMRScanner({
   const updateMatchedStudent = (paperId: string, studentId: string) =>
     setResults((prev) => prev.map((r) => (
       r.paperId === paperId
-        ? { ...r, matchedStudentId: studentId || null, matchConfidence: studentId ? "strong" : "needs_review" }
+        ? (() => {
+            const next = { ...r, matchedStudentId: studentId || null, matchConfidence: studentId ? "strong" as const : "needs_review" as const };
+            console.debug("miqyas manual match", {
+              paperId: next.paperId,
+              studentName: next.studentName || next.editedName,
+              studentCode: next.studentCode,
+              matchedStudentId: next.matchedStudentId,
+              matchConfidence: next.matchConfidence,
+            });
+            return next;
+          })()
         : r
     )));
 
   const saveAll = async () => {
     const valid = results.filter((r) => !r.error);
     if (!valid.length) return;
-    if (mode === "package" && valid.some((r) => !r.matchedStudentId)) {
-      setSaveError("راجع المطابقة واختر الطالب لكل ورقة قبل الحفظ");
+    const unmatchedValid = valid.filter((r) => !r.matchedStudentId);
+    if (mode === "package" && unmatchedValid.length) {
+      console.debug("miqyas unmatched papers before save", unmatchedValid.map((r) => ({
+        paperId: r.paperId,
+        studentName: r.studentName || r.editedName,
+        studentCode: r.studentCode,
+        matchedStudentId: r.matchedStudentId ?? null,
+        matchConfidence: r.matchConfidence ?? null,
+      })));
+      setSaveError(`توجد ${formatCount(unmatchedValid.length)} ورقة تحتاج مطابقة يدوية قبل الحفظ`);
       return;
     }
 
@@ -637,20 +785,33 @@ export function BatchOMRScanner({
 
   const validResults = results.filter((r) => !r.error);
   const errorResults = results.filter((r) => r.error);
+  const unmatchedResults = mode === "package" ? validResults.filter((r) => !r.matchedStudentId) : [];
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm" dir="rtl">
+    <div ref={scannerRef} className="bg-white rounded-xl border border-gray-200 shadow-sm" dir="rtl">
       {/* Retake modal (camera) */}
       {retakingPaperId && (
         <RetakeModal
           onCapture={handleRetakeCapture}
           onClose={() => setRetakingPaperId(null)}
-          maxWidth={mode === "package" ? 1600 : 800}
-          quality={mode === "package" ? 0.9 : 0.8}
+          maxWidth={mode === "package" ? 1900 : 900}
+          quality={mode === "package" ? 0.85 : 0.8}
         />
       )}
+
+      {viewingPaper && (() => {
+        const imageBase64 = viewingPaper.reviewBase64 || ("imageBase64" in viewingPaper ? viewingPaper.imageBase64 : viewingPaper.thumbBase64);
+        return (
+          <FullPaperImageModal
+            imageBase64={imageBase64}
+            title={"عرض الورقة كاملة"}
+            answers={"answers" in viewingPaper ? viewingPaper.answers : undefined}
+            onClose={() => setViewingPaper(null)}
+          />
+        );
+      })()}
 
       {/* Per-question review modal */}
       {reviewingPaperId && (() => {
@@ -695,6 +856,14 @@ export function BatchOMRScanner({
         {/* ── Capture ── */}
         {step === "capture" && (
           <div>
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(event) => void handleGalleryUpload(event.target.files)}
+            />
             <div className="flex items-start justify-between mb-5 p-3 rounded-xl gap-3" style={{ background: "#f0fdfa", border: "1px solid #99f6e4" }}>
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
@@ -706,17 +875,37 @@ export function BatchOMRScanner({
 
             {/* Camera view */}
             {cameraOpen ? (
-              <div className="mb-4">
+              <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
+                <div className="fixed left-3 right-3 top-3 z-20 flex items-center justify-between rounded-2xl bg-black/55 px-3 py-2 backdrop-blur">
+                  <button onClick={closeCamera} className="rounded-full bg-white/95 px-3 py-2 text-sm font-black text-gray-800 shadow">
+                    إغلاق
+                  </button>
+                  <div className="text-center">
+                    <p className="text-sm font-black text-white">ضع الورقة داخل الإطار</p>
+                    <p className="text-xs text-white/75">تم تصوير {formatCount(papers.length)} / {formatCount(MAX_PAPERS)} ورقة</p>
+                  </div>
+                  <button
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="rounded-full bg-white/95 px-3 py-2 text-sm font-black text-gray-800 shadow"
+                  >
+                    المعرض
+                  </button>
+                </div>
+                {captureMessage && (
+                  <div className="fixed left-6 right-6 top-20 z-20 rounded-full bg-white px-4 py-2 text-center text-sm font-black text-[#1D9E75] shadow-lg">
+                    {captureMessage}
+                  </div>
+                )}
                 <div
-                  className={`relative rounded-xl overflow-hidden border-4 mb-3 bg-black transition-all duration-150 ${captureFlash ? "scale-[0.99] ring-4 ring-teal-200" : ""}`}
-                  style={{ borderColor: "#1D9E75", aspectRatio: "1 / 1.414" }}
+                  className={`relative flex-1 overflow-hidden bg-black transition-all duration-150 ${captureFlash ? "scale-[0.99] ring-4 ring-teal-200" : ""}`}
+                  style={{ borderColor: "#1D9E75" }}
                 >
-                  <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+                  <video ref={videoRef} className="absolute inset-0 h-full w-full object-contain" playsInline muted />
                   {captureFlash && <div className="absolute inset-0 bg-white/45 pointer-events-none" />}
                   {capturedPreview && (
                     <div className="absolute inset-0 z-10 bg-black/70 flex items-center justify-center p-4">
                       <div className="relative h-full max-h-full rounded-xl overflow-hidden border-2 border-white/70 bg-black shadow-xl" style={{ aspectRatio: "1 / 1.414" }}>
-                        <img src={`data:image/jpeg;base64,${capturedPreview}`} alt="معاينة الصورة الملتقطة" className="h-full w-full object-cover" />
+                        <img src={`data:image/jpeg;base64,${capturedPreview}`} alt="معاينة الصورة الملتقطة" className="h-full w-full object-contain" />
                         <div className="absolute top-3 left-3 right-3 rounded-full bg-white/95 px-3 py-2 text-center text-sm font-bold text-teal-700 shadow-sm">
                           ✓ تم التقاط الصورة
                         </div>
@@ -724,14 +913,14 @@ export function BatchOMRScanner({
                     </div>
                   )}
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="relative" style={{ width: "88%", height: "90%" }}>
+                    <div className="relative" style={{ width: "82%", height: "82%", maxWidth: "420px", maxHeight: "84vh" }}>
                       <div className="absolute top-0 right-0 w-7 h-7 border-t-2 border-r-2 border-white" />
                       <div className="absolute top-0 left-0 w-7 h-7 border-t-2 border-l-2 border-white" />
                       <div className="absolute bottom-0 right-0 w-7 h-7 border-b-2 border-r-2 border-white" />
                       <div className="absolute bottom-0 left-0 w-7 h-7 border-b-2 border-l-2 border-white" />
                     </div>
                   </div>
-                  <div className="absolute top-3 left-0 right-0 text-center text-white text-sm font-bold pointer-events-none" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
+                  <div className="absolute top-20 left-0 right-0 text-center text-white text-sm font-bold pointer-events-none" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.8)" }}>
                     ضع الورقة داخل الإطار
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 py-1.5 text-white text-xs text-center" style={{ background: "rgba(0,0,0,0.55)" }}>
@@ -739,7 +928,7 @@ export function BatchOMRScanner({
                   </div>
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
-                <div className="flex gap-3 mb-3">
+                <div className="fixed bottom-0 left-0 right-0 z-20 flex gap-3 bg-black/75 p-3 pb-[calc(env(safe-area-inset-bottom)+12px)] backdrop-blur">
                   <button
                     onClick={captureOne}
                     disabled={papers.length >= MAX_PAPERS || captureBusy}
@@ -748,15 +937,10 @@ export function BatchOMRScanner({
                   >
                     {captureBusy ? "جارٍ تثبيت الصورة..." : "📸 التقاط ورقة"}
                   </button>
-                  <button onClick={closeCamera} className="px-5 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm hover:bg-gray-50">
-                    إغلاق
+                  <button onClick={() => galleryInputRef.current?.click()} className="px-4 py-3 rounded-xl border border-white/25 bg-white/10 text-white text-sm font-bold hover:bg-white/15">
+                    المعرض
                   </button>
                 </div>
-                {papers.length > 0 && (
-                  <button onClick={processAll} className="w-full py-3.5 rounded-xl text-white font-bold text-base shadow-md hover:opacity-90" style={{ background: "#1D9E75" }}>
-                    بدء تصحيح {formatCount(papers.length)} ورقة
-                  </button>
-                )}
               </div>
             ) : papers.length >= MAX_PAPERS ? (
               <div className="text-center py-5 mb-5 rounded-xl border border-amber-200" style={{ background: "#fffbeb" }}>
@@ -791,7 +975,14 @@ export function BatchOMRScanner({
                 <div className="grid grid-cols-5 gap-2 mb-4">
                   {papers.map((p, i) => (
                     <div key={p.id} className="relative group rounded-lg overflow-hidden border-2 border-gray-200" style={{ aspectRatio: "3/4" }}>
-                      <img src={`data:image/jpeg;base64,${p.thumbBase64}`} alt={`ورقة ${formatCount(i + 1)}`} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setViewingPaper(p)}
+                        className="h-full w-full"
+                        title="عرض الورقة كاملة"
+                      >
+                        <img src={`data:image/jpeg;base64,${p.thumbBase64}`} alt={`ورقة ${formatCount(i + 1)}`} className="w-full h-full object-cover" />
+                      </button>
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button onClick={() => setPapers((prev) => prev.filter((pp) => pp.id !== p.id))} className="w-7 h-7 rounded-full bg-red-500 text-white text-lg leading-none flex items-center justify-center">
                           ×
@@ -802,6 +993,23 @@ export function BatchOMRScanner({
                       </div>
                     </div>
                   ))}
+                </div>
+                <div className="mb-3 grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      setPapers((prev) => prev.slice(0, -1));
+                      void openCamera();
+                    }}
+                    className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50"
+                  >
+                    إعادة تصوير آخر ورقة
+                  </button>
+                  <button
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="rounded-xl border border-teal-100 bg-teal-50 px-3 py-2.5 text-sm font-bold text-[#1D9E75]"
+                  >
+                    استخدام صورة من المعرض
+                  </button>
                 </div>
                 {/* Start grading button — always visible once papers exist and camera is closed */}
                 {!cameraOpen && (
@@ -870,6 +1078,62 @@ export function BatchOMRScanner({
               </div>
             )}
 
+            {unmatchedResults.length > 0 && (
+              <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h4 className="font-black text-amber-900">أوراق تحتاج مطابقة يدوية</h4>
+                    <p className="mt-1 text-sm text-amber-800">
+                      اختر الطالب الصحيح لكل ورقة حتى لا يتم تجاهلها عند حفظ الدفعة.
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-amber-700 ring-1 ring-amber-200">
+                    {formatCount(unmatchedResults.length)} ورقة
+                  </span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {unmatchedResults.map((r) => (
+                    <div key={r.paperId} className="flex gap-3 rounded-xl border border-amber-100 bg-white p-3 shadow-sm">
+                      {r.thumbBase64 && (
+                        <button type="button" onClick={() => setViewingPaper(r)} className="shrink-0" title="عرض الورقة كاملة">
+                          <img
+                            src={`data:image/jpeg;base64,${r.thumbBase64}`}
+                            alt="صورة الورقة غير المطابقة"
+                            className="h-24 w-16 rounded-lg border border-gray-200 object-cover"
+                          />
+                        </button>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
+                          <div>
+                            <span className="block font-bold text-gray-400">الاسم المقروء</span>
+                            <span className="font-black text-gray-800">{r.studentName || r.editedName || "غير مقروء"}</span>
+                          </div>
+                          <div>
+                            <span className="block font-bold text-gray-400">رقم الطالب المقروء</span>
+                            <span className="font-black text-gray-800">{r.studentCode ? toEnglishDigits(r.studentCode) : "غير مقروء"}</span>
+                          </div>
+                        </div>
+                        <label className="mt-3 block text-xs font-bold text-gray-500">اختر الطالب من الفصل</label>
+                        <select
+                          value={r.matchedStudentId ?? ""}
+                          onChange={(e) => updateMatchedStudent(r.paperId, e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-2 text-sm text-gray-700 outline-none focus:border-[#1D9E75]"
+                        >
+                          <option value="">اختر الطالب يدويًا</option>
+                          {students.map((student) => (
+                            <option key={student.id} value={student.id}>
+                              {toEnglishDigits(normalizeStudentCode(student.studentCode) || "—")} - {student.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Results table */}
             <div className="rounded-xl border border-gray-200 overflow-hidden mb-5">
               <table className="w-full">
@@ -893,7 +1157,9 @@ export function BatchOMRScanner({
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5">
                             {r.thumbBase64 && (
-                              <img src={`data:image/jpeg;base64,${r.thumbBase64}`} alt="" className="w-7 h-9 object-cover rounded border border-gray-200" />
+                              <button type="button" onClick={() => setViewingPaper(r)} title="عرض الورقة كاملة">
+                                <img src={`data:image/jpeg;base64,${r.thumbBase64}`} alt="" className="w-7 h-9 object-cover rounded border border-gray-200" />
+                              </button>
                             )}
                             <span className="text-gray-400 text-sm">{formatCount(i + 1)}</span>
                           </div>
@@ -996,11 +1262,13 @@ export function BatchOMRScanner({
 
             <button
               onClick={saveAll}
-              disabled={validResults.length === 0}
-              className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90"
+              disabled={validResults.length === 0 || unmatchedResults.length > 0}
+              className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: "#1D9E75" }}
             >
-              💾 حفظ نتائج {formatCount(validResults.length)} طالب في الفصل
+              {unmatchedResults.length > 0
+                ? `أكمل مطابقة ${formatCount(unmatchedResults.length)} ورقة قبل الحفظ`
+                : `💾 حفظ نتائج ${formatCount(validResults.length)} طالب في الفصل`}
             </button>
           </div>
         )}
