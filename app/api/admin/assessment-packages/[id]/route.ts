@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
-import { parseWeeklyAnswerKey, syncWeeklyQuestionsFromAnswerKey, WeeklyAnswerKeyValidationError } from "@/lib/weekly-answer-key";
+import { AssessmentValidationError, parsePackageAnswerKey, syncPackageQuestionsFromAnswerKey } from "@/lib/assessment";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ const packageUpdateSchema = z.object({
   subject: z.string().trim().min(1).optional(),
   grade: z.coerce.number().int().min(1).max(12).optional(),
   week_number: z.coerce.number().int().min(1).max(60).optional().nullable(),
+  assessment_code: z.string().trim().optional().nullable(),
   start_date: z.string().trim().optional().nullable(),
   end_date: z.string().trim().optional().nullable(),
   duration_minutes: z.coerce.number().int().positive().optional().nullable(),
@@ -31,7 +32,7 @@ function emptyToNull(value?: string | null) {
   return trimmed ? trimmed : null;
 }
 
-async function loadCounts(packageId: string, assessmentPackage?: { subject?: string | null; grade?: number | string | null; week_number?: number | null; start_date?: string | null }) {
+async function loadCounts(packageId: string) {
   const db = getAdminClient();
   const [questionResult, schoolResult] = await Promise.all([
     db.from("package_questions").select("id", { count: "exact", head: true }).eq("package_id", packageId),
@@ -40,21 +41,8 @@ async function loadCounts(packageId: string, assessmentPackage?: { subject?: str
 
   if (questionResult.error) throw questionResult.error;
   if (schoolResult.error) throw schoolResult.error;
-  let weeklyQuestionCount = 0;
-  if (assessmentPackage?.subject && assessmentPackage.grade && assessmentPackage.week_number) {
-    const assessmentDate = assessmentPackage.start_date ?? new Date().toISOString().slice(0, 10);
-    const { data, error } = await db
-      .from("weekly_questions")
-      .select("sort_order")
-      .eq("subject", assessmentPackage.subject)
-      .eq("grade", assessmentPackage.grade)
-      .eq("week_number", assessmentPackage.week_number)
-      .eq("assessment_date", assessmentDate);
-    if (error) throw error;
-    weeklyQuestionCount = new Set((data ?? []).map((item) => Number(item.sort_order)).filter(Number.isFinite)).size;
-  }
   return {
-    question_count: Math.max(questionResult.count ?? 0, weeklyQuestionCount),
+    question_count: questionResult.count ?? 0,
     assigned_school_count: schoolResult.count ?? 0,
   };
 }
@@ -91,6 +79,9 @@ export async function GET(req: NextRequest, { params }: Params) {
           difficulty_level,
           points,
           question_text,
+          domain_text,
+          skill_text,
+          options_json,
           remediation_note,
           created_at,
           nafs_domains(domain_name, domain_code),
@@ -98,7 +89,7 @@ export async function GET(req: NextRequest, { params }: Params) {
         `)
         .eq("package_id", params.id)
         .order("question_number", { ascending: true }),
-      loadCounts(params.id, assessmentPackage),
+      loadCounts(params.id),
     ]);
 
     if (questionsError) throw questionsError;
@@ -153,12 +144,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const { answer_key_json: answerKeyJson, ...body } = parsed.data;
     if (answerKeyJson) {
-      parseWeeklyAnswerKey(answerKeyJson);
+      parsePackageAnswerKey(answerKeyJson);
     }
 
     const payload = {
       ...body,
       description: body.description === undefined ? undefined : emptyToNull(body.description),
+      assessment_code: body.assessment_code === undefined ? undefined : emptyToNull(body.assessment_code),
       start_date: body.start_date === undefined ? undefined : emptyToNull(body.start_date),
       end_date: body.end_date === undefined ? undefined : emptyToNull(body.end_date),
       student_pdf_url: body.student_pdf_url === undefined ? undefined : emptyToNull(body.student_pdf_url),
@@ -177,15 +169,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (error) throw error;
     if (answerKeyJson) {
-      await syncWeeklyQuestionsFromAnswerKey({
+      await syncPackageQuestionsFromAnswerKey({
         db,
-        authId: auth.user.id,
         assessmentPackage: {
           id: data.id,
           subject: data.subject,
           grade: data.grade,
-          week_number: data.week_number,
-          start_date: data.start_date,
         },
         answerKeyInput: answerKeyJson,
       });
@@ -194,7 +183,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ success: true, data });
   } catch (err) {
     console.error("admin assessment package update failed", err);
-    if (err instanceof WeeklyAnswerKeyValidationError) {
+    if (err instanceof AssessmentValidationError) {
       return NextResponse.json({ success: false, error: err.message }, { status: 400 });
     }
     return NextResponse.json(

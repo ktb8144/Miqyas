@@ -34,6 +34,8 @@ type PackageQuestionRow = {
   correct_option: string;
   nafs_domain_id: string | null;
   skill_id: string | null;
+  domain_text?: string | null;
+  skill_text?: string | null;
   difficulty_level: string;
   points: number | string;
   learning_skills?: { skill_name?: string | null; skill_code?: string | null } | null;
@@ -176,6 +178,10 @@ async function loadPackageQuestionsForAssignment(classPackageAssignmentId: strin
     return { error: "ليست لديك صلاحية لتصحيح هذه الحزمة" as const, status: 403 as const };
   }
 
+  if (assignmentRow.status === "withdrawn") {
+    return { error: "تم سحب هذه الحزمة ولا يمكن تصحيحها" as const, status: 403 as const };
+  }
+
   const { data: classRow, error: classError } = await db
     .from("classes")
     .select("id")
@@ -228,6 +234,8 @@ async function loadPackageQuestionsForAssignment(classPackageAssignmentId: strin
       correct_option,
       nafs_domain_id,
       skill_id,
+      domain_text,
+      skill_text,
       difficulty_level,
       points,
       learning_skills(skill_name, skill_code),
@@ -270,8 +278,8 @@ function gradePackageAnswers(studentAnswers: Record<string, string>, questions: 
     if (!isCorrect) {
       weakSkills.push({
         question: qKey,
-        skill: question.learning_skills?.skill_name || "مهارة غير محددة",
-        domain: question.nafs_domains?.domain_name || "مجال غير محدد",
+        skill: question.learning_skills?.skill_name || question.skill_text || "مهارة غير محددة",
+        domain: question.nafs_domains?.domain_name || question.domain_text || "مجال غير محدد",
         difficultyLevel: question.difficulty_level,
       });
     }

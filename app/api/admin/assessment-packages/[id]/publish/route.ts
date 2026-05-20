@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
+import { createClassAssignmentsForPackage } from "@/lib/assessment";
 
 export const dynamic = "force-dynamic";
 
@@ -43,41 +44,18 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const { data: questions, error: questionsError } = await db
       .from("package_questions")
-      .select("id, correct_option, nafs_domain_id, skill_id")
+      .select("id, correct_option, nafs_domain_id, skill_id, domain_text, skill_text")
       .eq("package_id", params.id);
 
     if (questionsError) throw questionsError;
     const packageQuestions = questions ?? [];
-    const assessmentDate = assessmentPackage.start_date ?? new Date().toISOString().slice(0, 10);
-    const { data: weeklyQuestions, error: weeklyQuestionsError } = await db
-      .from("weekly_questions")
-      .select("id, sort_order, question_options(option_label, is_correct)")
-      .eq("subject", assessmentPackage.subject)
-      .eq("grade", assessmentPackage.grade)
-      .eq("week_number", Number(assessmentPackage.week_number ?? 0))
-      .eq("assessment_date", assessmentDate);
-    if (weeklyQuestionsError) throw weeklyQuestionsError;
-
-    const weeklyQuestionCount = new Set((weeklyQuestions ?? []).map((item) => Number(item.sort_order)).filter(Number.isFinite)).size;
-    const weeklyHasCorrectOptions = (weeklyQuestions ?? []).some((item) => {
-      const options = item.question_options as Array<{ option_label?: string; is_correct?: boolean }> | null;
-      return options?.some((option) => option.is_correct && option.option_label);
-    });
-
-    if (packageQuestions.length <= 0 && weeklyQuestionCount <= 0) {
+    if (packageQuestions.length <= 0) {
       return NextResponse.json({ success: false, error: "يجب استيراد مفتاح الإجابة قبل النشر" }, { status: 400 });
     }
 
-    if (packageQuestions.length > 0 && packageQuestions.some((item) => !item.correct_option || !item.nafs_domain_id || !item.skill_id) && weeklyQuestionCount <= 0) {
+    if (packageQuestions.some((item) => !item.correct_option || (!item.nafs_domain_id && !item.domain_text) || (!item.skill_id && !item.skill_text))) {
       return NextResponse.json(
-        { success: false, error: "كل سؤال يجب أن يحتوي إجابة صحيحة ومجال نافس ومهارة قبل النشر" },
-        { status: 400 }
-      );
-    }
-
-    if (weeklyQuestionCount > 0 && !weeklyHasCorrectOptions) {
-      return NextResponse.json(
-        { success: false, error: "مفتاح الإجابة لا يحتوي على خيار صحيح واحد على الأقل" },
+        { success: false, error: "كل سؤال يجب أن يحتوي إجابة صحيحة ومجال ومهارة قبل النشر" },
         { status: 400 }
       );
     }
@@ -121,10 +99,17 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (assignmentError) throw assignmentError;
 
+    const classAssignments = await createClassAssignmentsForPackage({
+      db,
+      assessmentPackage,
+      schoolIds,
+    });
+
     return NextResponse.json({
       success: true,
       data: updatedPackage,
       assignedSchoolCount: schoolIds.length,
+      assignedClassCount: classAssignments.assignedClassCount,
     });
   } catch (err) {
     console.error("admin package publish failed", err);

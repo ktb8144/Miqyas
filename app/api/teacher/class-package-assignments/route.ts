@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient, requireUserRole } from "@/lib/supabase-admin";
+import { normalizeSubject } from "@/lib/subjects";
 
 export const dynamic = "force-dynamic";
 
@@ -46,14 +47,6 @@ const createSchema = z.object({
   packageId: z.string().uuid(),
   classId: z.string().uuid(),
 });
-
-function normalizeSubject(subject: string | null | undefined) {
-  const value = (subject ?? "").trim();
-  if (["لغة عربية", "اللغة العربية", "عربية", "قراءة", "لغتي"].includes(value)) return "لغة عربية";
-  if (value === "رياضيات" || value === "الرياضيات") return "رياضيات";
-  if (value === "علوم" || value === "العلوم") return "علوم";
-  return value;
-}
 
 function canMatchPackageToClass(assessmentPackage: PackageRow, classItem: ClassRow) {
   const classGrade = Number(classItem.grade);
@@ -230,6 +223,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "هذا الاختبار غير مفعّل لمدرستك" }, { status: 403 });
     }
 
+    const { count: questionCount, error: questionCountError } = await db
+      .from("package_questions")
+      .select("id", { count: "exact", head: true })
+      .eq("package_id", packageId);
+    if (questionCountError) throw questionCountError;
+    if (!questionCount) {
+      return NextResponse.json({ success: false, error: "لا يمكن تطبيق اختبار بدون مفتاح إجابة" }, { status: 400 });
+    }
+
     if (!canMatchPackageToClass(assessmentPackage, classItem)) {
       return NextResponse.json(
         { success: false, error: "الاختبار لا يطابق صف أو مادة الفصل المختار" },
@@ -242,7 +244,6 @@ export async function POST(req: NextRequest) {
       .select("id, package_id, school_id, class_id, teacher_id, status, printed_at, scanned_at, completed_at, created_at")
       .eq("package_id", packageId)
       .eq("class_id", classId)
-      .eq("teacher_id", auth.profile.id)
       .maybeSingle();
 
     if (existingError) throw existingError;

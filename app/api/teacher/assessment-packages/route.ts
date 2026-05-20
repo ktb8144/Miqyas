@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient, requireUserRole } from "@/lib/supabase-admin";
+import { normalizeSubject } from "@/lib/subjects";
 
 export const dynamic = "force-dynamic";
 
@@ -34,14 +35,6 @@ type PackageRow = {
   published_at: string | null;
   created_at: string;
 };
-
-function normalizeSubject(subject: string | null | undefined) {
-  const value = (subject ?? "").trim();
-  if (["لغة عربية", "اللغة العربية", "عربية", "قراءة", "لغتي"].includes(value)) return "لغة عربية";
-  if (value === "رياضيات" || value === "الرياضيات") return "رياضيات";
-  if (value === "علوم" || value === "العلوم") return "علوم";
-  return value;
-}
 
 function classMatchesPackage(classItem: ClassRow, assessmentPackage: PackageRow) {
   const grade = Number(classItem.grade);

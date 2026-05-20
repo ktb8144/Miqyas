@@ -7,6 +7,7 @@ import { StudentImportFlow } from "@/components/student-import-flow";
 import { BatchOMRScanner } from "@/components/batch-omr-scanner";
 import { supabase } from "@/lib/supabase";
 import { formatSchoolDateRange, toEnglishDigits } from "@/lib/format";
+import { normalizeSubject } from "@/lib/subjects";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -139,17 +140,6 @@ type PackageResultDetails = {
   }>;
   weakestSkills: Array<{ name: string; wrong: number; total: number }>;
   weakestDomains: Array<{ name: string; wrong: number; total: number }>;
-};
-
-type ParentReportStats = {
-  totalLinks: number;
-  openedReports: number;
-  openRate: number | null;
-  missionOpens: number;
-  missionCompleted: number;
-  subscriptionInterestCount: number;
-  unopenedLinks: number;
-  generatedAt?: string;
 };
 
 // ─── Report Modal ─────────────────────────────────────────────────────────────
@@ -363,13 +353,6 @@ export default function TeacherDashboard() {
   const [packageResultsLoading, setPackageResultsLoading] = useState(false);
   const [packageResultsError, setPackageResultsError] = useState<string | null>(null);
   const [selectedClassAssignment, setSelectedClassAssignment] = useState<Record<string, string>>({});
-  const [parentLinkLoadingStudentId, setParentLinkLoadingStudentId] = useState<string | null>(null);
-  const [parentLinkMessage, setParentLinkMessage] = useState<string | null>(null);
-  const [parentLinkStudent, setParentLinkStudent] = useState<Student | null>(null);
-  const [parentStats, setParentStats] = useState<ParentReportStats | null>(null);
-  const [parentStatsLoading, setParentStatsLoading] = useState(false);
-  const [parentStatsError, setParentStatsError] = useState<string | null>(null);
-
   // ── Student add (manual) state ───────────────────────────────────────────────
   const [showAddStudents, setShowAddStudents] = useState(false);
   const [addStudentMode, setAddStudentMode] = useState<"choice" | "import" | "manual">("choice");
@@ -622,31 +605,9 @@ export default function TeacherDashboard() {
     }
   }, []);
 
-  const loadParentReportStats = useCallback(async () => {
-    setParentStatsLoading(true);
-    setParentStatsError(null);
-    try {
-      const res = await fetch(`/api/teacher/parent-report-stats?t=${Date.now()}`, {
-        cache: "no-store",
-        headers: { "Cache-Control": "no-store" },
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل تفاعل أولياء الأمور");
-      setParentStats({ ...(json.data as ParentReportStats), generatedAt: json.generatedAt });
-    } catch (err) {
-      setParentStatsError(err instanceof Error ? err.message : "تعذر تحميل تفاعل أولياء الأمور");
-    } finally {
-      setParentStatsLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     void loadPackageWorkflow();
   }, [loadPackageWorkflow]);
-
-  useEffect(() => {
-    void loadParentReportStats();
-  }, [loadParentReportStats]);
 
   // ── Report generation ────────────────────────────────────────────────────────
   const generateReport = async () => {
@@ -871,42 +832,6 @@ export default function TeacherDashboard() {
     }
   };
 
-  const createParentReportLink = async (student: Student, mode: "link" | "whatsapp") => {
-    setParentLinkLoadingStudentId(student.id);
-    setParentLinkMessage(null);
-    try {
-      const res = await fetch("/api/parent-report-tokens", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId: student.id }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || "تعذر إنشاء رابط ولي الأمر");
-      const message = `ولي الأمر الكريم،
-يمكنكم الاطلاع على تقرير مختصر يوضح مستوى ابنكم في المهارات الأساسية، مع تدريب مقترح على المهارة التي تحتاج إلى تقوية.
-رابط التقرير:
-${json.url}
-مِقياس — نكتشف الاحتياج مبكرًا وندعم الطالب بخطوات بسيطة.`;
-      const textToCopy = mode === "whatsapp" ? message : json.url;
-      if (navigator.clipboard && json.url) {
-        await navigator.clipboard.writeText(textToCopy);
-        setParentLinkMessage(mode === "whatsapp"
-          ? `تم نسخ رسالة واتساب للطالب ${student.name}.`
-          : `تم نسخ رابط ولي الأمر للطالب ${student.name}.`);
-      } else {
-        setParentLinkMessage(mode === "whatsapp"
-          ? message
-          : `رابط ولي الأمر للطالب ${student.name}: ${json.url}`);
-      }
-      setParentLinkStudent(null);
-      await loadParentReportStats();
-    } catch (err) {
-      setParentLinkMessage(err instanceof Error ? err.message : "تعذر إنشاء رابط ولي الأمر");
-    } finally {
-      setParentLinkLoadingStudentId(null);
-    }
-  };
-
   const handleAddClass = async (input: { name: string; grade: number; subject: string }) => {
     if (!teacherProfile) throw new Error("تعذر تحديد حساب المعلم");
 
@@ -938,6 +863,21 @@ ${json.url}
 
     setClasses((prev) => [cls, ...prev]);
     setClassStudents((prev) => ({ ...prev, [cls.id]: [] }));
+    const matchingPackages = packages.filter(
+      (item) => item.grade === cls.grade && normalizeSubject(item.subject) === normalizeSubject(cls.subject) && item.question_count > 0
+    );
+    if (matchingPackages.length > 0) {
+      await Promise.allSettled(
+        matchingPackages.map((item) =>
+          fetch("/api/teacher/class-package-assignments", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ packageId: item.id, classId: cls.id }),
+          })
+        )
+      );
+      await loadPackageWorkflow();
+    }
   };
 
   const handleViewStudents = (classId: string) => {
@@ -1115,36 +1055,6 @@ ${json.url}
         />
       )}
 
-      {parentLinkStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" dir="rtl">
-          <div className="w-full max-w-md rounded-[1.5rem] bg-white p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-sm font-extrabold text-[#159f91]">مشاركة تقرير ولي الأمر</p>
-                <h2 className="mt-1 text-lg font-black text-[#0b2447]">{parentLinkStudent.name}</h2>
-              </div>
-              <button onClick={() => setParentLinkStudent(null)} className="text-2xl text-slate-300">×</button>
-            </div>
-            <div className="space-y-3">
-              <button
-                onClick={() => void createParentReportLink(parentLinkStudent, "link")}
-                disabled={parentLinkLoadingStudentId === parentLinkStudent.id}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
-              >
-                نسخ الرابط فقط
-              </button>
-              <button
-                onClick={() => void createParentReportLink(parentLinkStudent, "whatsapp")}
-                disabled={parentLinkLoadingStudentId === parentLinkStudent.id}
-                className="w-full rounded-xl bg-[#159f91] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
-              >
-                نسخ رسالة واتساب جاهزة
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── Header ─────────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 lg:px-8">
@@ -1265,58 +1175,7 @@ ${json.url}
               </div>
             </section>
 
-            {/* ── SECTION 2: فصولي ──────────────────────────────────────────────── */}
-            <section>
-              <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-extrabold text-[#159f91]">تفاعل أولياء الأمور</p>
-                    <h2 className="mt-1 text-xl font-black text-[#0b2447]">روابط تقارير ولي الأمر</h2>
-                  </div>
-                  <button
-                    onClick={loadParentReportStats}
-                    disabled={parentStatsLoading}
-                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
-                  >
-                    تحديث
-                  </button>
-                </div>
-                {parentStatsLoading ? (
-                  <div className="rounded-xl border border-dashed border-teal-100 bg-teal-50/40 p-5 text-center text-sm font-bold text-slate-500">
-                    جارٍ تحميل تفاعل أولياء الأمور...
-                  </div>
-                ) : parentStatsError ? (
-                  <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">
-                    {parentStatsError}
-                  </div>
-                ) : parentStats && parentStats.totalLinks > 0 ? (
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                    {[
-                      { label: "روابط منشأة", value: parentStats.totalLinks },
-                      { label: "تقارير مفتوحة", value: parentStats.openedReports },
-                      { label: "نسبة الفتح", value: parentStats.openRate === null ? "—" : `${toEnglishDigits(parentStats.openRate)}٪` },
-                      { label: "تدريبات مكتملة", value: parentStats.missionCompleted },
-                      { label: "مهتمون بالتدريب", value: parentStats.subscriptionInterestCount },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-xl bg-slate-50 p-3 text-center">
-                        <div className="text-2xl font-black text-[#0b2447]">{typeof item.value === "number" ? toEnglishDigits(item.value) : item.value}</div>
-                        <div className="mt-1 text-xs font-bold text-slate-400">{item.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-teal-100 bg-teal-50/40 p-5 text-center">
-                    <p className="font-bold text-slate-500">لم يتم إنشاء روابط ولي أمر بعد.</p>
-                    <p className="mt-1 text-sm font-bold text-slate-400">بعد إنشاء الروابط ستظهر هنا الفتحات والتدريبات المكتملة.</p>
-                  </div>
-                )}
-                {parentStats && parentStats.totalLinks > 0 && parentStats.openedReports === 0 && (
-                  <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
-                    لم يفتح أولياء الأمور التقارير بعد.
-                  </p>
-                )}
-              </div>
-            </section>
+            {/* تقارير ولي الأمر انتقلت إلى حساب قائد المدرسة في checkpoint الحالي. */}
 
             {/* ── SECTION 3: فصولي ──────────────────────────────────────────────── */}
             <section>
@@ -1821,12 +1680,6 @@ ${json.url}
                   + إضافة طلاب
                 </button>
               </div>
-              {parentLinkMessage && (
-                <div className="mx-4 mt-4 rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-[#159f91]">
-                  {parentLinkMessage}
-                </div>
-              )}
-
               {activeStudents.length === 0 ? (
                 <div className="py-12 text-center text-gray-400">
                   <div className="text-4xl mb-3">👥</div>
@@ -1865,15 +1718,7 @@ ${json.url}
                           <td className="px-4 py-3">
                             {s.score > 0 ? <LevelBadge score={s.score} total={s.total} /> : <span className="text-gray-300 text-sm">—</span>}
                           </td>
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => setParentLinkStudent(s)}
-                              disabled={parentLinkLoadingStudentId === s.id}
-                              className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
-                            >
-                              {parentLinkLoadingStudentId === s.id ? "جارٍ الإنشاء..." : "رابط ولي الأمر"}
-                            </button>
-                          </td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-300">—</td>
                         </tr>
                       ))}
                     </tbody>

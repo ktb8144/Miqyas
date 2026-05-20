@@ -138,6 +138,7 @@ type AdminAssessmentPackage = {
   subject: string;
   grade: number;
   week_number: number | null;
+  assessment_code: string | null;
   package_type: string | null;
   duration_minutes: number | null;
   status: string;
@@ -161,6 +162,7 @@ type PackageFormData = {
   subject: string;
   grade: string;
   week_number: string;
+  assessment_code: string;
   package_type: string;
   duration_minutes: string;
   start_date: string;
@@ -1211,6 +1213,10 @@ function PackageModal({
             <input name="week_number" type="number" min={1} defaultValue={initialValues?.week_number ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
           </label>
           <label>
+            <span className="mb-2 block text-sm font-extrabold text-slate-500">رقم النموذج</span>
+            <input name="assessment_code" defaultValue={initialValues?.assessment_code ?? ""} placeholder="مثال: M4-W03-A" className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+          </label>
+          <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">نوع الحزمة</span>
             <select name="package_type" defaultValue={initialValues?.package_type ?? "weekly"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white">
               <option value="weekly">أسبوعي</option>
@@ -1499,6 +1505,8 @@ function PackagesTab({
   onEdit,
   onImport,
   onPublish,
+  onApplyClasses,
+  onWithdraw,
   onArchive,
   busyPackageId,
 }: {
@@ -1512,6 +1520,8 @@ function PackagesTab({
   onEdit: (item: AdminAssessmentPackage) => void;
   onImport: (item: AdminAssessmentPackage) => void;
   onPublish: (item: AdminAssessmentPackage) => void;
+  onApplyClasses: (item: AdminAssessmentPackage) => void;
+  onWithdraw: (item: AdminAssessmentPackage) => void;
   onArchive: (item: AdminAssessmentPackage) => void;
   busyPackageId: string | null;
 }) {
@@ -1556,7 +1566,7 @@ function PackagesTab({
                   </div>
                   <h3 className="mt-3 text-xl font-black text-[#0b2447]">{item.title}</h3>
                   <p className="mt-2 text-sm font-bold text-slate-400">
-                    الأسبوع {toEnglishDigits(item.week_number ?? "—")} · {toEnglishDigits(item.duration_minutes ?? "—")} دقيقة
+                    الأسبوع {toEnglishDigits(item.week_number ?? "—")} · نموذج {toEnglishDigits(item.assessment_code ?? "—")} · {toEnglishDigits(item.duration_minutes ?? "—")} دقيقة
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
@@ -1582,6 +1592,8 @@ function PackagesTab({
                 <SoftButton onClick={() => onEdit(item)} disabled={busy}>تعديل</SoftButton>
                 <SoftButton onClick={() => onImport(item)} disabled={busy}>استيراد/تعديل مفتاح الإجابة</SoftButton>
                 <SoftButton onClick={() => onPublish(item)} disabled={busy || item.status === "archived"}>نشر للمدارس</SoftButton>
+                <SoftButton onClick={() => onApplyClasses(item)} disabled={busy || item.status !== "published"}>تطبيق على كل الفصول المطابقة</SoftButton>
+                <SoftButton onClick={() => onWithdraw(item)} disabled={busy || item.status !== "published"}>سحب من المدارس</SoftButton>
                 <SoftButton onClick={() => onArchive(item)} disabled={busy || item.status === "archived"} title={item.status === "archived" ? "مؤرشفة بالفعل" : undefined}>
                   أرشفة
                 </SoftButton>
@@ -2104,6 +2116,7 @@ export default function AdminPage() {
       subject: payload.subject?.trim() || "رياضيات",
       grade: Number(payload.grade || 6),
       week_number: payload.week_number ? Number(payload.week_number) : null,
+      assessment_code: payload.assessment_code?.trim() || null,
       package_type: payload.package_type?.trim() || "weekly",
       duration_minutes: payload.duration_minutes ? Number(payload.duration_minutes) : null,
       start_date: payload.start_date || null,
@@ -2179,7 +2192,40 @@ export default function AdminPage() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok || !json.success) throw new Error(json.error || "فشل نشر الحزمة");
       await loadPackages();
-      window.alert("تم نشر الحزمة للمدارس المحددة");
+      window.alert(`تم نشر الحزمة وربط ${toEnglishDigits(json.assignedClassCount ?? 0)} فصل مطابق`);
+    } finally {
+      setBusyPackageId(null);
+    }
+  }
+
+  async function handleWithdrawPackage(item: AdminAssessmentPackage) {
+    if (!window.confirm("سيتم سحب الحزمة من المدارس والفصول المطابقة. لن تُحذف النتائج السابقة. هل تريد المتابعة؟")) return;
+    setBusyPackageId(item.id);
+    try {
+      const res = await fetch(`/api/admin/assessment-packages/${item.id}/withdraw`, { method: "PATCH" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل سحب الحزمة");
+      await loadPackages();
+      window.alert("تم سحب الحزمة من المدارس والفصول");
+    } catch (error) {
+      console.error("withdraw package failed", error);
+      window.alert(error instanceof Error ? error.message : "فشل سحب الحزمة");
+    } finally {
+      setBusyPackageId(null);
+    }
+  }
+
+  async function handleApplyPackageClasses(item: AdminAssessmentPackage) {
+    setBusyPackageId(item.id);
+    try {
+      const res = await fetch(`/api/admin/assessment-packages/${item.id}/apply-classes`, { method: "POST" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "فشل تطبيق الحزمة على الفصول");
+      await loadPackages();
+      window.alert(`تم تطبيق الحزمة على ${toEnglishDigits(json.assignedClassCount ?? 0)} فصل مطابق`);
+    } catch (error) {
+      console.error("apply package classes failed", error);
+      window.alert(error instanceof Error ? error.message : "فشل تطبيق الحزمة على الفصول");
     } finally {
       setBusyPackageId(null);
     }
@@ -2469,6 +2515,8 @@ export default function AdminPage() {
               onEdit={openEditPackageModal}
               onImport={setImportingPackage}
               onPublish={setPublishingPackage}
+              onApplyClasses={handleApplyPackageClasses}
+              onWithdraw={handleWithdrawPackage}
               onArchive={handleArchivePackage}
               busyPackageId={busyPackageId}
             />

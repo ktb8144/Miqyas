@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
-import { parseWeeklyAnswerKey, syncWeeklyQuestionsFromAnswerKey, WeeklyAnswerKeyValidationError } from "@/lib/weekly-answer-key";
+import { AssessmentValidationError, parsePackageAnswerKey, syncPackageQuestionsFromAnswerKey } from "@/lib/assessment";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,7 @@ const packageSchema = z.object({
   subject: z.string().trim().min(1, "المادة مطلوبة"),
   grade: z.coerce.number().int().min(1).max(12),
   week_number: z.coerce.number().int().min(1).max(60).optional().nullable(),
+  assessment_code: z.string().trim().optional().nullable(),
   start_date: z.string().trim().optional().nullable(),
   end_date: z.string().trim().optional().nullable(),
   duration_minutes: z.coerce.number().int().positive().optional().nullable(),
@@ -31,6 +32,7 @@ type PackageRow = {
   subject: string;
   grade: number;
   week_number: number | null;
+  assessment_code: string | null;
   duration_minutes: number | null;
   package_type: string | null;
   status: string;
@@ -73,30 +75,9 @@ async function countIncompletePackageQuestions(packageIds: string[]) {
         .from("package_questions")
         .select("id", { count: "exact", head: true })
         .eq("package_id", packageId)
-        .or("nafs_domain_id.is.null,skill_id.is.null");
+        .or("and(nafs_domain_id.is.null,domain_text.is.null),and(skill_id.is.null,skill_text.is.null)");
       if (error) throw error;
       return [packageId, count ?? 0] as const;
-    })
-  );
-  return new Map(entries);
-}
-
-async function countWeeklyPackageQuestions(packages: PackageRow[]) {
-  const db = getAdminClient();
-  const entries = await Promise.all(
-    packages.map(async (assessmentPackage) => {
-      const assessmentDate = assessmentPackage.start_date ?? new Date().toISOString().slice(0, 10);
-      const weekNumber = Number(assessmentPackage.week_number ?? 0);
-      const { data, error } = await db
-        .from("weekly_questions")
-        .select("sort_order")
-        .eq("subject", assessmentPackage.subject)
-        .eq("grade", assessmentPackage.grade)
-        .eq("week_number", weekNumber)
-        .eq("assessment_date", assessmentDate);
-      if (error) throw error;
-      const uniqueQuestions = new Set((data ?? []).map((item) => Number(item.sort_order)).filter(Number.isFinite));
-      return [assessmentPackage.id, uniqueQuestions.size] as const;
     })
   );
   return new Map(entries);
@@ -119,6 +100,7 @@ export async function GET(req: NextRequest) {
         subject,
         grade,
         week_number,
+        assessment_code,
         duration_minutes,
         package_type,
         status,
@@ -138,9 +120,8 @@ export async function GET(req: NextRequest) {
 
     const packages = (data ?? []) as PackageRow[];
     const packageIds = packages.map((item) => item.id);
-    const [questionCounts, weeklyQuestionCounts, schoolCounts, incompleteQuestionCounts] = await Promise.all([
+    const [questionCounts, schoolCounts, incompleteQuestionCounts] = await Promise.all([
       countPackageRows(packageIds, "package_questions"),
-      countWeeklyPackageQuestions(packages),
       countPackageRows(packageIds, "school_package_assignments"),
       countIncompletePackageQuestions(packageIds),
     ]);
@@ -150,9 +131,9 @@ export async function GET(req: NextRequest) {
       data: packages.map((item) => ({
         ...item,
         package_type: item.package_type ?? "weekly",
-        question_count: Math.max(questionCounts.get(item.id) ?? 0, weeklyQuestionCounts.get(item.id) ?? 0),
+        question_count: questionCounts.get(item.id) ?? 0,
         assigned_school_count: schoolCounts.get(item.id) ?? 0,
-        incomplete_question_count: (weeklyQuestionCounts.get(item.id) ?? 0) > 0 ? 0 : incompleteQuestionCounts.get(item.id) ?? 0,
+        incomplete_question_count: incompleteQuestionCounts.get(item.id) ?? 0,
       })),
     });
   } catch (err) {
@@ -178,7 +159,7 @@ export async function POST(req: NextRequest) {
 
     const body = parsed.data;
     if (body.answer_key_json) {
-      parseWeeklyAnswerKey(body.answer_key_json);
+      parsePackageAnswerKey(body.answer_key_json);
     }
 
     const db = getAdminClient();
@@ -190,6 +171,7 @@ export async function POST(req: NextRequest) {
         subject: body.subject,
         grade: body.grade,
         week_number: body.week_number ?? null,
+        assessment_code: emptyToNull(body.assessment_code),
         start_date: emptyToNull(body.start_date),
         end_date: emptyToNull(body.end_date),
         duration_minutes: body.duration_minutes ?? null,
@@ -206,15 +188,12 @@ export async function POST(req: NextRequest) {
 
     if (error) throw error;
     if (body.answer_key_json) {
-      await syncWeeklyQuestionsFromAnswerKey({
+      await syncPackageQuestionsFromAnswerKey({
         db,
-        authId: auth.user.id,
         assessmentPackage: {
           id: data.id,
           subject: data.subject,
           grade: data.grade,
-          week_number: data.week_number,
-          start_date: data.start_date,
         },
         answerKeyInput: body.answer_key_json,
       });
@@ -223,7 +202,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, data });
   } catch (err) {
     console.error("admin assessment package create failed", err);
-    if (err instanceof WeeklyAnswerKeyValidationError) {
+    if (err instanceof AssessmentValidationError) {
       return NextResponse.json({ success: false, error: err.message }, { status: 400 });
     }
     return NextResponse.json(
