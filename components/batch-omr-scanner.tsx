@@ -7,6 +7,8 @@ import { toEnglishDigits } from "@/lib/format";
 
 const Q_COUNT = 10;
 const MAX_PAPERS = 40;
+const A4_CAPTURE_WIDTH = 1240;
+const A4_CAPTURE_HEIGHT = 1754;
 const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -141,6 +143,34 @@ async function compressImage(base64: string, maxWidth: number, quality: number):
     img.onerror = () => resolve(base64); // fallback
     img.src = `data:image/jpeg;base64,${base64}`;
   });
+}
+
+function drawVideoCoverToPortraitCanvas(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
+  const sourceWidth = video.videoWidth || A4_CAPTURE_WIDTH;
+  const sourceHeight = video.videoHeight || A4_CAPTURE_HEIGHT;
+  canvas.width = A4_CAPTURE_WIDTH;
+  canvas.height = A4_CAPTURE_HEIGHT;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return { sourceWidth, sourceHeight, canvasWidth: canvas.width, canvasHeight: canvas.height };
+
+  const sourceRatio = sourceWidth / sourceHeight;
+  const targetRatio = A4_CAPTURE_WIDTH / A4_CAPTURE_HEIGHT;
+  let sx = 0;
+  let sy = 0;
+  let sw = sourceWidth;
+  let sh = sourceHeight;
+
+  if (sourceRatio > targetRatio) {
+    sw = sourceHeight * targetRatio;
+    sx = (sourceWidth - sw) / 2;
+  } else {
+    sh = sourceWidth / targetRatio;
+    sy = (sourceHeight - sh) / 2;
+  }
+
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, A4_CAPTURE_WIDTH, A4_CAPTURE_HEIGHT);
+  return { sourceWidth, sourceHeight, canvasWidth: canvas.width, canvasHeight: canvas.height };
 }
 
 async function fileToBase64(file: File): Promise<string> {
@@ -474,7 +504,7 @@ export function BatchOMRScanner({
   const openCamera = useCallback(async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1654 }, height: { ideal: 2339 }, aspectRatio: { ideal: 0.7071 } },
+        video: { facingMode: "environment", width: { ideal: A4_CAPTURE_WIDTH }, height: { ideal: A4_CAPTURE_HEIGHT }, aspectRatio: { ideal: 0.7071 } },
       });
       streamRef.current = s;
       setCameraOpen(true);
@@ -503,9 +533,9 @@ export function BatchOMRScanner({
     if ("vibrate" in navigator) navigator.vibrate?.(35);
 
     try {
-      const apiMaxWidth = mode === "package" ? 1900 : 900;
-      const apiQuality = mode === "package" ? 0.85 : 0.8;
-      const reviewMaxWidth = mode === "package" ? 2200 : 1400;
+      const apiMaxWidth = mode === "package" ? 1500 : 900;
+      const apiQuality = mode === "package" ? 0.8 : 0.8;
+      const reviewMaxWidth = mode === "package" ? 1800 : 1400;
       const [compressed, review, thumb] = await Promise.all([
         compressImage(raw, apiMaxWidth, apiQuality),
         compressImage(raw, reviewMaxWidth, 0.9),
@@ -535,13 +565,15 @@ export function BatchOMRScanner({
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
 
-    const width = video.videoWidth || 1654;
-    const height = video.videoHeight || 2339;
-    canvas.width = width;
-    canvas.height = height;
-    canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const captureInfo = drawVideoCoverToPortraitCanvas(video, canvas);
+    console.debug("miqyas capture dimensions", {
+      videoWidth: captureInfo.sourceWidth,
+      videoHeight: captureInfo.sourceHeight,
+      canvasWidth: captureInfo.canvasWidth,
+      canvasHeight: captureInfo.canvasHeight,
+    });
     const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
-    const qualityHint = width < 1000 || height < 1400
+    const qualityHint = captureInfo.sourceWidth < 1000 || captureInfo.sourceHeight < 1400
       ? "تم الالتقاط، لكن جودة الكاميرا منخفضة. قرّب الورقة قليلًا وحافظ على الإضاءة."
       : undefined;
     await addPaperFromRaw(raw, qualityHint);
@@ -650,15 +682,60 @@ export function BatchOMRScanner({
     closeCamera();
     setStep("processing");
     setProcessingCount(0);
-    let done = 0;
-    const allResults = await Promise.all(
-      papers.map(async (paper) => {
+    const allResults: ScanResult[] = [];
+
+    for (const paper of papers) {
+      const startedAt = new Date().toISOString();
+      console.debug("miqyas paper scan start", {
+        paperId: paper.id,
+        imageBase64Length: paper.imageBase64.length,
+        startedAt,
+      });
+      try {
         const result = await scanImage(paper.imageBase64, paper.id, paper.thumbBase64, paper.reviewBase64);
-        done++;
-        setProcessingCount(done);
-        return result;
-      })
-    );
+        const finishedAt = new Date().toISOString();
+        console.debug("miqyas paper scan finish", {
+          paperId: paper.id,
+          imageBase64Length: paper.imageBase64.length,
+          startedAt,
+          finishedAt,
+          success: !result.error,
+          failure: result.error,
+          errorMessage: result.errorMsg ?? null,
+        });
+        allResults.push(result);
+      } catch (err) {
+        const finishedAt = new Date().toISOString();
+        const errorMessage = err instanceof Error ? err.message : "تعذرت قراءة الورقة";
+        console.debug("miqyas paper scan finish", {
+          paperId: paper.id,
+          imageBase64Length: paper.imageBase64.length,
+          startedAt,
+          finishedAt,
+          success: false,
+          failure: true,
+          errorMessage,
+        });
+        allResults.push({
+          paperId: paper.id,
+          studentName: "",
+          studentCode: "",
+          editedName: "",
+          answers: {},
+          score: 0,
+          total: Q_COUNT,
+          percentage: 0,
+          level: "دون الأساسي",
+          weakSkills: [],
+          error: true,
+          errorMsg: errorMessage,
+          reviewBase64: paper.reviewBase64,
+          thumbBase64: paper.thumbBase64,
+        });
+      } finally {
+        setProcessingCount(allResults.length);
+      }
+    }
 
     setResults(allResults);
     const successCount = allResults.filter((r) => !r.error).length;
@@ -897,10 +974,12 @@ export function BatchOMRScanner({
                   </div>
                 )}
                 <div
-                  className={`relative flex-1 overflow-hidden bg-black transition-all duration-150 ${captureFlash ? "scale-[0.99] ring-4 ring-teal-200" : ""}`}
+                  className={`relative mx-auto my-20 w-[min(92vw,430px)] max-h-[calc(100vh-170px)] overflow-hidden rounded-2xl border-4 bg-black transition-all duration-150 ${captureFlash ? "scale-[0.99] ring-4 ring-teal-200" : ""}`}
                   style={{ borderColor: "#1D9E75" }}
                 >
-                  <video ref={videoRef} className="absolute inset-0 h-full w-full object-contain" playsInline muted />
+                  <div className="relative h-full w-full" style={{ aspectRatio: "1 / 1.414" }}>
+                    <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted />
+                  </div>
                   {captureFlash && <div className="absolute inset-0 bg-white/45 pointer-events-none" />}
                   {capturedPreview && (
                     <div className="absolute inset-0 z-10 bg-black/70 flex items-center justify-center p-4">
