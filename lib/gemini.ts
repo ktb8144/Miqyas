@@ -1,12 +1,4 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { createHash } from "crypto";
-
-const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || "gemini-2.5-flash";
-const scanCache = new Map<string, OMRResult>();
-
-export function getGeminiVisionModelName() {
-  return GEMINI_VISION_MODEL;
-}
 
 function getModel() {
   const key = process.env.GEMINI_API_KEY;
@@ -14,14 +6,7 @@ function getModel() {
     throw new Error("GEMINI_API_KEY is not configured");
   }
   const genAI = new GoogleGenerativeAI(key);
-  return genAI.getGenerativeModel({
-    model: GEMINI_VISION_MODEL,
-    generationConfig: {
-      temperature: 0,
-      topP: 0.1,
-      responseMimeType: "application/json",
-    },
-  });
+  return genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -45,27 +30,6 @@ const ARABIC_DIGITS: Record<string, string> = {
 
 function stripCodeFence(text: string) {
   return text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-}
-
-function cloneOmrResult(result: OMRResult): OMRResult {
-  return { ...result };
-}
-
-function computeImageHash(imageBase64: string) {
-  return createHash("sha256").update(imageBase64).digest("hex");
-}
-
-function getCachedScan(cacheKey: string, imageHash: string): OMRResult | null {
-  const cached = scanCache.get(cacheKey);
-  return cached ? { ...cloneOmrResult(cached), _imageHash: imageHash, _modelName: GEMINI_VISION_MODEL, _cacheHit: "true" } : null;
-}
-
-function setCachedScan(cacheKey: string, result: OMRResult) {
-  if (scanCache.size > 100) {
-    const oldestKey = scanCache.keys().next().value as string | undefined;
-    if (oldestKey) scanCache.delete(oldestKey);
-  }
-  scanCache.set(cacheKey, cloneOmrResult(result));
 }
 
 function normalizeQuestionKey(key: string) {
@@ -165,11 +129,6 @@ export async function scanAnswerSheet(
   totalQuestions: number,
   mimeType: string = "image/jpeg"
 ): Promise<OMRResult> {
-  const imageHash = computeImageHash(imageBase64);
-  const cacheKey = `answer_sheet:${GEMINI_VISION_MODEL}:${mimeType}:${totalQuestions}:${imageHash}`;
-  const cached = getCachedScan(cacheKey, imageHash);
-  if (cached) return cached;
-
   const model = getModel();
 
   const prompt = `You are analyzing a physical paper answer sheet from a Saudi school exam.
@@ -212,21 +171,12 @@ Return the JSON object only — no markdown, no explanation.`;
   const jsonText = stripCodeFence(text);
 
   try {
-    const parsed = JSON.parse(jsonText) as OMRResult;
-    parsed._imageHash = imageHash;
-    parsed._modelName = GEMINI_VISION_MODEL;
-    parsed._cacheHit = "false";
-    setCachedScan(cacheKey, parsed);
-    return parsed;
+    return JSON.parse(jsonText) as OMRResult;
   } catch {
     const partial: OMRResult = { studentName: "" };
     for (let i = 1; i <= totalQuestions; i++) {
       partial[`q${i}`] = "unclear";
     }
-    partial._imageHash = imageHash;
-    partial._modelName = GEMINI_VISION_MODEL;
-    partial._cacheHit = "false";
-    setCachedScan(cacheKey, partial);
     return partial;
   }
 }
@@ -238,11 +188,6 @@ export async function scanQuestionPaperAnswers(
   totalQuestions: number,
   mimeType: string = "image/jpeg"
 ): Promise<OMRResult> {
-  const imageHash = computeImageHash(imageBase64);
-  const cacheKey = `question_paper:${GEMINI_VISION_MODEL}:${mimeType}:${totalQuestions}:${imageHash}`;
-  const cached = getCachedScan(cacheKey, imageHash);
-  if (cached) return cached;
-
   const model = getModel();
 
   const prompt = `You are analyzing a full printed Arabic question paper from a Saudi school exam.
@@ -301,20 +246,12 @@ Return this exact shape:
     normalized._parseableJson = "true";
     normalized._geminiReturnedText = text ? "true" : "false";
     normalized._rawTextPreview = text.slice(0, 300);
-    normalized._imageHash = imageHash;
-    normalized._modelName = GEMINI_VISION_MODEL;
-    normalized._cacheHit = "false";
-    setCachedScan(cacheKey, normalized);
     return normalized;
   } catch {
     const normalized = normalizeScannedAnswers({}, totalQuestions);
     normalized._parseableJson = "false";
     normalized._geminiReturnedText = text ? "true" : "false";
     normalized._rawTextPreview = text.slice(0, 300);
-    normalized._imageHash = imageHash;
-    normalized._modelName = GEMINI_VISION_MODEL;
-    normalized._cacheHit = "false";
-    setCachedScan(cacheKey, normalized);
     return normalized;
   }
 }

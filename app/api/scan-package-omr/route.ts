@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getGeminiVisionModelName, scanAnswerSheet, scanQuestionPaperAnswers } from "@/lib/gemini";
+import { scanAnswerSheet, scanQuestionPaperAnswers } from "@/lib/gemini";
 import { getLevel } from "@/lib/demo-data";
 import { getAdminClient, requireUserRole } from "@/lib/supabase-admin";
 
@@ -76,9 +76,6 @@ type ScanDebugInfo = {
   detectedAnswerCount: number;
   errorStage?: string;
   rawResponsePreview?: string;
-  modelName: string;
-  imageHash?: string;
-  cacheHit?: boolean;
 };
 
 const scanSchema = z.object({
@@ -142,9 +139,6 @@ function buildScanDebug({
     detectedAnswerCount,
     errorStage,
     rawResponsePreview: scanned?._rawTextPreview,
-    modelName: scanned?._modelName || getGeminiVisionModelName(),
-    imageHash: scanned?._imageHash,
-    cacheHit: scanned?._cacheHit === "true",
   };
 }
 
@@ -157,9 +151,6 @@ function scanLogPayload(debug: ScanDebugInfo) {
     didGeminiReturnText: debug.didGeminiReturnText,
     didParseJson: debug.didParseJson,
     errorStage: debug.errorStage,
-    modelName: debug.modelName,
-    imageHash: debug.imageHash,
-    cacheHit: debug.cacheHit,
     rawResponsePreview: debug.rawResponsePreview,
   };
 }

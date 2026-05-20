@@ -65,7 +65,6 @@ interface ClassReport {
 }
 
 type ClassStudentsMap = Record<string, Student[]>;
-type AssignmentStudentScores = Record<string, Record<string, { score: number; total: number; percentage: number; level: string; scannedAt: string | null }>>;
 
 interface TeacherProfile {
   id: string;
@@ -351,7 +350,6 @@ export default function TeacherDashboard() {
   const [activePackageAssignment, setActivePackageAssignment] = useState<TeacherPackageAssignment | null>(null);
   const [packageResultsAssignment, setPackageResultsAssignment] = useState<TeacherPackageAssignment | null>(null);
   const [packageResults, setPackageResults] = useState<PackageResultDetails | null>(null);
-  const [assignmentStudentScores, setAssignmentStudentScores] = useState<AssignmentStudentScores>({});
   const [packageResultsLoading, setPackageResultsLoading] = useState(false);
   const [packageResultsError, setPackageResultsError] = useState<string | null>(null);
   const [selectedClassAssignment, setSelectedClassAssignment] = useState<Record<string, string>>({});
@@ -384,22 +382,11 @@ export default function TeacherDashboard() {
     acc[item.classId] = [...(acc[item.classId] ?? []), item];
     return acc;
   }, {});
-  const getSelectedAssignmentForClass = (classId: string) => {
-    const classAssignments = packageAssignmentsByClass[classId] ?? [];
-    const selectedAssignmentId = selectedClassAssignment[classId] ?? classAssignments[0]?.id ?? "";
-    return classAssignments.find((item) => item.id === selectedAssignmentId) ?? classAssignments[0] ?? null;
-  };
-  const getStudentPackageScore = (classId: string, studentId: string) => {
-    const assignment = getSelectedAssignmentForClass(classId);
-    return assignment ? assignmentStudentScores[assignment.id]?.[studentId] ?? null : null;
-  };
 
-  const calcPackageAvg = (classId: string, students: Student[]) => {
-    const scored = students
-      .map((student) => getStudentPackageScore(classId, student.id))
-      .filter((score): score is NonNullable<typeof score> => Boolean(score));
+  const calcAvg = (students: Student[]) => {
+    const scored = students.filter((s) => s.score > 0);
     if (!scored.length) return null;
-    return Math.round(scored.reduce((acc, score) => acc + score.percentage, 0) / scored.length);
+    return Math.round(scored.reduce((acc, s) => acc + (s.score / s.total) * 100, 0) / scored.length);
   };
 
   const getPerformanceLevel = (score: number, total: number) => {
@@ -600,28 +587,8 @@ export default function TeacherDashboard() {
       }
 
       const nextPackages = (packagesJson.packages ?? []) as TeacherPackage[];
-      const nextAssignments = (assignmentsJson.assignments ?? []) as TeacherPackageAssignment[];
       setPackages(nextPackages);
-      setPackageAssignments(nextAssignments);
-      const scoreEntries = await Promise.all(
-        nextAssignments.map(async (assignment) => {
-          const res = await fetch(`/api/teacher/class-package-assignments/${assignment.id}/results`, { cache: "no-store" });
-          const json = await res.json().catch(() => ({}));
-          if (!res.ok || !json.success) return [assignment.id, {}] as const;
-          const scores = ((json.data?.students ?? []) as PackageResultDetails["students"]).reduce<AssignmentStudentScores[string]>((acc, student) => {
-            acc[student.studentId] = {
-              score: student.score,
-              total: student.total,
-              percentage: student.percentage,
-              level: student.level,
-              scannedAt: null,
-            };
-            return acc;
-          }, {});
-          return [assignment.id, scores] as const;
-        })
-      );
-      setAssignmentStudentScores(Object.fromEntries(scoreEntries));
+      setPackageAssignments((assignmentsJson.assignments ?? []) as TeacherPackageAssignment[]);
       setSelectedPackageClasses((prev) => {
         const next = { ...prev };
         nextPackages.forEach((item) => {
@@ -767,38 +734,13 @@ export default function TeacherDashboard() {
   };
 
   const handlePackageScanComplete = async (
-    results: {
-      paperId?: string;
-      editedName: string;
-      studentName: string;
-      studentCode?: string;
-      answers: Record<string, string>;
-      score: number;
-      total: number;
-      matchedStudentId?: string | null;
-      matchConfidence?: "strong" | "code_only" | "name_only" | "conflict" | "needs_review";
-    }[]
+    results: { editedName: string; studentName: string; answers: Record<string, string>; score: number; total: number; matchedStudentId?: string | null }[]
   ) => {
     if (!activePackageAssignment) return;
 
     const students = classStudents[activePackageAssignment.classId] ?? [];
     if (!students.length) {
       throw new Error("لا يوجد طلاب في الفصل لحفظ نتائج التصحيح");
-    }
-
-    console.debug("miqyas package scan complete", results.map((result, index) => ({
-      paperId: result.paperId ?? `paper-${index + 1}`,
-      studentName: result.studentName || result.editedName,
-      studentCode: result.studentCode ?? "",
-      matchedStudentId: result.matchedStudentId ?? null,
-      matchConfidence: result.matchConfidence ?? null,
-    })));
-
-    const missingMatches = results.filter((result) => !result.matchedStudentId);
-    if (missingMatches.length) {
-      const first = missingMatches[0];
-      const label = first.studentName || first.editedName || first.studentCode || first.paperId || "ورقة غير محددة";
-      throw new Error(`لا يمكن حفظ الدفعة: توجد ورقة ناجحة بدون طالب مطابق (${label}). اختر الطالب يدويًا ثم أعد الحفظ.`);
     }
 
     const updates: Array<{ student: Student; result: { answers: Record<string, string>; score: number; total: number } }> = [];
@@ -809,9 +751,6 @@ export default function TeacherDashboard() {
         : null;
       if (student) {
         updates.push({ student, result });
-      } else {
-        const label = result.studentName || result.editedName || result.studentCode || result.paperId || "ورقة غير محددة";
-        throw new Error(`تعذر العثور على الطالب المطابق للورقة (${label}) داخل الفصل الحالي`);
       }
     });
 
@@ -841,8 +780,16 @@ export default function TeacherDashboard() {
       throw new Error(`تعذر حفظ نتائج ${toEnglishDigits(failures.length)} طالب`);
     }
 
+    setClassStudents((prev) => {
+      const updated = [...(prev[activePackageAssignment.classId] ?? [])];
+      updates.forEach(({ student, result }) => {
+        const index = updated.findIndex((item) => item.id === student.id);
+        if (index >= 0) updated[index] = { ...updated[index], score: result.score, total: result.total };
+      });
+      return { ...prev, [activePackageAssignment.classId]: updated };
+    });
+
     setPackageSuccess("تم حفظ نتائج اختبار مقياس بنجاح.");
-    await openPackageResults(activePackageAssignment);
     setActivePackageAssignment(null);
     await loadPackageWorkflow();
   };
@@ -1243,7 +1190,7 @@ export default function TeacherDashboard() {
                 )}
                 {classes.map((cls) => {
                   const students = classStudents[cls.id] ?? [];
-                  const avg = calcPackageAvg(cls.id, students);
+                  const avg = calcAvg(students);
                   const classAssignments = packageAssignmentsByClass[cls.id] ?? [];
                   const selectedAssignmentId = selectedClassAssignment[cls.id] ?? classAssignments[0]?.id ?? "";
                   const selectedAssignment = classAssignments.find((item) => item.id === selectedAssignmentId);
@@ -1752,31 +1699,28 @@ export default function TeacherDashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50">
-                      {activeStudents.map((s, i) => {
-                        const packageScore = activeClass ? getStudentPackageScore(activeClass.id, s.id) : null;
-                        return (
-                          <tr key={s.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-400 text-sm">{toEnglishDigits(i + 1)}</td>
-                            <td className="px-4 py-3">
-                              <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-[#159f91]">
-                                رقم الطالب: {toEnglishDigits(s.studentCode ?? i + 1)}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 font-medium text-gray-900">{s.name}</td>
-                            <td className="px-4 py-3">
-                              {packageScore ? (
-                                <><span className="font-bold text-gray-900">{toEnglishDigits(packageScore.score)}</span><span className="text-gray-400">/{toEnglishDigits(packageScore.total)}</span></>
-                              ) : (
-                                <span className="text-gray-300 text-sm">لم يقيم بعد</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3">
-                              {packageScore ? <LevelBadge score={packageScore.score} total={packageScore.total} /> : <span className="text-gray-300 text-sm">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-xs font-bold text-slate-300">—</td>
-                          </tr>
-                        );
-                      })}
+                      {activeStudents.map((s, i) => (
+                        <tr key={s.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-400 text-sm">{toEnglishDigits(i + 1)}</td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-[#159f91]">
+                              رقم الطالب: {toEnglishDigits(s.studentCode ?? i + 1)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-medium text-gray-900">{s.name}</td>
+                          <td className="px-4 py-3">
+                            {s.score > 0 ? (
+                              <><span className="font-bold text-gray-900">{toEnglishDigits(s.score)}</span><span className="text-gray-400">/{toEnglishDigits(s.total)}</span></>
+                            ) : (
+                              <span className="text-gray-300 text-sm">لم يُقيَّم بعد</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {s.score > 0 ? <LevelBadge score={s.score} total={s.total} /> : <span className="text-gray-300 text-sm">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-xs font-bold text-slate-300">—</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

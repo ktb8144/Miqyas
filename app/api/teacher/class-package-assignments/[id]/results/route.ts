@@ -11,7 +11,6 @@ type ResultRow = {
   percentage: number | string | null;
   level: string | null;
   scanned_at: string | null;
-  created_at: string | null;
 };
 
 type StudentRow = {
@@ -74,22 +73,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     const { data: resultRows, error: resultsError } = await db
       .from("student_package_results")
-      .select("id, student_id, score, total, percentage, level, scanned_at, created_at")
+      .select("id, student_id, score, total, percentage, level, scanned_at")
       .eq("class_package_assignment_id", params.id)
       .eq("school_id", schoolId)
       .eq("teacher_id", auth.profile.id)
-      .order("scanned_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });
 
     if (resultsError) throw resultsError;
 
-    const dedupedResults = new Map<string, ResultRow>();
-    ((resultRows ?? []) as ResultRow[]).forEach((item) => {
-      if (!dedupedResults.has(item.student_id)) {
-        dedupedResults.set(item.student_id, item);
-      }
-    });
-    const results = Array.from(dedupedResults.values());
+    const results = (resultRows ?? []) as ResultRow[];
     const studentIds = Array.from(new Set(results.map((item) => item.student_id)));
     const resultIds = results.map((item) => item.id);
 
