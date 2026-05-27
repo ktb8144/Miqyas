@@ -17,7 +17,7 @@ import {
   YAxis,
 } from "recharts";
 
-const TABS = ["لوحة القيادة", "أثر مقياس", "أداء المعلمين", "التنبيهات", "التحسن"];
+const TABS = ["لوحة القيادة", "أثر مقياس", "أداء المعلمين", "التنبيهات", "التحسن", "التقارير الدورية"];
 
 type PrincipalReport = {
   school: { id: string; name: string; city?: string | null };
@@ -87,6 +87,25 @@ type PrincipalParentStats = {
   subscriptionInterestCount: number;
   unopenedLinks: number;
   topInterestedSkill: { skillName: string; count: number } | null;
+};
+
+type PeriodicReportPreview = {
+  title: string;
+  hasEnoughData: boolean;
+  generalData: {
+    studentsCount: number;
+    classesCount: number;
+    simulatedAssessmentsCount: number;
+    testedStudentsCount: number;
+    performanceAverage: number | null;
+    masteryPercentage: number | null;
+    notMasteredPercentage: number | null;
+    improvementPercentage: number | null;
+  };
+  skillAnalysis: Array<{ name: string; masteredCount: number; notMasteredCount: number; masteryPercentage: number; needLevel: string }>;
+  domainAnalysis: Array<{ name: string; masteredCount: number; notMasteredCount: number; masteryPercentage: number; needLevel: string }>;
+  levelDistribution: { high: number; medium: number; low: number; veryLow: number };
+  recommendations: string[];
 };
 
 function formatNumber(value: number) {
@@ -192,6 +211,22 @@ export default function PrincipalDashboard() {
   const [parentStats, setParentStats] = useState<PrincipalParentStats | null>(null);
   const [parentStatsLoading, setParentStatsLoading] = useState(false);
   const [parentStatsError, setParentStatsError] = useState<string | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const [periodicForm, setPeriodicForm] = useState({
+    reportType: "learning_outcomes_followup",
+    from: monthStart,
+    to: today,
+    subject: "",
+    grade: "",
+    principalName: "",
+    showStudentNames: "false",
+    includeImprovementPlan: "true",
+    includeRecommendations: "true",
+  });
+  const [periodicPreview, setPeriodicPreview] = useState<PeriodicReportPreview | null>(null);
+  const [periodicLoading, setPeriodicLoading] = useState(false);
+  const [periodicError, setPeriodicError] = useState<string | null>(null);
 
   const chartData = useMemo(() => {
     if (!report) return [];
@@ -216,6 +251,14 @@ export default function PrincipalDashboard() {
       const json = await res.json();
       if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل لوحة المدرسة");
       setReport(json.data);
+      const { data: profile } = await supabase
+        .from("users")
+        .select("name")
+        .eq("auth_id", session.user.id)
+        .maybeSingle();
+      if (profile?.name) {
+        setPeriodicForm((prev) => prev.principalName ? prev : { ...prev, principalName: profile.name });
+      }
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "تعذر تحميل لوحة المدرسة");
     } finally {
@@ -255,6 +298,63 @@ export default function PrincipalDashboard() {
       setParentStatsLoading(false);
     }
   }, []);
+
+  const periodicPayload = useCallback(() => ({
+    reportType: periodicForm.reportType,
+    from: periodicForm.from,
+    to: periodicForm.to,
+    subject: periodicForm.subject || null,
+    grade: periodicForm.grade ? Number(periodicForm.grade) : null,
+    principalName: periodicForm.principalName || null,
+    showStudentNames: periodicForm.showStudentNames === "true",
+    includeImprovementPlan: periodicForm.includeImprovementPlan === "true",
+    includeRecommendations: periodicForm.includeRecommendations === "true",
+  }), [periodicForm, report]);
+
+  const previewPeriodicReport = useCallback(async () => {
+    setPeriodicLoading(true);
+    setPeriodicError(null);
+    try {
+      const params = new URLSearchParams();
+      const payload = periodicPayload();
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) params.set(key, String(value));
+      });
+      const res = await fetch(`/api/principal/periodic-reports/preview?${params.toString()}`, { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر إنشاء معاينة التقرير");
+      setPeriodicPreview(json.data);
+    } catch (err) {
+      setPeriodicError(err instanceof Error ? err.message : "تعذر إنشاء معاينة التقرير");
+    } finally {
+      setPeriodicLoading(false);
+    }
+  }, [periodicPayload]);
+
+  const exportPeriodicReport = useCallback(async () => {
+    setPeriodicLoading(true);
+    setPeriodicError(null);
+    try {
+      const res = await fetch("/api/principal/periodic-reports/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(periodicPayload()),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || "تعذر تصدير التقرير");
+      }
+      const html = await res.text();
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      setPeriodicError(err instanceof Error ? err.message : "تعذر تصدير التقرير");
+    } finally {
+      setPeriodicLoading(false);
+    }
+  }, [periodicPayload]);
 
   useEffect(() => {
     void loadReport();
@@ -771,6 +871,136 @@ export default function PrincipalDashboard() {
                 </ResponsiveContainer>
               )}
             </div>
+          </div>
+        )}
+
+        {!loading && !loadError && report && activeTab === 5 && (
+          <div className="space-y-6">
+            <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+              <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-extrabold text-[#159f91]">التقارير الدورية</p>
+                  <h3 className="mt-1 text-xl font-black text-[#0b2447]">تقرير رسمي قابل للطباعة</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-400">تُسحب الأرقام من نتائج مقياس المحفوظة فقط.</p>
+                </div>
+                <button
+                  onClick={exportPeriodicReport}
+                  disabled={periodicLoading}
+                  className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white disabled:opacity-60"
+                >
+                  تصدير / طباعة PDF
+                </button>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="text-sm font-bold text-slate-500">
+                  نوع التقرير
+                  <select value={periodicForm.reportType} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, reportType: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none">
+                    <option value="learning_outcomes_followup">بطاقة متابعة نواتج التعلم</option>
+                    <option value="nafs_readiness">تقرير الاستعداد لاختبارات نافس</option>
+                    <option value="learning_outcomes_improvement">خطة تحسين نواتج التعلم</option>
+                    <option value="subject_results_analysis">بطاقة تحليل نتائج المادة</option>
+                  </select>
+                </label>
+                <label className="text-sm font-bold text-slate-500">
+                  الفترة من
+                  <input type="date" value={periodicForm.from} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, from: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
+                </label>
+                <label className="text-sm font-bold text-slate-500">
+                  الفترة إلى
+                  <input type="date" value={periodicForm.to} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, to: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
+                </label>
+                <label className="text-sm font-bold text-slate-500">
+                  المادة
+                  <select value={periodicForm.subject} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, subject: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none">
+                    <option value="">جميع المواد</option>
+                    <option value="رياضيات">رياضيات</option>
+                    <option value="لغة عربية">لغة عربية</option>
+                    <option value="علوم">علوم</option>
+                  </select>
+                </label>
+                <label className="text-sm font-bold text-slate-500">
+                  الصف
+                  <select value={periodicForm.grade} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, grade: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none">
+                    <option value="">جميع الصفوف</option>
+                    {[3, 4, 5, 6].map((grade) => <option key={grade} value={grade}>{toEnglishDigits(grade)}</option>)}
+                  </select>
+                </label>
+                <label className="text-sm font-bold text-slate-500">
+                  اسم قائد المدرسة
+                  <input value={periodicForm.principalName} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, principalName: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
+                </label>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {[
+                  ["showStudentNames", "إظهار أسماء الطلاب"],
+                  ["includeImprovementPlan", "تضمين خطة تحسين"],
+                  ["includeRecommendations", "تضمين توصيات"],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600">
+                    {label}
+                    <select value={periodicForm[key as keyof typeof periodicForm]} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, [key]: event.target.value }))} className="rounded-lg border border-slate-100 bg-white px-3 py-1 font-bold">
+                      <option value="true">نعم</option>
+                      <option value="false">لا</option>
+                    </select>
+                  </label>
+                ))}
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button onClick={previewPeriodicReport} disabled={periodicLoading} className="rounded-xl border border-[#159f91]/20 bg-teal-50 px-5 py-3 text-sm font-extrabold text-[#159f91] disabled:opacity-60">
+                  {periodicLoading ? "جارٍ التحميل..." : "معاينة التقرير"}
+                </button>
+                {periodicError && <span className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{periodicError}</span>}
+              </div>
+            </div>
+
+            {periodicPreview && (
+              <div className="space-y-5 rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-xl font-black text-[#0b2447]">{periodicPreview.title}</h3>
+                    <p className="mt-1 text-sm font-bold text-slate-400">معاينة مختصرة قبل الطباعة</p>
+                  </div>
+                  {!periodicPreview.hasEnoughData && (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-bold text-[#BA7517]">لا توجد نتائج كافية</span>
+                  )}
+                </div>
+                {!periodicPreview.hasEnoughData && <EmptyState>لا توجد نتائج كافية لإنشاء التقرير في الفترة المحددة.</EmptyState>}
+                <div className="grid gap-3 md:grid-cols-4">
+                  <KpiCard label="عدد الطلاب" value={formatNumber(periodicPreview.generalData.studentsCount)} sub="حسب الفلتر" icon="👥" />
+                  <KpiCard label="الطلاب المختبرون" value={formatNumber(periodicPreview.generalData.testedStudentsCount)} sub="نتائج محفوظة" icon="✅" />
+                  <KpiCard label="متوسط الأداء" value={formatPct(periodicPreview.generalData.performanceAverage)} sub="من قاعدة البيانات" icon="🎯" />
+                  <KpiCard label="نسبة الإتقان" value={formatPct(periodicPreview.generalData.masteryPercentage)} sub="70% فأعلى" icon="📈" />
+                </div>
+                <div className="grid gap-5 lg:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <h4 className="mb-3 font-black text-[#0b2447]">أضعف المهارات</h4>
+                    {periodicPreview.skillAnalysis.length ? periodicPreview.skillAnalysis.slice(0, 6).map((item) => (
+                      <div key={item.name} className="mb-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-600">
+                        {item.name} · {toEnglishDigits(item.masteryPercentage)}% · {item.needLevel}
+                      </div>
+                    )) : <EmptyState>لا توجد مهارات كافية للتحليل</EmptyState>}
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <h4 className="mb-3 font-black text-[#0b2447]">توزيع مستويات الأداء</h4>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="rounded-xl bg-white p-3"><div className="font-black text-[#159f91]">{toEnglishDigits(periodicPreview.levelDistribution.high)}</div><div className="text-xs font-bold text-slate-400">مرتفع</div></div>
+                      <div className="rounded-xl bg-white p-3"><div className="font-black text-[#0b2447]">{toEnglishDigits(periodicPreview.levelDistribution.medium)}</div><div className="text-xs font-bold text-slate-400">متوسط</div></div>
+                      <div className="rounded-xl bg-white p-3"><div className="font-black text-[#BA7517]">{toEnglishDigits(periodicPreview.levelDistribution.low)}</div><div className="text-xs font-bold text-slate-400">منخفض</div></div>
+                      <div className="rounded-xl bg-white p-3"><div className="font-black text-[#E24B4A]">{toEnglishDigits(periodicPreview.levelDistribution.veryLow)}</div><div className="text-xs font-bold text-slate-400">منخفض جدًا</div></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-slate-50 p-4">
+                  <h4 className="mb-3 font-black text-[#0b2447]">مرئيات وتوصيات</h4>
+                  <div className="space-y-2 text-sm font-bold leading-7 text-slate-600">
+                    {periodicPreview.recommendations.map((item) => <p key={item}>• {toEnglishDigits(item)}</p>)}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
