@@ -33,7 +33,14 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: "SF Arabic", ".SF Arabic", "SF Arabic Text", "SF Arabic Display", ".Arabic UI Text", ".Arabic UI Display", -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
+    max-width: 100%;
+    overflow-x: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Arabic", "IBM Plex Sans Arabic", "Tajawal", "Noto Sans Arabic", system-ui, sans-serif;
+  }
+
+  html {
+    max-width: 100%;
+    overflow-x: hidden;
   }
 }
 
@@ -60,4 +67,5 @@ button:disabled {
 
 * {
   box-sizing: border-box;
+  max-width: 100%;
 }

@@ -337,7 +337,7 @@ export default function TeacherDashboard() {
   const [manualSaving, setManualSaving] = useState(false);
   const [currentPlans, setCurrentPlans] = useState<WeeklyPlanItem[]>([]);
   const [upcomingPlans, setUpcomingPlans] = useState<WeeklyPlanItem[]>([]);
-  const [planSource, setPlanSource] = useState<"current_week" | "upcoming" | "none">("none");
+  const [, setPlanSource] = useState<"current_week" | "upcoming" | "none">("none");
   const [planLoading, setPlanLoading] = useState(false);
 
   // ── Miqyas package workflow state ───────────────────────────────────────────
@@ -1147,56 +1147,32 @@ export default function TeacherDashboard() {
                     <h3 className="text-xl font-black text-[#0b2447]">جارٍ تحميل خطة هذا الأسبوع...</h3>
                   </div>
                 ) : weeklyPlanItem ? (
-                  <div className="flex items-center justify-between flex-wrap gap-4">
-                    <div>
-                      <div className="text-sm font-bold text-slate-400 mb-1">
-                        {planSource === "current_week" ? "خطة هذا الأسبوع" : "أقرب خطة قادمة"}
-                      </div>
-                      <h3 className="text-3xl font-black text-[#0b2447]">{weeklyPlanItem.plan.skill}</h3>
-                      <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-slate-500">
-                        {weeklyPlanItem.plan.learning_goal ?? "هدف التعلم قابل للتحديث من الإدارة."}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-3 mt-3">
-                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-                          الأسبوع {toEnglishDigits(weeklyPlanItem.plan.week_number)}
-                        </span>
-                        <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
-                          {weeklyPlanItem.class.name}
-                        </span>
-                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-                          {weeklyPlanItem.plan.grade_label}
-                        </span>
-                        <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
-                          {weeklyPlanItem.plan.subject}
-                        </span>
-                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-                          {formatSchoolDateRange({
-                            startDate: weeklyPlanItem.plan.start_date,
-                            endDate: weeklyPlanItem.plan.end_date,
-                            startHijri: weeklyPlanItem.plan.start_hijri,
-                            endHijri: weeklyPlanItem.plan.end_hijri,
-                          })}
-                        </span>
-                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-                          {difficultyLabel(weeklyPlanItem.plan.difficulty_level)}
-                        </span>
-                        <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-                          {toEnglishDigits(weeklyPlanItem.plan.question_count)} أسئلة
-                        </span>
+                  <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
+                    <div className="min-w-0">
+                      <div className="mb-2 text-sm font-black text-[#159f91]">هذا الأسبوع</div>
+                      <h3 className="text-3xl font-black leading-tight text-[#0b2447]">
+                        تدريب {weeklyPlanItem.plan.subject}
+                      </h3>
+                      <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-black text-slate-500">
+                        <span>{weeklyPlanItem.plan.grade_label}</span>
+                        <span className="h-1 w-1 rounded-full bg-slate-300" />
+                        <span>الأسبوع {toEnglishDigits(weeklyPlanItem.plan.week_number)}</span>
+                        <span className="h-1 w-1 rounded-full bg-slate-300" />
+                        <span>{toEnglishDigits(weeklyPlanItem.plan.question_count)} أسئلة · تصحيح آلي</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 flex-wrap">
+                    <div className="grid gap-2 sm:grid-cols-3 lg:w-[420px]">
                       <button
                         onClick={() => setView("packages")}
-                        className="flex items-center gap-2 rounded-xl bg-[#0b2447] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
+                        className="rounded-full bg-[#0b2447] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
                       >
                         بدء التقييم
                       </button>
-                      <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
-                        طباعة ورقة الاختبار
+                      <button className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
+                        طباعة الورقة
                       </button>
-                      <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => setView("packages")}>
-                        تصحيح النتائج
+                      <button className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => setView("packages")}>
+                        عرض النتائج
                       </button>
                     </div>
                   </div>
