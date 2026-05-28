@@ -9,10 +9,12 @@ export type PeriodicReportType =
   | "subject_results_analysis";
 
 export type PeriodicReportOptions = {
-  from: string;
-  to: string;
+  from?: string | null;
+  to?: string | null;
+  weekNumber?: number | null;
   subject?: string | null;
   grade?: number | null;
+  educationRegion?: string | null;
   principalName?: string | null;
   showStudentNames: boolean;
   includeImprovementPlan: boolean;
@@ -55,6 +57,18 @@ type PackageRow = {
   subject: string;
   grade: number | null;
   week_number: number | null;
+  start_date: string | null;
+  end_date: string | null;
+};
+
+export type PeriodicReportWeek = {
+  weekNumber: number;
+  startDate: string | null;
+  endDate: string | null;
+  startHijri: string | null;
+  endHijri: string | null;
+  label: string;
+  packageCount: number;
 };
 
 type ResultRow = {
@@ -91,6 +105,55 @@ function inRange(dateValue: string | null | undefined, from: string, to: string)
   return day >= from && day <= to;
 }
 
+function toArabicDigits(value: unknown) {
+  const map: Record<string, string> = {
+    "0": "٠",
+    "1": "١",
+    "2": "٢",
+    "3": "٣",
+    "4": "٤",
+    "5": "٥",
+    "6": "٦",
+    "7": "٧",
+    "8": "٨",
+    "9": "٩",
+  };
+  return String(value ?? "").replace(/\d/g, (digit) => map[digit] ?? digit);
+}
+
+function hijriDate(dateValue?: string | null) {
+  if (!dateValue) return null;
+  const date = new Date(`${dateValue.slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat("en-US-u-ca-islamic-umalqura", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Asia/Riyadh",
+  }).formatToParts(date);
+
+  const day = parts.find((part) => part.type === "day")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const year = parts.find((part) => part.type === "year")?.value;
+  if (!day || !month || !year) return null;
+  return `${toArabicDigits(year)}/${toArabicDigits(month)}/${toArabicDigits(day)}هـ`;
+}
+
+function formatHijriPeriod(from?: string | null, to?: string | null) {
+  const start = hijriDate(from);
+  const end = hijriDate(to);
+  if (start && end) return `من ${start} إلى ${end}`;
+  if (start) return `يبدأ ${start}`;
+  return "فترة غير محددة";
+}
+
+function weekLabel(weekNumber: number | null | undefined, startDate?: string | null) {
+  const startHijri = hijriDate(startDate);
+  if (!weekNumber) return startHijri ? `يبدأ ${startHijri}` : "أسبوع غير محدد";
+  return `الأسبوع ${toArabicDigits(weekNumber)}${startHijri ? ` - يبدأ ${startHijri}` : ""}`;
+}
+
 function normalizeSubject(value?: string | null) {
   const text = (value ?? "").trim();
   if (!text) return "";
@@ -125,6 +188,62 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, "&#039;");
 }
 
+async function getSchoolPackageIds(schoolId: string) {
+  const db = getAdminClient();
+  const [schoolAssignmentsRes, classAssignmentsRes] = await Promise.all([
+    db.from("school_package_assignments").select("package_id").eq("school_id", schoolId),
+    db.from("class_package_assignments").select("package_id").eq("school_id", schoolId),
+  ]);
+  if (schoolAssignmentsRes.error) throw schoolAssignmentsRes.error;
+  if (classAssignmentsRes.error) throw classAssignmentsRes.error;
+
+  return Array.from(new Set([
+    ...((schoolAssignmentsRes.data ?? []) as { package_id: string }[]).map((item) => item.package_id),
+    ...((classAssignmentsRes.data ?? []) as { package_id: string }[]).map((item) => item.package_id),
+  ].filter(Boolean)));
+}
+
+export async function getPeriodicReportWeeks(profile: UserProfile): Promise<PeriodicReportWeek[]> {
+  const schoolId = profile.school_id;
+  if (!schoolId) throw new Error("حساب قائد المدرسة غير مرتبط بمدرسة");
+
+  const db = getAdminClient();
+  const packageIds = await getSchoolPackageIds(schoolId);
+  if (!packageIds.length) return [];
+
+  const packagesRes = await db
+    .from("assessment_packages")
+    .select("id, week_number, start_date, end_date")
+    .in("id", packageIds)
+    .not("week_number", "is", null)
+    .order("week_number", { ascending: true });
+  if (packagesRes.error) throw packagesRes.error;
+
+  const groups = new Map<number, { starts: string[]; ends: string[]; count: number }>();
+  ((packagesRes.data ?? []) as Pick<PackageRow, "week_number" | "start_date" | "end_date">[]).forEach((item) => {
+    if (!item.week_number) return;
+    const current = groups.get(item.week_number) ?? { starts: [], ends: [], count: 0 };
+    if (item.start_date) current.starts.push(item.start_date);
+    if (item.end_date) current.ends.push(item.end_date);
+    current.count += 1;
+    groups.set(item.week_number, current);
+  });
+
+  return Array.from(groups.entries()).map(([weekNumber, value]) => {
+    const startDate = value.starts.sort()[0] ?? null;
+    const endDate = value.ends.sort().at(-1) ?? null;
+    return {
+      weekNumber,
+      startDate,
+      endDate,
+      startHijri: hijriDate(startDate),
+      endHijri: hijriDate(endDate),
+      label: weekLabel(weekNumber, startDate),
+      packageCount: value.count,
+    };
+  });
+}
+
 export async function buildPeriodicReport(profile: UserProfile, options: PeriodicReportOptions) {
   const db = getAdminClient();
   const schoolId = profile.school_id;
@@ -133,7 +252,7 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
   const normalizedSubject = normalizeSubject(options.subject);
 
   const [schoolRes, classesRes, studentsRes, assignmentsRes] = await Promise.all([
-    db.from("schools").select("id, name, city, region").eq("id", schoolId).single(),
+    db.from("schools").select("id, name, region").eq("id", schoolId).single(),
     db.from("classes").select("id, name, grade, subject").eq("school_id", schoolId),
     db.from("students").select("id, name, class_id, school_id").eq("school_id", schoolId),
     db.from("class_package_assignments").select("id, package_id, class_id, status, scanned_at, created_at").eq("school_id", schoolId),
@@ -152,33 +271,41 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
   });
   const classIds = new Set(classes.map((item) => item.id));
   const students = ((studentsRes.data ?? []) as StudentRow[]).filter((item) => classIds.has(item.class_id));
-  const assignments = ((assignmentsRes.data ?? []) as AssignmentRow[]).filter((item) =>
-    classIds.has(item.class_id) && (inRange(item.scanned_at, options.from, options.to) || inRange(item.created_at, options.from, options.to))
-  );
+  const assignmentsForClasses = ((assignmentsRes.data ?? []) as AssignmentRow[]).filter((item) => classIds.has(item.class_id));
 
-  const packageIds = Array.from(new Set(assignments.map((item) => item.package_id)));
-  const assignmentIds = assignments.map((item) => item.id);
+  const packageIds = Array.from(new Set(assignmentsForClasses.map((item) => item.package_id)));
 
-  const [packagesRes, resultsRes] = await Promise.all([
-    packageIds.length
-      ? db.from("assessment_packages").select("id, title, subject, grade, week_number").in("id", packageIds)
-      : Promise.resolve({ data: [], error: null }),
-    assignmentIds.length
-      ? db.from("student_package_results").select("id, class_package_assignment_id, student_id, score, total, percentage, level, scanned_at, created_at").in("class_package_assignment_id", assignmentIds)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
+  const packagesRes = packageIds.length
+    ? await db.from("assessment_packages").select("id, title, subject, grade, week_number, start_date, end_date").in("id", packageIds)
+    : { data: [], error: null };
 
   if (packagesRes.error) throw packagesRes.error;
-  if (resultsRes.error) throw resultsRes.error;
 
   const packages = ((packagesRes.data ?? []) as PackageRow[]).filter((item) => {
     if (options.grade && item.grade !== options.grade) return false;
     if (normalizedSubject && normalizeSubject(item.subject) !== normalizedSubject) return false;
+    if (options.weekNumber && item.week_number !== options.weekNumber) return false;
     return true;
   });
+
+  const resolvedFrom = options.from ?? packages.map((item) => item.start_date).filter(Boolean).sort()[0] ?? null;
+  const resolvedTo = options.to ?? packages.map((item) => item.end_date).filter(Boolean).sort().at(-1) ?? resolvedFrom;
   const packageIdSet = new Set(packages.map((item) => item.id));
-  const filteredAssignments = assignments.filter((item) => packageIdSet.has(item.package_id));
+  const filteredAssignments = assignmentsForClasses.filter((item) => {
+    if (!packageIdSet.has(item.package_id)) return false;
+    if (options.weekNumber) return true;
+    if (!resolvedFrom || !resolvedTo) return true;
+    return inRange(item.scanned_at, resolvedFrom, resolvedTo) || inRange(item.created_at, resolvedFrom, resolvedTo);
+  });
   const filteredAssignmentIds = new Set(filteredAssignments.map((item) => item.id));
+  const resultsRes = filteredAssignmentIds.size
+    ? await db
+        .from("student_package_results")
+        .select("id, class_package_assignment_id, student_id, score, total, percentage, level, scanned_at, created_at")
+        .in("class_package_assignment_id", Array.from(filteredAssignmentIds))
+    : { data: [], error: null };
+  if (resultsRes.error) throw resultsRes.error;
+
   const results = ((resultsRes.data ?? []) as ResultRow[]).filter((item) => filteredAssignmentIds.has(item.class_package_assignment_id));
   const resultIds = results.map((item) => item.id);
 
@@ -304,8 +431,14 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
   return {
     reportType: options.reportType,
     title: reportTitle(options.reportType),
-    period: { from: options.from, to: options.to },
+    period: {
+      from: resolvedFrom,
+      to: resolvedTo,
+      weekNumber: options.weekNumber ?? null,
+      hijriLabel: options.weekNumber ? weekLabel(options.weekNumber, resolvedFrom) : formatHijriPeriod(resolvedFrom, resolvedTo),
+    },
     school: schoolRes.data,
+    educationRegion: options.educationRegion?.trim() || schoolRes.data?.region || "المنطقة الشرقية",
     principalName: options.principalName?.trim() || profile.name || "قائد المدرسة",
     filters: {
       subject: normalizedSubject || "جميع المواد",
@@ -345,23 +478,22 @@ function tableRows<T>(items: T[], render: (item: T) => string, emptyCols: number
 
 export function renderPeriodicReportHtml(report: BuiltPeriodicReport) {
   const gd = report.generalData;
-  const logo = "مِقياس";
   const subjectGrade = `${escapeHtml(report.filters.subject)}${report.filters.grade ? ` - الصف ${toEnglishDigits(report.filters.grade)}` : ""}`;
+  const fileTitle = `${report.title} - ${report.period.weekNumber ? `الأسبوع ${toEnglishDigits(report.period.weekNumber)}` : "تقرير دوري"}`;
   return `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8" />
-<title>${escapeHtml(report.title)}</title>
+<title>${escapeHtml(fileTitle)}</title>
 <style>
   @page { size: A4; margin: 14mm; }
   body { font-family: Arial, Tahoma, sans-serif; color: #0b2447; margin: 0; background: #fff; }
   .page { max-width: 980px; margin: 0 auto; }
-  .official-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 16px; border-bottom: 3px solid #159f91; padding-bottom: 14px; }
+  .official-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 16px; border-bottom: 2px solid #0b2447; padding-bottom: 14px; }
   .center { text-align: center; }
   .muted { color: #64748b; font-size: 12px; line-height: 1.8; }
   h1 { font-size: 22px; margin: 8px 0 4px; }
-  h2 { font-size: 16px; margin: 24px 0 10px; padding: 8px 12px; background: #f0fdfa; border-right: 4px solid #159f91; border-radius: 8px; }
-  .brand { font-weight: 900; color: #159f91; font-size: 26px; }
+  h2 { font-size: 16px; margin: 24px 0 10px; padding: 8px 12px; background: #f8fafc; border-right: 4px solid #0b2447; border-radius: 8px; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; }
   .label { color: #64748b; font-size: 11px; font-weight: 700; }
@@ -378,22 +510,20 @@ export function renderPeriodicReportHtml(report: BuiltPeriodicReport) {
 </head>
 <body>
 <div class="page">
-  <button class="no-print" onclick="window.print()" style="position:fixed;left:16px;top:16px;padding:10px 16px;border-radius:10px;border:0;background:#159f91;color:white;font-weight:900">طباعة / حفظ PDF</button>
+  <button class="no-print" onclick="window.print()" style="position:fixed;left:16px;top:16px;padding:10px 16px;border-radius:10px;border:0;background:#0b2447;color:white;font-weight:900">طباعة / حفظ PDF</button>
   <section class="official-header">
     <div class="muted">
-      <strong>الإدارة التعليمية:</strong> ${escapeHtml(report.school?.region || "—")}<br />
-      <strong>مكتب التعليم:</strong> ${escapeHtml(report.school?.city || "—")}<br />
-      <strong>اسم المدرسة:</strong> ${escapeHtml(report.school?.name || "—")}
+      <strong>الإدارة العامة للتعليم بـ</strong> ${escapeHtml(report.educationRegion || ".............")}<br />
+      <strong>مدرسة</strong> ${escapeHtml(report.school?.name || "—")}
     </div>
     <div class="center">
-      <div class="brand">${logo}</div>
       <h1>${escapeHtml(report.title)}</h1>
-      <div class="muted">الفترة: ${toEnglishDigits(report.period.from)} إلى ${toEnglishDigits(report.period.to)}</div>
+      <div class="muted">${escapeHtml(report.period.hijriLabel)}</div>
     </div>
     <div class="muted">
       <strong>قائد المدرسة:</strong> ${escapeHtml(report.principalName)}<br />
       <strong>المادة والصف:</strong> ${subjectGrade}<br />
-      <strong>تاريخ الإصدار:</strong> ${toEnglishDigits(report.generatedAt.slice(0, 10))}
+      <strong>تاريخ الإصدار:</strong> ${hijriDate(report.generatedAt.slice(0, 10)) ?? toEnglishDigits(report.generatedAt.slice(0, 10))}
     </div>
   </section>
 

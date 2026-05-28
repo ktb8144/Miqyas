@@ -108,6 +108,16 @@ type PeriodicReportPreview = {
   recommendations: string[];
 };
 
+type PeriodicReportWeek = {
+  weekNumber: number;
+  startDate: string | null;
+  endDate: string | null;
+  startHijri: string | null;
+  endHijri: string | null;
+  label: string;
+  packageCount: number;
+};
+
 function formatNumber(value: number) {
   return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
 }
@@ -211,21 +221,21 @@ export default function PrincipalDashboard() {
   const [parentStats, setParentStats] = useState<PrincipalParentStats | null>(null);
   const [parentStatsLoading, setParentStatsLoading] = useState(false);
   const [parentStatsError, setParentStatsError] = useState<string | null>(null);
-  const today = new Date().toISOString().slice(0, 10);
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
   const [periodicForm, setPeriodicForm] = useState({
     reportType: "learning_outcomes_followup",
-    from: monthStart,
-    to: today,
+    weekNumber: "",
     subject: "",
     grade: "",
+    educationRegion: "المنطقة الشرقية",
     principalName: "",
     showStudentNames: "false",
     includeImprovementPlan: "true",
     includeRecommendations: "true",
   });
   const [periodicPreview, setPeriodicPreview] = useState<PeriodicReportPreview | null>(null);
+  const [periodicWeeks, setPeriodicWeeks] = useState<PeriodicReportWeek[]>([]);
   const [periodicLoading, setPeriodicLoading] = useState(false);
+  const [periodicWeeksLoading, setPeriodicWeeksLoading] = useState(false);
   const [periodicError, setPeriodicError] = useState<string | null>(null);
 
   const chartData = useMemo(() => {
@@ -299,17 +309,33 @@ export default function PrincipalDashboard() {
     }
   }, []);
 
+  const loadPeriodicWeeks = useCallback(async () => {
+    setPeriodicWeeksLoading(true);
+    try {
+      const res = await fetch("/api/principal/periodic-reports/preview?mode=weeks", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل الأسابيع المتاحة");
+      const weeks = (json.weeks ?? []) as PeriodicReportWeek[];
+      setPeriodicWeeks(weeks);
+      setPeriodicForm((prev) => prev.weekNumber || !weeks.length ? prev : { ...prev, weekNumber: String(weeks[0].weekNumber) });
+    } catch (err) {
+      setPeriodicError(err instanceof Error ? err.message : "تعذر تحميل الأسابيع المتاحة");
+    } finally {
+      setPeriodicWeeksLoading(false);
+    }
+  }, []);
+
   const periodicPayload = useCallback(() => ({
     reportType: periodicForm.reportType,
-    from: periodicForm.from,
-    to: periodicForm.to,
+    weekNumber: periodicForm.weekNumber ? Number(periodicForm.weekNumber) : null,
     subject: periodicForm.subject || null,
     grade: periodicForm.grade ? Number(periodicForm.grade) : null,
+    educationRegion: periodicForm.educationRegion || null,
     principalName: periodicForm.principalName || null,
     showStudentNames: periodicForm.showStudentNames === "true",
     includeImprovementPlan: periodicForm.includeImprovementPlan === "true",
     includeRecommendations: periodicForm.includeRecommendations === "true",
-  }), [periodicForm, report]);
+  }), [periodicForm]);
 
   const previewPeriodicReport = useCallback(async () => {
     setPeriodicLoading(true);
@@ -317,6 +343,7 @@ export default function PrincipalDashboard() {
     try {
       const params = new URLSearchParams();
       const payload = periodicPayload();
+      if (!payload.weekNumber) throw new Error("اختر الأسبوع أولًا");
       Object.entries(payload).forEach(([key, value]) => {
         if (value !== null && value !== undefined) params.set(key, String(value));
       });
@@ -335,10 +362,12 @@ export default function PrincipalDashboard() {
     setPeriodicLoading(true);
     setPeriodicError(null);
     try {
+      const payload = periodicPayload();
+      if (!payload.weekNumber) throw new Error("اختر الأسبوع أولًا");
       const res = await fetch("/api/principal/periodic-reports/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(periodicPayload()),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
@@ -364,6 +393,12 @@ export default function PrincipalDashboard() {
     void loadPackageSummaries();
     void loadParentStats();
   }, [loadPackageSummaries, loadParentStats]);
+
+  useEffect(() => {
+    if (activeTab === 5 && !periodicWeeks.length) {
+      void loadPeriodicWeeks();
+    }
+  }, [activeTab, loadPeriodicWeeks, periodicWeeks.length]);
 
   const normalizeSaudiMobile = (value: string) => {
     const digits = toEnglishDigits(value).replace(/\D/g, "");
@@ -881,14 +916,14 @@ export default function PrincipalDashboard() {
                 <div>
                   <p className="text-sm font-extrabold text-[#159f91]">التقارير الدورية</p>
                   <h3 className="mt-1 text-xl font-black text-[#0b2447]">تقرير رسمي قابل للطباعة</h3>
-                  <p className="mt-1 text-sm font-bold text-slate-400">تُسحب الأرقام من نتائج مقياس المحفوظة فقط.</p>
+                  <p className="mt-1 text-sm font-bold text-slate-400">تُسحب الأرقام من نتائج الاختبارات المحفوظة فقط.</p>
                 </div>
                 <button
                   onClick={exportPeriodicReport}
                   disabled={periodicLoading}
                   className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white disabled:opacity-60"
                 >
-                  تصدير / طباعة PDF
+                  فتح نسخة الطباعة
                 </button>
               </div>
 
@@ -903,12 +938,21 @@ export default function PrincipalDashboard() {
                   </select>
                 </label>
                 <label className="text-sm font-bold text-slate-500">
-                  الفترة من
-                  <input type="date" value={periodicForm.from} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, from: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
-                </label>
-                <label className="text-sm font-bold text-slate-500">
-                  الفترة إلى
-                  <input type="date" value={periodicForm.to} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, to: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
+                  اختر الأسبوع
+                  <select
+                    value={periodicForm.weekNumber}
+                    onChange={(event) => setPeriodicForm((prev) => ({ ...prev, weekNumber: event.target.value }))}
+                    disabled={periodicWeeksLoading || !periodicWeeks.length}
+                    className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none disabled:opacity-60"
+                  >
+                    {periodicWeeks.length ? periodicWeeks.map((week) => (
+                      <option key={week.weekNumber} value={week.weekNumber}>
+                        {week.label}
+                      </option>
+                    )) : (
+                      <option value="">لا توجد أسابيع متاحة</option>
+                    )}
+                  </select>
                 </label>
                 <label className="text-sm font-bold text-slate-500">
                   المادة
@@ -930,7 +974,17 @@ export default function PrincipalDashboard() {
                   اسم قائد المدرسة
                   <input value={periodicForm.principalName} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, principalName: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
                 </label>
+                <label className="text-sm font-bold text-slate-500">
+                  المنطقة التعليمية
+                  <input value={periodicForm.educationRegion} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, educationRegion: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
+                </label>
               </div>
+
+              {!periodicWeeksLoading && !periodicWeeks.length && (
+                <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-[#BA7517]">
+                  لا توجد أسابيع متاحة بناءً على الاختبارات المنشورة.
+                </div>
+              )}
 
               <div className="mt-4 grid gap-3 md:grid-cols-3">
                 {[
@@ -951,6 +1005,9 @@ export default function PrincipalDashboard() {
               <div className="mt-5 flex flex-wrap gap-3">
                 <button onClick={previewPeriodicReport} disabled={periodicLoading} className="rounded-xl border border-[#159f91]/20 bg-teal-50 px-5 py-3 text-sm font-extrabold text-[#159f91] disabled:opacity-60">
                   {periodicLoading ? "جارٍ التحميل..." : "معاينة التقرير"}
+                </button>
+                <button onClick={loadPeriodicWeeks} disabled={periodicWeeksLoading} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-500 disabled:opacity-60">
+                  تحديث الأسابيع
                 </button>
                 {periodicError && <span className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">{periodicError}</span>}
               </div>
