@@ -850,8 +850,15 @@ export default function TeacherDashboard() {
       throw new Error(`تعذر حفظ نتائج ${toEnglishDigits(failures.length)} طالب`);
     }
 
+    const didReloadResults = await openPackageResults(activePackageAssignment);
+    if (!didReloadResults) {
+      setPackageResultsAssignment(null);
+      setPackageSuccess("تم حفظ النتائج، لكن تعذر تحديث عرض النتائج. حدّث الصفحة أو حاول مرة أخرى.");
+      await loadPackageWorkflow();
+      return;
+    }
+
     setPackageSuccess("تم حفظ نتائج اختبار مقياس بنجاح.");
-    await openPackageResults(activePackageAssignment);
     setActivePackageAssignment(null);
     await loadPackageWorkflow();
   };
@@ -878,8 +885,10 @@ export default function TeacherDashboard() {
       } else {
         setSkillDiagnosisError(diagnosisJson.error || "تعذر تحميل التحليل المهاري");
       }
+      return true;
     } catch (err) {
       setPackageResultsError(err instanceof Error ? err.message : "تعذر تحميل نتائج الاختبار");
+      return false;
     } finally {
       setPackageResultsLoading(false);
     }

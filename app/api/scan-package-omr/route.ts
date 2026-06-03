@@ -159,6 +159,25 @@ function debugResponse(debug: ScanDebugInfo) {
   return DEBUG_SCAN ? { debug } : {};
 }
 
+function logScanFailure({
+  errorStage,
+  message,
+  classPackageAssignmentId,
+  detectedAnswerCount,
+}: {
+  errorStage: string;
+  message: string;
+  classPackageAssignmentId: string;
+  detectedAnswerCount?: number;
+}) {
+  console.warn("scan-package-omr failed", {
+    errorStage,
+    message,
+    detectedAnswerCount,
+    classPackageAssignmentId,
+  });
+}
+
 async function loadPackageQuestionsForAssignment(classPackageAssignmentId: string, profile: { id: string; school_id?: string | null }) {
   const db = getAdminClient();
 
@@ -414,13 +433,20 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireUserRole(req, ["teacher"]);
     if (!auth.ok) {
-      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+      return NextResponse.json(
+        { success: false, error: auth.error, errorCode: "PERMISSION_DENIED" },
+        { status: auth.status }
+      );
     }
 
     const parsed = scanSchema.safeParse(await req.json());
     if (!parsed.success) {
       return NextResponse.json(
-        { success: false, error: "يرجى إرفاق بيانات الحزمة وصورة الورقة أو إجابات الطالب" },
+        {
+          success: false,
+          error: "يرجى إرفاق بيانات الحزمة وصورة الورقة أو إجابات الطالب",
+          errorCode: "INVALID_SCAN_RESPONSE",
+        },
         { status: 400 }
       );
     }
@@ -428,7 +454,19 @@ export async function POST(req: NextRequest) {
     const body = parsed.data;
     const loaded = await loadPackageQuestionsForAssignment(body.classPackageAssignmentId, auth.profile);
     if ("error" in loaded) {
-      return NextResponse.json({ success: false, error: loaded.error }, { status: loaded.status });
+      const loadedError = loaded.error ?? "تعذر تحميل بيانات حزمة التقييم";
+      const errorCode =
+        loaded.status === 403
+          ? "PERMISSION_DENIED"
+          : loadedError.includes("خريطة أسئلة")
+            ? "PACKAGE_QUESTIONS_NOT_FOUND"
+            : "UNKNOWN_SCAN_ERROR";
+      logScanFailure({
+        errorStage: "load_package_questions",
+        message: loadedError,
+        classPackageAssignmentId: body.classPackageAssignmentId,
+      });
+      return NextResponse.json({ success: false, error: loadedError, errorCode }, { status: loaded.status });
     }
 
     const totalQuestions = loaded.questions.length;
@@ -436,10 +474,35 @@ export async function POST(req: NextRequest) {
     let errorStage: ScanDebugInfo["errorStage"] = body.studentAnswers ? "manual_answers" : "gemini_scan";
     if (body.studentAnswers) {
       scanned = body.studentAnswers;
-    } else if (body.scanMode === "question_paper") {
-      scanned = await scanQuestionPaperAnswers(body.imageBase64!, totalQuestions, body.mimeType);
     } else {
-      scanned = await scanAnswerSheet(body.imageBase64!, totalQuestions, body.mimeType);
+      try {
+        scanned = body.scanMode === "question_paper"
+          ? await scanQuestionPaperAnswers(body.imageBase64!, totalQuestions, body.mimeType)
+          : await scanAnswerSheet(body.imageBase64!, totalQuestions, body.mimeType);
+      } catch (scanError) {
+        const message = scanError instanceof Error ? scanError.message : String(scanError);
+        const failedDebug = buildScanDebug({
+          body,
+          totalQuestions,
+          detectedAnswerCount: 0,
+          errorStage: "gemini_scan",
+        });
+        logScanFailure({
+          errorStage: "gemini_scan",
+          message,
+          classPackageAssignmentId: body.classPackageAssignmentId,
+          detectedAnswerCount: 0,
+        });
+        return NextResponse.json(
+          {
+            success: false,
+            error: "تعذر قراءة اختيارات الطالب من الورقة. حاول تصوير الورقة بوضوح أكبر.",
+            errorCode: "GEMINI_SCAN_FAILED",
+            ...debugResponse({ ...failedDebug, errorStage: "gemini_scan" }),
+          },
+          { status: 502 }
+        );
+      }
     }
 
     const detectedAnswerCount = body.studentAnswers ? totalQuestions : countDetectedAnswers(scanned, totalQuestions);
@@ -460,6 +523,7 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error: "لم يتم العثور على اختيارات مظللة بوضوح في الورقة",
+          errorCode: "INVALID_SCAN_RESPONSE",
           ...debugResponse(noAnswersDebug),
         },
         { status: 422 }
@@ -479,7 +543,10 @@ export async function POST(req: NextRequest) {
       });
 
       if ("error" in saveResult) {
-        return NextResponse.json({ success: false, error: saveResult.error }, { status: saveResult.status });
+        return NextResponse.json(
+          { success: false, error: saveResult.error, errorCode: "UNKNOWN_SCAN_ERROR" },
+          { status: saveResult.status }
+        );
       }
 
       saved = { resultId: saveResult.resultId };
@@ -508,6 +575,7 @@ export async function POST(req: NextRequest) {
       {
         success: false,
         error: "تعذر تصحيح حزمة التقييم حاليًا",
+        errorCode: "UNKNOWN_SCAN_ERROR",
         ...(DEBUG_SCAN
           ? {
               debug: {
