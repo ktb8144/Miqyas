@@ -143,6 +143,28 @@ type PackageResultDetails = {
   weakestDomains: Array<{ name: string; wrong: number; total: number }>;
 };
 
+type SkillDiagnosisDetails = {
+  weakestSkills: Array<{
+    skillText: string;
+    domainText: string;
+    masteryRate: number;
+    affectedStudentsCount: number;
+    linkedQuestionCount: number;
+    confidenceLabel: string;
+    warning: string | null;
+    likelyCause: string;
+    recommendation: {
+      whatHappened: string;
+      nextLessonAction: string;
+      duration: string;
+      targetStudents: string;
+      impactMeasure: string;
+    };
+  }>;
+  strongestSkills: Array<{ skillText: string; masteryRate: number }>;
+  confidence: { level: string; label: string; reason: string };
+};
+
 // ─── Report Modal ─────────────────────────────────────────────────────────────
 
 function ReportModal({
@@ -351,9 +373,11 @@ export default function TeacherDashboard() {
   const [activePackageAssignment, setActivePackageAssignment] = useState<TeacherPackageAssignment | null>(null);
   const [packageResultsAssignment, setPackageResultsAssignment] = useState<TeacherPackageAssignment | null>(null);
   const [packageResults, setPackageResults] = useState<PackageResultDetails | null>(null);
+  const [skillDiagnosis, setSkillDiagnosis] = useState<SkillDiagnosisDetails | null>(null);
   const [assignmentStudentScores, setAssignmentStudentScores] = useState<AssignmentStudentScores>({});
   const [packageResultsLoading, setPackageResultsLoading] = useState(false);
   const [packageResultsError, setPackageResultsError] = useState<string | null>(null);
+  const [skillDiagnosisError, setSkillDiagnosisError] = useState<string | null>(null);
   const [selectedClassAssignment, setSelectedClassAssignment] = useState<Record<string, string>>({});
   // ── Student add (manual) state ───────────────────────────────────────────────
   const [showAddStudents, setShowAddStudents] = useState(false);
@@ -835,13 +859,25 @@ export default function TeacherDashboard() {
   const openPackageResults = async (assignment: TeacherPackageAssignment) => {
     setPackageResultsAssignment(assignment);
     setPackageResults(null);
+    setSkillDiagnosis(null);
     setPackageResultsError(null);
+    setSkillDiagnosisError(null);
     setPackageResultsLoading(true);
     try {
-      const res = await fetch(`/api/teacher/class-package-assignments/${assignment.id}/results`, { cache: "no-store" });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل نتائج الاختبار");
-      setPackageResults(json.data as PackageResultDetails);
+      const [resultsRes, diagnosisRes] = await Promise.all([
+        fetch(`/api/teacher/class-package-assignments/${assignment.id}/results`, { cache: "no-store" }),
+        fetch(`/api/teacher/class-package-assignments/${assignment.id}/skill-diagnosis`, { cache: "no-store" }),
+      ]);
+      const resultsJson = await resultsRes.json().catch(() => ({}));
+      if (!resultsRes.ok || !resultsJson.success) throw new Error(resultsJson.error || "تعذر تحميل نتائج الاختبار");
+      setPackageResults(resultsJson.data as PackageResultDetails);
+
+      const diagnosisJson = await diagnosisRes.json().catch(() => ({}));
+      if (diagnosisRes.ok && diagnosisJson.success) {
+        setSkillDiagnosis(diagnosisJson.data as SkillDiagnosisDetails);
+      } else {
+        setSkillDiagnosisError(diagnosisJson.error || "تعذر تحميل التحليل المهاري");
+      }
     } catch (err) {
       setPackageResultsError(err instanceof Error ? err.message : "تعذر تحميل نتائج الاختبار");
     } finally {
@@ -1022,6 +1058,85 @@ export default function TeacherDashboard() {
                       </div>
                       <div className="mt-1 text-xs font-bold text-slate-400">متوسط النسبة</div>
                     </div>
+                  </div>
+
+                  <div className="rounded-[1.25rem] border border-teal-100 bg-teal-50/40 p-4">
+                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-black text-[#0b2447]">مهارات تحتاج تدخل</h3>
+                        <p className="mt-1 text-xs font-bold text-slate-500">
+                          الأرقام محسوبة من إجابات الطلاب، والتفسير مبني على الدليل المتاح.
+                        </p>
+                      </div>
+                      {skillDiagnosis && (
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#159f91]">
+                          ثقة التحليل: {skillDiagnosis.confidence.label}
+                        </span>
+                      )}
+                    </div>
+                    {skillDiagnosisError && (
+                      <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
+                        {skillDiagnosisError}
+                      </div>
+                    )}
+                    {skillDiagnosis?.weakestSkills.length ? (
+                      <div className="grid gap-3">
+                        {skillDiagnosis.weakestSkills.slice(0, 3).map((skill) => (
+                          <div key={`${skill.domainText}-${skill.skillText}`} className="rounded-2xl bg-white p-4 shadow-[0_8px_24px_rgba(15,35,55,0.03)]">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <h4 className="font-black text-[#0b2447]">{skill.skillText}</h4>
+                                <p className="mt-1 text-xs font-bold text-slate-400">{skill.domainText}</p>
+                              </div>
+                              <div className="text-left">
+                                <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(skill.masteryRate)}٪</div>
+                                <div className="text-xs font-bold text-slate-400">نسبة الإتقان</div>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold">
+                              <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-500">
+                                {toEnglishDigits(skill.affectedStudentsCount)} طالب يحتاج دعمًا
+                              </span>
+                              <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-500">
+                                {toEnglishDigits(skill.linkedQuestionCount)} سؤال مرتبط
+                              </span>
+                              {skill.warning && (
+                                <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                                  {skill.warning}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                              <div className="rounded-xl bg-slate-50 p-3">
+                                <div className="text-xs font-black text-slate-400">السبب المحتمل</div>
+                                <p className="mt-1 text-sm font-bold leading-7 text-slate-600">{skill.likelyCause}</p>
+                              </div>
+                              <div className="rounded-xl bg-slate-50 p-3">
+                                <div className="text-xs font-black text-slate-400">خطوة الحصة القادمة</div>
+                                <p className="mt-1 text-sm font-bold leading-7 text-slate-600">
+                                  {skill.recommendation.nextLessonAction} · {skill.recommendation.duration}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                              <p className="text-xs font-bold text-slate-400">
+                                القياس: {skill.recommendation.impactMeasure}
+                              </p>
+                              <button
+                                onClick={() => alert("سيتم ربط إنشاء التدريب العلاجي في خطوة لاحقة.")}
+                                className="rounded-xl bg-[#0b2447] px-4 py-2 text-xs font-extrabold text-white"
+                              >
+                                إنشاء تدريب علاجي
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-slate-400">
+                        لا توجد مهارات تحتاج تدخلًا بناءً على النتائج الحالية.
+                      </p>
+                    )}
                   </div>
 
                   {packageResults.students.length ? (
