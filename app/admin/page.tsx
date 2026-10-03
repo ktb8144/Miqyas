@@ -21,7 +21,6 @@ import {
   Search,
   Settings,
   ShieldCheck,
-  Sparkles,
   TrendingDown,
   UserRoundCog,
   UsersRound,
@@ -30,8 +29,8 @@ import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
 import { toEnglishDigits } from "@/lib/format";
 
-type Tab = "overview" | "schools" | "users" | "questions" | "packages" | "trialRequests" | "reports";
-type ModalType = "school" | "user" | "question";
+type Tab = "overview" | "schools" | "users" | "packages" | "trialRequests" | "reports";
+type ModalType = "school" | "user";
 
 type OverviewData = {
   schools: { total: number };
@@ -84,40 +83,6 @@ type UserFormData = {
   email: string;
   role: string;
   school_id?: string;
-};
-
-type QuestionOption = {
-  option_label: string;
-  option_text: string;
-  is_correct: boolean;
-};
-
-type AdminQuestion = {
-  id: string;
-  subject: string;
-  grade: string;
-  skill: string;
-  difficulty: string;
-  question_text: string;
-  week_number: number;
-  status: string;
-  options: QuestionOption[];
-  correct_option: string;
-};
-
-type QuestionFormData = {
-  subject: string;
-  grade: string;
-  skill: string;
-  difficulty: string;
-  week_number: string;
-  question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_option: string;
-  status: string;
 };
 
 type AdminTrialRequest = {
@@ -287,7 +252,6 @@ const navItems = [
   { id: "overview", label: "لوحة عامة", icon: LayoutDashboard },
   { id: "schools", label: "المدارس", icon: Building2 },
   { id: "users", label: "المستخدمون", icon: UsersRound },
-  { id: "questions", label: "الأسئلة الأسبوعية", icon: BookOpenCheck },
   { id: "packages", label: "حزم الاختبارات", icon: PackageCheck },
   { id: "trialRequests", label: "طلبات التجربة", icon: ClipboardList },
   { id: "reports", label: "التقارير", icon: BarChart3 },
@@ -295,15 +259,6 @@ const navItems = [
 
 function formatNumber(value: number) {
   return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
-}
-
-function difficultyLabel(value: string) {
-  const labels: Record<string, string> = {
-    easy: "سهل",
-    medium: "متوسط",
-    hard: "متقدم",
-  };
-  return labels[value] ?? value;
 }
 
 function packageStatusLabel(value: string) {
@@ -532,7 +487,7 @@ function AdminModal({
   initialValues?: Record<string, string>;
   schools?: AdminSchool[];
   onClose: () => void;
-  onSubmit?: (payload: SchoolFormData | UserFormData | QuestionFormData | Record<string, string>) => Promise<void> | void;
+  onSubmit?: (payload: SchoolFormData | UserFormData | Record<string, string>) => Promise<void> | void;
 }) {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -552,23 +507,6 @@ function AdminModal({
         { name: "email", label: "الإيميل", type: "email" },
         { name: "role", label: "الدور", type: "select" },
         { name: "school_id", label: "المدرسة", type: "school" },
-      ],
-    },
-    question: {
-      title: initialValues ? "تعديل سؤال أسبوعي" : "إضافة سؤال أسبوعي",
-      fields: [
-        { name: "subject", label: "المادة", type: "text" },
-        { name: "grade", label: "الصف", type: "text" },
-        { name: "skill", label: "المهارة", type: "text" },
-        { name: "difficulty", label: "الصعوبة", type: "difficulty" },
-        { name: "week_number", label: "رقم الأسبوع", type: "number" },
-        { name: "question_text", label: "نص السؤال", type: "textarea" },
-        { name: "option_a", label: "الخيار أ", type: "text" },
-        { name: "option_b", label: "الخيار ب", type: "text" },
-        { name: "option_c", label: "الخيار ج", type: "text" },
-        { name: "option_d", label: "الخيار د", type: "text" },
-        { name: "correct_option", label: "الإجابة الصحيحة", type: "correct" },
-        { name: "status", label: "الحالة", type: "questionStatus" },
       ],
     },
   }[type];
@@ -631,29 +569,8 @@ function AdminModal({
                     <option key={school.id} value={school.id}>{school.name}</option>
                   ))}
                 </select>
-              ) : field.type === "difficulty" ? (
-                <select name={field.name} defaultValue={initialValues?.[field.name] ?? "medium"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
-                  <option value="easy">سهل</option>
-                  <option value="medium">متوسط</option>
-                  <option value="hard">متقدم</option>
-                </select>
-              ) : field.type === "correct" ? (
-                <select name={field.name} defaultValue={initialValues?.[field.name] ?? "أ"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
-                  <option value="أ">أ</option>
-                  <option value="ب">ب</option>
-                  <option value="ج">ج</option>
-                  <option value="د">د</option>
-                </select>
-              ) : field.type === "questionStatus" ? (
-                <select name={field.name} defaultValue={initialValues?.[field.name] ?? "draft"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
-                  <option value="draft">مسودة</option>
-                  <option value="active">مفعل</option>
-                  <option value="archived">مؤرشف</option>
-                </select>
-              ) : field.type === "textarea" ? (
-                <textarea name={field.name} required={type === "question" && field.name === "question_text"} defaultValue={initialValues?.[field.name]} rows={4} className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
               ) : (
-                <input name={field.name} required={(type === "school" && ["name", "city"].includes(field.name)) || (type === "user" && ["name", "email"].includes(field.name)) || (type === "question" && ["subject", "grade"].includes(field.name))} defaultValue={initialValues?.[field.name]} type={field.type} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
+                <input name={field.name} required={(type === "school" && ["name", "city"].includes(field.name)) || (type === "user" && ["name", "email"].includes(field.name))} defaultValue={initialValues?.[field.name]} type={field.type} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
               )}
             </label>
           ))}
@@ -948,99 +865,6 @@ function UsersTab({
               <EmptyState message={search ? "لا يوجد مستخدمون مطابقون للبحث." : "لا يوجد مستخدمون فعليون حتى الآن."} />
             </div>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function QuestionsTab({
-  questions,
-  loading,
-  error,
-  search,
-  onSearchChange,
-  onRetry,
-  busyQuestionId,
-  onAddQuestion,
-  onEditQuestion,
-  onToggleQuestionStatus,
-}: {
-  questions: AdminQuestion[];
-  loading: boolean;
-  error: string | null;
-  search: string;
-  onSearchChange: (value: string) => void;
-  onRetry: () => void;
-  busyQuestionId: string | null;
-  onAddQuestion: () => void;
-  onEditQuestion: (question: AdminQuestion) => void;
-  onToggleQuestionStatus: (question: AdminQuestion) => void;
-}) {
-  return (
-    <div className="space-y-8">
-      <PageHeader
-        title="إدارة الأسئلة الأسبوعية"
-        description="إضافة الأسئلة، تحديد المادة والصف والمهارة والصعوبة والإجابة الصحيحة، ثم تفعيلها للأسبوع المناسب."
-        action={
-          <div className="flex gap-3">
-            <SoftButton disabled title="قريبًا">
-              <Sparkles className="h-4 w-4" />
-              توليد بالذكاء الاصطناعي · قريبًا
-            </SoftButton>
-            <PrimaryButton onClick={onAddQuestion} disabled={Boolean(busyQuestionId)}>إضافة سؤال</PrimaryButton>
-          </div>
-        }
-      />
-      {error && <ErrorState message={error} onRetry={onRetry} />}
-      <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-          <h2 className="text-lg font-black text-[#0b2447]">إضافة سؤال سريع</h2>
-          <div className="mt-6">
-            <EmptyState message="استخدم زر إضافة سؤال لفتح النموذج الكامل. الإدخال السريع سيعود لاحقًا بعد ربطه بحزم V0.2." />
-          </div>
-        </div>
-
-        <div className="rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-          <div className="border-b border-slate-100 p-5">
-            <SearchBar placeholder="ابحث في الأسئلة أو المهارات" value={search} onChange={onSearchChange} />
-            {loading && (
-              <p className="mt-3 text-xs font-extrabold text-slate-400">جارٍ تحميل الأسئلة...</p>
-            )}
-          </div>
-          <div className="divide-y divide-slate-100">
-            {questions.map((question) => (
-              <div key={`${question.subject}-${question.skill}`} className="p-5 transition hover:bg-slate-50/70">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-extrabold text-[#159f91]">{question.subject}</span>
-                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-500">{question.grade}</span>
-                      <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-extrabold text-slate-500">الأسبوع {toEnglishDigits(question.week_number)}</span>
-                    </div>
-                    <h3 className="font-black text-[#0b2447]">{question.skill}</h3>
-                    <p className="mt-1 text-sm font-semibold text-slate-400">الصعوبة: {difficultyLabel(question.difficulty)}</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-400">{question.question_text}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <StatusBadge status={question.status} />
-                    <ActionDropdown
-                      label={question.skill || question.question_text}
-                      onEdit={() => onEditQuestion(question)}
-                      onDisable={() => onToggleQuestionStatus(question)}
-                      disabled={busyQuestionId === question.id}
-                      actionLabel={question.status === "active" ? "أرشفة" : "تفعيل"}
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-            {!loading && questions.length === 0 && (
-              <div className="p-5">
-                <EmptyState message={search ? "لا توجد أسئلة مطابقة للبحث." : "لا توجد أسئلة فعلية حتى الآن."} />
-              </div>
-            )}
-          </div>
         </div>
       </div>
     </div>
@@ -1642,34 +1466,28 @@ export default function AdminPage() {
   const [modalType, setModalType] = useState<ModalType | null>(null);
   const [editingSchool, setEditingSchool] = useState<AdminSchool | null>(null);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
-  const [editingQuestion, setEditingQuestion] = useState<AdminQuestion | null>(null);
   const [editingPackage, setEditingPackage] = useState<AdminAssessmentPackage | null>(null);
   const [packageModalOpen, setPackageModalOpen] = useState(false);
   const [importingPackage, setImportingPackage] = useState<AdminAssessmentPackage | null>(null);
   const [publishingPackage, setPublishingPackage] = useState<AdminAssessmentPackage | null>(null);
   const [schoolRows, setSchoolRows] = useState<AdminSchool[]>([]);
   const [userRows, setUserRows] = useState<AdminUser[]>([]);
-  const [questionRows, setQuestionRows] = useState<AdminQuestion[]>([]);
   const [packageRows, setPackageRows] = useState<AdminAssessmentPackage[]>([]);
   const [trialRequestRows, setTrialRequestRows] = useState<AdminTrialRequest[]>([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [questionsLoading, setQuestionsLoading] = useState(false);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [trialRequestsLoading, setTrialRequestsLoading] = useState(false);
   const [schoolsError, setSchoolsError] = useState<string | null>(null);
   const [usersError, setUsersError] = useState<string | null>(null);
-  const [questionsError, setQuestionsError] = useState<string | null>(null);
   const [packagesError, setPackagesError] = useState<string | null>(null);
   const [trialRequestsError, setTrialRequestsError] = useState<string | null>(null);
   const [overviewError, setOverviewError] = useState<string | null>(null);
   const [schoolSearch, setSchoolSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
-  const [questionSearch, setQuestionSearch] = useState("");
   const [packageSearch, setPackageSearch] = useState("");
   const [busySchoolId, setBusySchoolId] = useState<string | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
-  const [busyQuestionId, setBusyQuestionId] = useState<string | null>(null);
   const [busyPackageId, setBusyPackageId] = useState<string | null>(null);
   const [busyTrialRequestId, setBusyTrialRequestId] = useState<string | null>(null);
   const [overview, setOverview] = useState<OverviewData>(emptyOverview);
@@ -1699,17 +1517,6 @@ export default function AdminPage() {
         .includes(query)
     );
   }, [userRows, userSearch]);
-
-  const filteredQuestions = useMemo(() => {
-    const query = questionSearch.trim().toLowerCase();
-    if (!query) return questionRows;
-    return questionRows.filter((question) =>
-      [question.subject, question.grade, question.skill, question.question_text, question.status]
-        .join(" ")
-        .toLowerCase()
-        .includes(query)
-    );
-  }, [questionRows, questionSearch]);
 
   const filteredPackages = useMemo(() => {
     const query = packageSearch.trim().toLowerCase();
@@ -1785,23 +1592,6 @@ export default function AdminPage() {
     }
   }, []);
 
-  const loadQuestions = useCallback(async () => {
-    setQuestionsLoading(true);
-    setQuestionsError(null);
-    try {
-      const res = await fetch("/api/admin/questions", { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "فشل تحميل الأسئلة");
-      setQuestionRows(json.data);
-    } catch (error) {
-      console.error("load admin questions failed", error);
-      setQuestionRows([]);
-      setQuestionsError(error instanceof Error ? error.message : "فشل تحميل الأسئلة");
-    } finally {
-      setQuestionsLoading(false);
-    }
-  }, []);
-
   const loadPackages = useCallback(async () => {
     setPackagesLoading(true);
     setPackagesError(null);
@@ -1848,9 +1638,6 @@ export default function AdminPage() {
       void loadUsers();
       void loadSchools();
     }
-    if (activeTab === "questions") {
-      void loadQuestions();
-    }
     if (activeTab === "packages") {
       void loadPackages();
       void loadSchools();
@@ -1858,7 +1645,7 @@ export default function AdminPage() {
     if (activeTab === "trialRequests") {
       void loadTrialRequests();
     }
-  }, [activeTab, loadPackages, loadSchools, loadQuestions, loadTrialRequests, loadUsers]);
+  }, [activeTab, loadPackages, loadSchools, loadTrialRequests, loadUsers]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -1884,16 +1671,6 @@ export default function AdminPage() {
   function openEditUserModal(user: AdminUser) {
     setEditingUser(user);
     setModalType("user");
-  }
-
-  function openAddQuestionModal() {
-    setEditingQuestion(null);
-    setModalType("question");
-  }
-
-  function openEditQuestionModal(question: AdminQuestion) {
-    setEditingQuestion(question);
-    setModalType("question");
   }
 
   function openCreatePackageModal() {
@@ -2039,60 +1816,6 @@ export default function AdminPage() {
     }
   }
 
-  async function handleQuestionSubmit(payload: QuestionFormData | Record<string, string>) {
-    const subject = payload.subject?.trim();
-    const grade = payload.grade?.trim();
-    const question_text = payload.question_text?.trim();
-    const correct_option = payload.correct_option?.trim() || "أ";
-
-    if (!subject || !grade || !question_text) {
-      throw new Error("المادة والصف ونص السؤال مطلوبة");
-    }
-
-    const body = {
-      subject,
-      grade,
-      skill: payload.skill?.trim() ?? "",
-      difficulty: payload.difficulty?.trim() || "medium",
-      week_number: Number(payload.week_number || 0),
-      question_text,
-      status: payload.status?.trim() || "draft",
-      correct_option,
-      options: [
-        { option_label: "أ", option_text: payload.option_a?.trim() ?? "" },
-        { option_label: "ب", option_text: payload.option_b?.trim() ?? "" },
-        { option_label: "ج", option_text: payload.option_c?.trim() ?? "" },
-        { option_label: "د", option_text: payload.option_d?.trim() ?? "" },
-      ],
-    };
-
-    const endpoint = editingQuestion ? `/api/admin/questions/${editingQuestion.id}` : "/api/admin/questions";
-    const method = editingQuestion ? "PATCH" : "POST";
-    setBusyQuestionId(editingQuestion?.id ?? "new");
-    try {
-      const res = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "فشل حفظ السؤال");
-
-      if (editingQuestion) {
-        setQuestionRows((prev) => prev.map((question) => (question.id === editingQuestion.id ? json.data : question)));
-        window.alert("تم التحديث");
-      } else {
-        setQuestionRows((prev) => [json.data, ...prev]);
-        window.alert("تمت الإضافة");
-      }
-      setEditingQuestion(null);
-    } catch (error) {
-      console.error("save question failed", error);
-      throw error;
-    } finally {
-      setBusyQuestionId(null);
-    }
-  }
 
   async function uploadQuestionsPdf(packageId: string, file: File) {
     const path = `packages/${packageId}/questions.pdf`;
@@ -2248,28 +1971,6 @@ export default function AdminPage() {
     }
   }
 
-  async function handleToggleQuestionStatus(question: AdminQuestion) {
-    const nextStatus = question.status === "active" ? "archived" : "active";
-    setBusyQuestionId(question.id);
-    setQuestionRows((prev) => prev.map((item) => (item.id === question.id ? { ...item, status: nextStatus } : item)));
-    try {
-      const res = await fetch(`/api/admin/questions/${question.id}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "فشل تحديث حالة السؤال");
-      setQuestionRows((prev) => prev.map((item) => (item.id === question.id ? json.data : item)));
-      window.alert(nextStatus === "active" ? "تم التحديث" : "تم التعطيل");
-    } catch (error) {
-      console.error("toggle question status failed", error);
-      setQuestionRows((prev) => prev.map((item) => (item.id === question.id ? question : item)));
-      window.alert(error instanceof Error ? error.message : "فشل تحديث حالة السؤال");
-    } finally {
-      setBusyQuestionId(null);
-    }
-  }
 
   async function handleTrialRequestStatus(request: AdminTrialRequest, status: string) {
     setBusyTrialRequestId(request.id);
@@ -2303,26 +2004,11 @@ export default function AdminPage() {
               ? { name: editingSchool.name, city: editingSchool.city, type: editingSchool.type ?? "حكومية" }
               : modalType === "user" && editingUser
                 ? { name: editingUser.name, email: editingUser.email, role: editingUser.role, school_id: editingUser.school_id ?? "" }
-                : modalType === "question" && editingQuestion
-                  ? {
-                    subject: editingQuestion.subject,
-                    grade: editingQuestion.grade,
-                    skill: editingQuestion.skill,
-                    difficulty: editingQuestion.difficulty,
-                    week_number: String(editingQuestion.week_number || ""),
-                    question_text: editingQuestion.question_text,
-                    option_a: editingQuestion.options.find((option) => option.option_label === "أ")?.option_text ?? "",
-                    option_b: editingQuestion.options.find((option) => option.option_label === "ب")?.option_text ?? "",
-                    option_c: editingQuestion.options.find((option) => option.option_label === "ج")?.option_text ?? "",
-                    option_d: editingQuestion.options.find((option) => option.option_label === "د")?.option_text ?? "",
-                    correct_option: editingQuestion.correct_option,
-                    status: editingQuestion.status,
-                  }
                 : undefined
           }
           schools={schoolRows}
-          onSubmit={modalType === "school" ? handleSchoolSubmit : modalType === "user" ? handleUserSubmit : modalType === "question" ? handleQuestionSubmit : undefined}
-          onClose={() => { setModalType(null); setEditingSchool(null); setEditingUser(null); setEditingQuestion(null); }}
+          onSubmit={modalType === "school" ? handleSchoolSubmit : modalType === "user" ? handleUserSubmit : undefined}
+          onClose={() => { setModalType(null); setEditingSchool(null); setEditingUser(null); }}
         />
       )}
 
@@ -2487,20 +2173,6 @@ export default function AdminPage() {
               onAddUser={openAddUserModal}
               onEditUser={openEditUserModal}
               onToggleUserStatus={handleToggleUserStatus}
-            />
-          )}
-          {activeTab === "questions" && (
-            <QuestionsTab
-              questions={filteredQuestions}
-              loading={questionsLoading}
-              error={questionsError}
-              search={questionSearch}
-              onSearchChange={setQuestionSearch}
-              onRetry={loadQuestions}
-              busyQuestionId={busyQuestionId}
-              onAddQuestion={openAddQuestionModal}
-              onEditQuestion={openEditQuestionModal}
-              onToggleQuestionStatus={handleToggleQuestionStatus}
             />
           )}
           {activeTab === "packages" && (

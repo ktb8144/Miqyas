@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUserRole } from "@/lib/supabase-admin";
+import { requireUserRole } from "@/lib/auth";
 import { analyzeClassPackageAssignmentSkills } from "@/lib/assessment/skill-diagnosis-service";
 
 export const dynamic = "force-dynamic";

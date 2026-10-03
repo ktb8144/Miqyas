@@ -1007,12 +1007,8 @@ export default function TeacherDashboard() {
             <div className="p-5">
               {activePackageStudents.length ? (
                 <BatchOMRScanner
-                  mode="package"
                   classPackageAssignmentId={activePackageAssignment.id}
                   totalStudents={activePackageStudents.length}
-                  subject={activePackageAssignment.subject}
-                  grade={activePackageAssignment.grade ?? ""}
-                  weekNumber={activePackageAssignment.weekNumber ?? 0}
                   onComplete={handlePackageScanComplete}
                   students={activePackageStudents.map((student) => ({ id: student.id, name: student.name, studentCode: student.studentCode }))}
                 />

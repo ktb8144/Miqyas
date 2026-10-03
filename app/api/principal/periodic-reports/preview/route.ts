@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { buildPeriodicReport, getPeriodicReportWeeks } from "@/lib/reports/periodic-report";
-import { requireUserRole } from "@/lib/supabase-admin";
+import { requireUserRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

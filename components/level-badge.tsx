@@ -1,4 +1,4 @@
-import { getLevel, ETEC_LEVELS } from "@/lib/demo-data";
+import { getLevel, ETEC_LEVELS } from "@/lib/levels";
 
 interface LevelBadgeProps {
   score: number;

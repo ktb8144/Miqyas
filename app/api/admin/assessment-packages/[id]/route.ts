@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getAdminClient, requireAdmin } from "@/lib/supabase-admin";
+import { getAdminClient } from "@/lib/supabase-admin";
+import { requireAdmin } from "@/lib/auth";
 import { AssessmentValidationError, parsePackageAnswerKey, syncPackageQuestionsFromAnswerKey } from "@/lib/assessment";
 
 export const dynamic = "force-dynamic";

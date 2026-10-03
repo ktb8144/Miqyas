@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminOverview, requireAdmin } from "@/lib/supabase-admin";
+import { getAdminOverview } from "@/lib/admin-overview";
+import { requireAdmin } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { scanAnswerSheet, scanQuestionPaperAnswers } from "@/lib/gemini";
-import { getLevel } from "@/lib/demo-data";
-import { getAdminClient, requireUserRole } from "@/lib/supabase-admin";
+import { getLevel } from "@/lib/levels";
+import { getAdminClient } from "@/lib/supabase-admin";
+import { requireUserRole } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 

@@ -1,12 +1,18 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
+
+// Pin an explicit model version. Aliases such as "gemini-flash-latest" are
+// silently re-pointed by Google, which changes grading accuracy and cost
+// without any code change. Override per environment with GEMINI_MODEL.
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 function getModel() {
   const key = process.env.GEMINI_API_KEY;
-  if (!key || key === "your_gemini_key_here") {
+  if (!key) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
   const genAI = new GoogleGenerativeAI(key);
-  return genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+  return genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL });
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -15,39 +21,14 @@ export interface OMRResult {
   [key: string]: string; // e.g. { q1: "ب", q2: "أ", ... }
 }
 
-const ARABIC_DIGITS: Record<string, string> = {
-  "٠": "0",
-  "١": "1",
-  "٢": "2",
-  "٣": "3",
-  "٤": "4",
-  "٥": "5",
-  "٦": "6",
-  "٧": "7",
-  "٨": "8",
-  "٩": "9",
-};
-
 function stripCodeFence(text: string) {
   return text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
 }
 
 function normalizeQuestionKey(key: string) {
-  const englishDigits = key.replace(/[٠-٩]/g, (digit) => ARABIC_DIGITS[digit] ?? digit);
+  const englishDigits = toEnglishDigits(key);
   const match = englishDigits.match(/(?:q|س|السؤال)?\s*([0-9]+)/i);
   return match ? `q${match[1]}` : null;
-}
-
-function toEnglishDigitString(value: string) {
-  return value.replace(/[٠-٩]/g, (digit) => ARABIC_DIGITS[digit] ?? digit);
-}
-
-function normalizeStudentCode(value: unknown) {
-  if (typeof value !== "string" && typeof value !== "number") return "";
-  const digits = toEnglishDigitString(String(value)).replace(/[^\d]/g, "");
-  if (!digits) return "";
-  const numeric = Number(digits);
-  return Number.isFinite(numeric) ? String(numeric) : digits;
 }
 
 function normalizeOption(value: unknown) {
@@ -114,13 +95,6 @@ export interface ClassReport {
   recommendations: string;
 }
 
-export interface Question {
-  text: string;
-  options: { أ: string; ب: string; ج: string; د: string };
-  correct: "أ" | "ب" | "ج" | "د";
-  bloomLevel: string;
-  explanation: string;
-}
 
 // ─── Function 1: Scan answer sheet image ─────────────────────────────────────
 
@@ -308,7 +282,7 @@ ${summary}
 
   const result = await model.generateContent(prompt);
   const text = result.response.text().trim();
-  const jsonText = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  const jsonText = stripCodeFence(text);
 
   try {
     return JSON.parse(jsonText) as ClassReport;
@@ -320,132 +294,6 @@ ${summary}
       interventionPlan: "—",
       recommendations: "—",
     };
-  }
-}
-
-// ─── Function 3: Generate NAFIS-style MCQ questions ──────────────────────────
-
-export async function generateQuestions(
-  grade: string,
-  subject: string,
-  skill: string,
-  bloomLevel: string,
-  count: number
-): Promise<Question[]> {
-  const model = getModel();
-
-  const prompt = `أنت متخصص في إعداد الاختبارات وفق معايير هيئة تقويم التعليم والتدريب (هيئة نافس) في المملكة العربية السعودية.
-
-أعد ${count} أسئلة اختيار من متعدد (MCQ) باللغة العربية للمواصفات التالية:
-- الصف: ${grade} ابتدائي
-- المادة: ${subject}
-- المهارة: ${skill}
-- مستوى بلوم: ${bloomLevel}
-
-شروط الأسئلة:
-1. كل سؤال له 4 خيارات (أ، ب، ج، د)
-2. خيار صحيح واحد فقط
-3. الأسئلة مناسبة للمرحلة الدراسية
-4. متنوعة وتقيس المهارة بطرق مختلفة
-5. واضحة ولا تحتمل التأويل
-
-أعد النتيجة بصيغة JSON فقط:
-[
-  {
-    "text": "نص السؤال",
-    "options": {
-      "أ": "الخيار الأول",
-      "ب": "الخيار الثاني",
-      "ج": "الخيار الثالث",
-      "د": "الخيار الرابع"
-    },
-    "correct": "أ",
-    "bloomLevel": "${bloomLevel}",
-    "explanation": "شرح مختصر للإجابة الصحيحة"
-  }
-]
-
-أعد JSON فقط بدون markdown أو نص إضافي.`;
-
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
-  const jsonText = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-
-  try {
-    return JSON.parse(jsonText) as Question[];
-  } catch {
-    return [];
-  }
-}
-
-// ─── Function 4: Generate remedial worksheet ─────────────────────────────────
-
-export interface WorksheetExercise {
-  questionNumber: number;
-  skill: string;
-  question: string;
-  options?: string[];
-  type: "mcq" | "open" | "fill";
-}
-
-export async function generateWorksheet(
-  weakSkills: string[],
-  unit: string,
-  grade: string = "الثالث",
-  subject: string = "الرياضيات",
-  studentName?: string
-): Promise<WorksheetExercise[]> {
-  const model = getModel();
-
-  const target = studentName ? `الطالب: ${studentName}` : "فصل كامل";
-
-  const prompt = `أنت معلم رياضيات خبير في المرحلة الابتدائية في المملكة العربية السعودية.
-
-اعداد ورقة عمل علاجية مخصصة لـ ${target}:
-- الصف: ${grade} ابتدائي
-- المادة: ${subject}
-- الوحدة: ${unit}
-- المهارات المستهدفة (نقاط الضعف):
-${weakSkills.map((s, i) => `${i + 1}. ${s}`).join("\n")}
-
-أعد ورقة عمل تحتوي على ${weakSkills.length * 2} تمرين (تمرينان لكل مهارة):
-- نوع التمارين: اختيار من متعدد، أو ملء الفراغ، أو مسألة مفتوحة
-- اجعل التمارين تدريجية من السهل للصعب
-- استخدم أمثلة حياتية مناسبة لطلاب الثالث الابتدائي
-
-أعد النتيجة كـ JSON فقط:
-[
-  {
-    "questionNumber": 1,
-    "skill": "اسم المهارة المستهدفة",
-    "question": "نص السؤال",
-    "type": "mcq",
-    "options": ["أ. الخيار الأول", "ب. الخيار الثاني", "ج. الخيار الثالث", "د. الخيار الرابع"]
-  },
-  {
-    "questionNumber": 2,
-    "skill": "اسم المهارة المستهدفة",
-    "question": "أكمل الفراغ: ١/٢ = ___ / ٤",
-    "type": "fill"
-  },
-  {
-    "questionNumber": 3,
-    "skill": "اسم المهارة المستهدفة",
-    "question": "حل المسألة وأظهر خطواتك:",
-    "type": "open"
-  }
-]
-
-JSON فقط، بدون markdown أو نص إضافي.`;
-
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
-  const jsonText = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-
-  try {
-    return JSON.parse(jsonText) as WorksheetExercise[];
-  } catch {
-    return [];
   }
 }
 
@@ -477,7 +325,7 @@ Return the JSON array only, no other text, no markdown.`;
   ]);
 
   const text = result.response.text().trim();
-  const jsonText = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+  const jsonText = stripCodeFence(text);
 
   try {
     const parsed = JSON.parse(jsonText);

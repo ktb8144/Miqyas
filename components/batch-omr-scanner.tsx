@@ -1,12 +1,20 @@
 "use client";
 import { useState, useRef, useCallback, useEffect } from "react";
-import { ETEC_LEVELS } from "@/lib/demo-data";
-import { toEnglishDigits } from "@/lib/format";
+import { ETEC_LEVELS } from "@/lib/levels";
+import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const Q_COUNT = 10;
 const MAX_PAPERS = 40;
+// Package scanning settings (the only scan mode since the weekly-questions flow was removed).
+const SCAN_ENDPOINT = "/api/scan-package-omr";
+const SCAN_MAX_WIDTH = 1600;
+const SCAN_QUALITY = 0.88;
+const SCAN_RETAKE_QUALITY = 0.9;
+const SCAN_TIMEOUT_MS = 40_000;
+const MISSING_ASSIGNMENT_ERROR = "لا يمكن بدء التصحيح بدون تعيين الحزمة على الفصل.";
+
 const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -46,28 +54,6 @@ type ScannerStudent = {
 type Step = "capture" | "processing" | "review" | "done";
 
 const DIACRITICS = /[\u064B-\u065F\u0670]/g;
-const ARABIC_DIGITS: Record<string, string> = {
-  "٠": "0",
-  "١": "1",
-  "٢": "2",
-  "٣": "3",
-  "٤": "4",
-  "٥": "5",
-  "٦": "6",
-  "٧": "7",
-  "٨": "8",
-  "٩": "9",
-};
-
-function normalizeStudentCode(value?: string | null) {
-  const digits = String(value ?? "")
-    .replace(/[٠-٩]/g, (digit) => ARABIC_DIGITS[digit] ?? digit)
-    .replace(/[^\d]/g, "");
-  if (!digits) return "";
-  const numeric = Number(digits);
-  return Number.isFinite(numeric) ? String(numeric) : digits;
-}
-
 function normalizeArabicName(name: string) {
   return name
     .trim()
@@ -410,19 +396,11 @@ function PaperReviewModal({
 
 export function BatchOMRScanner({
   totalStudents,
-  subject,
-  grade,
-  weekNumber,
-  mode = "weekly",
   classPackageAssignmentId,
   students = [],
   onComplete,
 }: {
   totalStudents: number;
-  subject: string;
-  grade: string | number;
-  weekNumber: number;
-  mode?: "weekly" | "package";
   classPackageAssignmentId?: string;
   students?: ScannerStudent[];
   onComplete: (results: ScanResult[]) => Promise<void> | void;
@@ -502,8 +480,8 @@ export function BatchOMRScanner({
   const acceptCapture = useCallback(async () => {
     if (!pendingCapture) return;
     setCaptureBusy(true);
-    const maxWidth = mode === "package" ? 1600 : 800;
-    const quality = mode === "package" ? 0.88 : 0.8;
+    const maxWidth = SCAN_MAX_WIDTH;
+    const quality = SCAN_QUALITY;
     const [compressed, thumb, review] = await Promise.all([
       compressImage(pendingCapture.raw, maxWidth, quality),
       compressImage(pendingCapture.raw, 360, 0.75),
@@ -515,7 +493,7 @@ export function BatchOMRScanner({
     setCaptureMessage("تم حفظ الصورة، صوّر الورقة التالية");
     setCaptureBusy(false);
     if ("vibrate" in navigator) navigator.vibrate?.(35);
-  }, [mode, pendingCapture]);
+  }, [pendingCapture]);
 
   const retakePendingCapture = useCallback(() => {
     setPendingCapture(null);
@@ -534,7 +512,7 @@ export function BatchOMRScanner({
         studentCode: "",
         editedName: "",
         matchedStudentId: null,
-        matchConfidence: mode === "package" ? "needs_review" : undefined,
+        matchConfidence: "needs_review",
         answers: blankAnswers,
         score: 0,
         total: Q_COUNT,
@@ -548,7 +526,7 @@ export function BatchOMRScanner({
     closeCamera();
     setStep("review");
     setReviewingPaperId(paperId);
-  }, [closeCamera, mode]);
+  }, [closeCamera]);
 
   const handleGalleryUpload = useCallback(async (file: File | undefined) => {
     if (!file) return;
@@ -561,42 +539,29 @@ export function BatchOMRScanner({
     const raw = dataUrl.split(",")[1] ?? "";
     if (!raw) return;
     const [compressed, thumb, review] = await Promise.all([
-      compressImage(raw, mode === "package" ? 1600 : 800, mode === "package" ? 0.88 : 0.8),
+      compressImage(raw, SCAN_MAX_WIDTH, SCAN_QUALITY),
       compressImage(raw, 360, 0.75),
       compressImage(raw, 1100, 0.9),
     ]);
     setPapers((prev) => [...prev, { id: `p${Date.now()}`, imageBase64: compressed, thumbBase64: thumb, reviewBase64: review }]);
     setCaptureMessage("تم رفع الصورة من المعرض");
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, [mode]);
+  }, []);
 
   // ── Scan a single image against the API ────────────────────────────────────
 
   const scanImage = async (imageBase64: string, paperId: string, thumbBase64: string): Promise<ScanResult> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), mode === "package" ? 40000 : 20000);
+    const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
     try {
-      if (mode === "package" && !classPackageAssignmentId) {
-        throw new Error("لا يمكن بدء تصحيح حزمة مقياس بدون تعيين الحزمة على الفصل.");
+      if (!classPackageAssignmentId) {
+        throw new Error(MISSING_ASSIGNMENT_ERROR);
       }
 
-      const endpoint = mode === "package" ? "/api/scan-package-omr" : "/api/scan-omr";
-      const scanMode = mode === "package" ? "question_paper" : undefined;
-      console.debug("miqyas scan request", {
-        packageMode: mode === "package",
-        endpoint,
-        classPackageAssignmentId: classPackageAssignmentId ?? null,
-        scanMode,
-      });
-
-      const res = await fetch(endpoint, {
+      const res = await fetch(SCAN_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          mode === "package"
-            ? { classPackageAssignmentId, imageBase64, mimeType: "image/jpeg", scanMode: "question_paper" }
-            : { imageBase64, mimeType: "image/jpeg", subject, grade, weekNumber }
-        ),
+        body: JSON.stringify({ classPackageAssignmentId, imageBase64, mimeType: "image/jpeg", scanMode: "question_paper" }),
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -615,9 +580,7 @@ export function BatchOMRScanner({
       };
       const studentName = (result.studentName ?? "").trim();
       const studentCode = normalizeStudentCode(result.studentCode ?? "");
-      const match: Pick<ScanResult, "matchedStudentId" | "matchConfidence"> = mode === "package"
-        ? resolveStudentMatch({ studentName, studentCode, editedName: studentName }, students)
-        : { matchedStudentId: null, matchConfidence: undefined };
+      const match = resolveStudentMatch({ studentName, studentCode, editedName: studentName }, students);
 
       return {
         paperId, studentName, studentCode, editedName: studentName,
@@ -637,7 +600,7 @@ export function BatchOMRScanner({
       return {
         paperId, studentName: "", studentCode: "", editedName: "", answers: {}, score: 0,
         total: Q_COUNT, percentage: 0, level: "دون الأساسي", weakSkills: [], error: true,
-        errorMsg: isTimeout ? `انتهت المهلة (${toEnglishDigits(mode === "package" ? 40 : 20)} ثانية) — أعد التصوير` : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
+        errorMsg: isTimeout ? `انتهت المهلة (${toEnglishDigits(SCAN_TIMEOUT_MS / 1000)} ثانية) — أعد التصوير` : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
         thumbBase64, imageBase64,
       };
     }
@@ -647,8 +610,8 @@ export function BatchOMRScanner({
 
   const processAll = async () => {
     if (!papers.length) return;
-    if (mode === "package" && !classPackageAssignmentId) {
-      setSaveError("لا يمكن بدء تصحيح حزمة مقياس بدون تعيين الحزمة على الفصل.");
+    if (!classPackageAssignmentId) {
+      setSaveError(MISSING_ASSIGNMENT_ERROR);
       return;
     }
     closeCamera();
@@ -692,26 +655,14 @@ export function BatchOMRScanner({
 
   const handleReviewSave = async (paperId: string, answers: Record<string, string>) => {
     try {
-      if (mode === "package" && !classPackageAssignmentId) {
-        throw new Error("لا يمكن بدء تصحيح حزمة مقياس بدون تعيين الحزمة على الفصل.");
+      if (!classPackageAssignmentId) {
+        throw new Error(MISSING_ASSIGNMENT_ERROR);
       }
 
-      const endpoint = mode === "package" ? "/api/scan-package-omr" : "/api/scan-omr";
-      console.debug("miqyas scan request", {
-        packageMode: mode === "package",
-        endpoint,
-        classPackageAssignmentId: classPackageAssignmentId ?? null,
-        scanMode: mode === "package" ? "question_paper" : undefined,
-      });
-
-      const res = await fetch(endpoint, {
+      const res = await fetch(SCAN_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          mode === "package"
-            ? { classPackageAssignmentId, studentAnswers: answers }
-            : { studentAnswers: answers, subject, grade, weekNumber }
-        ),
+        body: JSON.stringify({ classPackageAssignmentId, studentAnswers: answers }),
       });
       const json = await res.json();
       if (!res.ok || json.error) throw new Error(json.error || "تعذّرت إعادة التصحيح");
@@ -734,9 +685,7 @@ export function BatchOMRScanner({
   const updateName = (paperId: string, name: string) =>
     setResults((prev) => prev.map((r) => {
       if (r.paperId !== paperId) return r;
-      const match: Pick<ScanResult, "matchedStudentId" | "matchConfidence"> = mode === "package"
-        ? resolveStudentMatch({ studentName: r.studentName, studentCode: r.studentCode, editedName: name }, students)
-        : { matchedStudentId: null, matchConfidence: undefined };
+      const match = resolveStudentMatch({ studentName: r.studentName, studentCode: r.studentCode, editedName: name }, students);
       return { ...r, editedName: name, matchedStudentId: match.matchedStudentId, matchConfidence: match.matchConfidence };
     }));
 
@@ -750,7 +699,7 @@ export function BatchOMRScanner({
   const saveAll = async () => {
     const valid = results.filter((r) => !r.error);
     if (!valid.length) return;
-    if (mode === "package" && valid.some((r) => !r.matchedStudentId)) {
+    if (valid.some((r) => !r.matchedStudentId)) {
       setSaveError("راجع المطابقة واختر الطالب لكل ورقة قبل الحفظ");
       return;
     }
@@ -778,8 +727,8 @@ export function BatchOMRScanner({
         <RetakeModal
           onCapture={handleRetakeCapture}
           onClose={() => setRetakingPaperId(null)}
-          maxWidth={mode === "package" ? 1600 : 800}
-          quality={mode === "package" ? 0.9 : 0.8}
+          maxWidth={SCAN_MAX_WIDTH}
+          quality={SCAN_RETAKE_QUALITY}
         />
       )}
 
@@ -911,8 +860,8 @@ export function BatchOMRScanner({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: mode === "package" ? "#e6f7f1" : "#fff7ed", color: mode === "package" ? "#1D9E75" : "#c2410c" }}>
-            {mode === "package" ? "وضع التصحيح: حزمة مقياس" : "وضع التصحيح: قديم"}
+          <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: "#e6f7f1", color: "#1D9E75" }}>
+            وضع التصحيح: حزمة
           </span>
           <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "#e6f7f1", color: "#1D9E75" }}>
             الذكاء الاصطناعي
@@ -921,10 +870,8 @@ export function BatchOMRScanner({
       </div>
 
       <div className="p-5">
-        <div className={`mb-4 rounded-xl border p-3 text-sm font-bold ${mode === "package" ? "border-teal-100 bg-teal-50/70 text-teal-800" : "border-amber-100 bg-amber-50 text-amber-800"}`}>
-          {mode === "package"
-            ? "يتم قراءة اختيارات الطالب من ورقة الأسئلة وتصحيحها بمفتاح الإجابة المحمي."
-            : "هذا المسار لا يستخدم حزم مقياس. للتصحيح بالحزم افتح تبويب اختبارات مقياس واختر الحزمة المطبقة على الفصل."}
+        <div className="mb-4 rounded-xl border border-teal-100 bg-teal-50/70 p-3 text-sm font-bold text-teal-800">
+          يتم قراءة اختيارات الطالب من ورقة الأسئلة وتصحيحها بمفتاح الإجابة المحمي.
         </div>
 
         {/* ── Capture ── */}
@@ -1072,10 +1019,10 @@ export function BatchOMRScanner({
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">#</th>
-                    {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">رقم الطالب المقروء</th>}
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">{mode === "package" ? "الاسم المقروء" : "اسم الطالب"}</th>
-                    {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الطالب المطابق</th>}
-                    {mode === "package" && <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">حالة المطابقة</th>}
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">رقم الطالب المقروء</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الاسم المقروء</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الطالب المطابق</th>
+                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">حالة المطابقة</th>
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الدرجة</th>
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">المستوى</th>
                     <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">إجراء</th>
@@ -1094,11 +1041,9 @@ export function BatchOMRScanner({
                             <span className="text-gray-400 text-sm">{formatCount(i + 1)}</span>
                           </div>
                         </td>
-                        {mode === "package" && (
-                          <td className="px-3 py-3 text-sm font-bold text-gray-700">
-                            {r.error ? "—" : r.studentCode ? toEnglishDigits(r.studentCode) : <span className="text-gray-300">غير مقروء</span>}
-                          </td>
-                        )}
+                        <td className="px-3 py-3 text-sm font-bold text-gray-700">
+                          {r.error ? "—" : r.studentCode ? toEnglishDigits(r.studentCode) : <span className="text-gray-300">غير مقروء</span>}
+                        </td>
                         <td className="px-3 py-3">
                           {r.error ? (
                             <span className="text-red-400 text-sm italic">{r.errorMsg ?? "تعذّرت القراءة"}</span>
@@ -1119,39 +1064,35 @@ export function BatchOMRScanner({
                             </div>
                           )}
                         </td>
-                        {mode === "package" && (
-                          <td className="px-3 py-3">
-                            {r.error ? "—" : (
-                              <select
-                                value={r.matchedStudentId ?? ""}
-                                onChange={(e) => updateMatchedStudent(r.paperId, e.target.value)}
-                                className="w-full min-w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-[#1D9E75]"
-                              >
-                                <option value="">اختر الطالب يدويًا</option>
-                                {students.map((student) => (
-                                  <option key={student.id} value={student.id}>
-                                    {toEnglishDigits(normalizeStudentCode(student.studentCode) || "—")} - {student.name}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </td>
-                        )}
-                        {mode === "package" && (
-                          <td className="px-3 py-3">
-                            {r.error ? "—" : (
-                              <span className={`rounded-full px-2 py-1 text-xs font-bold ${
-                                r.matchConfidence === "conflict"
-                                  ? "bg-rose-50 text-rose-700"
-                                  : r.matchConfidence === "needs_review"
-                                    ? "bg-amber-50 text-amber-700"
-                                    : "bg-teal-50 text-teal-700"
-                              }`}>
-                                {confidenceLabel(r.matchConfidence)}
-                              </span>
-                            )}
-                          </td>
-                        )}
+                        <td className="px-3 py-3">
+                          {r.error ? "—" : (
+                            <select
+                              value={r.matchedStudentId ?? ""}
+                              onChange={(e) => updateMatchedStudent(r.paperId, e.target.value)}
+                              className="w-full min-w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-[#1D9E75]"
+                            >
+                              <option value="">اختر الطالب يدويًا</option>
+                              {students.map((student) => (
+                                <option key={student.id} value={student.id}>
+                                  {toEnglishDigits(normalizeStudentCode(student.studentCode) || "—")} - {student.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          {r.error ? "—" : (
+                            <span className={`rounded-full px-2 py-1 text-xs font-bold ${
+                              r.matchConfidence === "conflict"
+                                ? "bg-rose-50 text-rose-700"
+                                : r.matchConfidence === "needs_review"
+                                  ? "bg-amber-50 text-amber-700"
+                                  : "bg-teal-50 text-teal-700"
+                            }`}>
+                              {confidenceLabel(r.matchConfidence)}
+                            </span>
+                          )}
+                        </td>
                         <td className="px-3 py-3 text-sm font-bold text-gray-900">
                           {r.error ? "—" : toEnglishDigits(`${r.score}/${r.total}`)}
                         </td>

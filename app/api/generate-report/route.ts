@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateClassReport } from "@/lib/gemini";
-import { requireUserRole } from "@/lib/supabase-admin";
+import { requireUserRole } from "@/lib/auth";
 
 const reportSchema = z.object({
   teacherName: z.string().trim().min(1),

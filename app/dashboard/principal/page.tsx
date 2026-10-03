@@ -25,7 +25,6 @@ type PrincipalReport = {
     teachersCount: number;
     classesCount: number;
     studentsCount: number;
-    assessmentsCount: number;
     performanceAverage: number | null;
     atRiskCount: number;
     implementationRate: number | null;

@@ -27,6 +27,15 @@ export function toEnglishDigits(value: string | number | null | undefined) {
   return String(value).replace(/[٠-٩۰-۹]/g, (digit) => digitMap[digit] ?? digit);
 }
 
+/** Student code as plain digits without leading zeros ("٠٠١٢" → "12"). */
+export function normalizeStudentCode(value: unknown) {
+  if (typeof value !== "string" && typeof value !== "number") return "";
+  const digits = toEnglishDigits(value).replace(/[^\d]/g, "");
+  if (!digits) return "";
+  const numeric = Number(digits);
+  return Number.isFinite(numeric) ? String(numeric) : digits;
+}
+
 function cleanDatePart(value: string | null | undefined) {
   return toEnglishDigits(value)
     .replace(/[\u200e\u200f\u061c]/g, "")

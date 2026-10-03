@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminClient, requireUserRole } from "@/lib/supabase-admin";
+import { getAdminClient } from "@/lib/supabase-admin";
+import { requireUserRole } from "@/lib/auth";
+import { LEVEL_THRESHOLDS } from "@/lib/levels";
 
 export const dynamic = "force-dynamic";
 
-const AT_RISK_THRESHOLD = 50;
+const AT_RISK_THRESHOLD = LEVEL_THRESHOLDS.basic;
 
 type StudentRow = {
   id: string;
@@ -79,11 +81,10 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const [schoolRes, teachersRes, classesRes, assessmentsRes] = await Promise.all([
+    const [schoolRes, teachersRes, classesRes] = await Promise.all([
       db.from("schools").select("id, name, city, region, active, trial").eq("id", schoolId).single(),
       db.from("users").select("id, name, email, phone, subject, status, created_at").eq("school_id", schoolId).eq("role", "teacher").order("created_at", { ascending: false }),
       db.from("classes").select("id, name, grade, subject, teacher_id, school_id, students(id, name, class_id, score, total)").eq("school_id", schoolId).order("created_at", { ascending: false }),
-      db.from("assessments").select("id, teacher_id, school_id, grade, subject, skill, status, created_at").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(50),
     ]);
 
     if (schoolRes.error) throw schoolRes.error;
@@ -93,7 +94,6 @@ export async function GET(req: NextRequest) {
     const school = schoolRes.data;
     const teachers = teachersRes.data ?? [];
     const classes = (classesRes.data ?? []) as ClassRow[];
-    const assessments = assessmentsRes.error ? [] : assessmentsRes.data ?? [];
     const students = classes.flatMap((classRow) =>
       (Array.isArray(classRow.students) ? classRow.students : []).map((student) => ({
         ...student,
@@ -260,7 +260,6 @@ export async function GET(req: NextRequest) {
           teachersCount: teachers.length,
           classesCount: classes.length,
           studentsCount: students.length,
-          assessmentsCount: assessments.length,
           performanceAverage,
           atRiskCount: atRiskStudents.length,
           implementationRate,
