@@ -77,6 +77,15 @@ const features = [
 
 const pricingPlans = [
   {
+    name: "المعلم",
+    price: "149 ريال / سنة",
+    desc: "للمعلم الذي يريد الاشتراك بنفسه، مع ملف شواهد جاهز لتقييمه السنوي.",
+    features: ["حتى 3 فصول", "ملف شواهد قابل للطباعة", "أو 79 ريالًا للفصل الدراسي"],
+    href: "/teachers",
+    cta: "تفاصيل باقة المعلم",
+    badge: "جديد",
+  },
+  {
     name: "البداية",
     price: "مجانًا",
     desc: "لتجربة دالة مع مدرسة واحدة وفريق محدود.",
@@ -334,14 +343,14 @@ export default function LandingPage() {
           <div className="text-center">
             <div className="text-sm font-extrabold text-brand">الأسعار</div>
             <h2 className="mt-3 text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-4xl/[1.45]">
-              باقات مرنة حسب حجم المدرسة
+              باقات للمعلم والمدرسة
             </h2>
             <p className="mx-auto mt-4 max-w-2xl leading-8 text-slate-500">
-              اختر نقطة البداية المناسبة، وسيقترح فريقنا خطة تشغيل تناسب عدد المدارس والمعلمين.
+              ابدأ وحدك كمعلم، أو شغّل دالة لمدرستك كاملة.
             </p>
           </div>
 
-          <div className="mt-14 grid gap-6 md:grid-cols-3">
+          <div className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {pricingPlans.map((plan) => (
               <article
                 key={plan.name}
@@ -351,7 +360,12 @@ export default function LandingPage() {
                     : "border-slate-100 bg-white"
                 }`}
               >
-                <h3 className="text-xl font-black text-brand-navy">{plan.name}</h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-xl font-black text-brand-navy">{plan.name}</h3>
+                  {plan.badge && (
+                    <span className="rounded-full bg-brand px-3 py-1 text-xs font-extrabold text-white">{plan.badge}</span>
+                  )}
+                </div>
                 <p className="mt-3 text-2xl font-black text-brand">{plan.price}</p>
                 <p className="mt-4 min-h-16 text-sm leading-7 text-slate-500">{plan.desc}</p>
                 <div className="mt-6 space-y-3">
@@ -362,27 +376,18 @@ export default function LandingPage() {
                     </div>
                   ))}
                 </div>
-                <a
-                  href="#trial"
+                <Link
+                  href={plan.href ?? "#trial"}
                   className={`mt-8 inline-flex w-full justify-center rounded-xl px-5 py-3 text-sm font-extrabold transition ${
                     plan.highlighted
                       ? "bg-brand text-white hover:bg-brand-dark"
                       : "border border-slate-200 bg-white text-brand-navy hover:border-brand/40 hover:text-brand"
                   }`}
                 >
-                  اطلب تفاصيل الباقة
-                </a>
+                  {plan.cta ?? "اطلب تفاصيل الباقة"}
+                </Link>
               </article>
             ))}
-          </div>
-          <div className="mt-8 flex flex-col items-center justify-between gap-4 rounded-[1.5rem] border border-brand/20 bg-teal-50/50 p-6 text-center md:flex-row md:text-right">
-            <div>
-              <div className="text-lg font-black text-brand-navy">معلم وتريد الاشتراك بنفسك؟</div>
-              <p className="mt-1 text-sm font-bold leading-7 text-slate-500">باقة المعلم: اختبارات أسبوعية لفصولك وملف شواهد جاهز لتقييمك السنوي.</p>
-            </div>
-            <Link href="/teachers" className="shrink-0 rounded-xl bg-brand px-6 py-3 text-sm font-extrabold text-white transition hover:bg-brand-dark">
-              تعرّف على باقة المعلم
-            </Link>
           </div>
         </div>
       </section>
