@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
       return {
         packageId,
-        title: assessmentPackage?.title ?? "اختبار مقياس",
+        title: assessmentPackage?.title ?? "اختبار دالا",
         subject: assessmentPackage?.subject ?? "",
         grade: assessmentPackage?.grade ?? null,
         weekNumber: assessmentPackage?.week_number ?? null,
@@ -119,6 +119,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data });
   } catch (err) {
     console.error("principal package results failed", err);
-    return NextResponse.json({ success: false, error: "تعذر تحميل ملخص اختبارات مقياس" }, { status: 500 });
+    return NextResponse.json({ success: false, error: "تعذر تحميل ملخص اختبارات دالا" }, { status: 500 });
   }
 }

@@ -29,15 +29,3 @@ export function emptyToNull(value?: string | null) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
 }
-
-/** Redirect URL used in Supabase invitation emails. */
-export function getInviteRedirectTo() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
-  if (appUrl) {
-    return `${appUrl}/auth/callback`;
-  }
-  if (process.env.NODE_ENV === "development") {
-    return "http://localhost:3000/auth/callback";
-  }
-  throw new Error("NEXT_PUBLIC_APP_URL is required for invitation emails");
-}

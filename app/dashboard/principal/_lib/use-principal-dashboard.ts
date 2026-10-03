@@ -92,10 +92,10 @@ export function usePrincipalDashboard() {
     try {
       const res = await fetch("/api/principal/package-results", { cache: "no-store" });
       const json = await res.json();
-      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل اختبارات مقياس");
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تحميل اختبارات دالا");
       setPackageSummaries(json.data ?? []);
     } catch (err) {
-      setPackagesError(err instanceof Error ? err.message : "تعذر تحميل اختبارات مقياس");
+      setPackagesError(err instanceof Error ? err.message : "تعذر تحميل اختبارات دالا");
     } finally {
       setPackagesLoading(false);
     }

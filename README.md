@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# دالا (Dala)
 
-## Getting Started
+منصة تقييم أسبوعي لمدارس المرحلة الابتدائية السعودية، متوافقة مع إطار نافس: حزم اختبارات مركزية، تصحيح أوراق الإجابة بالكاميرا (Gemini)، تشخيص المهارات، ولوحات للمعلم وقائد المدرسة وولي الأمر.
 
-First, run the development server:
+**التقنيات:** Next.js 14 (App Router) · TypeScript · Tailwind · Supabase (Postgres + Auth + RLS) · Gemini · Vercel
+
+## التشغيل محلياً
 
 ```bash
+npm ci
+cp .env.example .env.local   # ثم عبّئ القيم
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| الأمر | الوظيفة |
+|---|---|
+| `npm run dev` | خادم التطوير |
+| `npm run build` | بناء نسخة الإنتاج |
+| `npm run lint` | فحص الكود (يجب أن يمر بلا أخطاء ولا تحذيرات) |
+| `npm run test:rls` | اختبار عزل بيانات المدارس — انظر `docs/rls-testing.md` |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## هيكل المشروع
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+  admin/                  لوحة مدير النظام
+    _components/          تبويب لكل قسم + نوافذ الحزم + عناصر الواجهة
+    _lib/                 الأنواع، التنقل، التحقق من مفتاح الإجابة
+  dashboard/teacher/      لوحة المعلم
+    _lib/use-teacher-dashboard.ts   كل الحالة والتحميل والإجراءات
+    _components/          عرض لكل شاشة (الفصول، الحزم، الخطة، الطلاب) والنوافذ
+  dashboard/principal/    لوحة قائد المدرسة (نفس النمط)
+  parent/ student/        صفحات ولي الأمر والطالب (رابط برمز)
+  api/                    مسارات الـ API (كل مسار يبدأ بـ requireUserRole)
+components/               مكونات مشتركة (الماسح، استيراد الطلاب، الشعار)
+lib/
+  auth.ts                 requireUserRole / requireAdmin / authErrorResponse
+  supabase.ts             عميل المتصفح
+  supabase-admin.ts       عميل الخادم (service role) — لا يُستخدم إلا بعد التحقق من الصلاحية
+  api.ts                  تسجيل الأخطاء وردود JSON الموحدة
+  invite.ts               دعوة المستخدمين وإنشاء حساباتهم
+  db/rows.ts              أنواع صفوف الجداول الرئيسية
+  packages.ts             عدّ الأسئلة ومطابقة الفصل بالحزمة
+  levels.ts               مستويات الأداء وعتباتها (المصدر الوحيد)
+  theme.ts                ألوان الهوية (المصدر الوحيد)
+  brand.ts                اسم المنتج والشعار
+  labels.ts format.ts math.ts subjects.ts   دوال عرض وتنسيق مشتركة
+  gemini.ts               استدعاءات Gemini
+  reports/ assessment/    التقارير الدورية وتشخيص المهارات
+supabase/migrations/      ترحيلات قاعدة البيانات — انظر docs/migrations.md
+```
 
-## Learn More
+## قواعد الكود
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **الألوان:** استخدم أصناف Tailwind `brand`، `brand-navy`، `success`، `warning`، `danger`، `level-*`، أو `COLORS` من `lib/theme.ts` في الأنماط المضمنة. لا تكتب أكواد hex مباشرة، ولا تضف مفاتيح باسم ألوان Tailwind الأصلية (`amber`، `purple`…) في `tailwind.config.ts` لأنها تمسح درجاتها كلها.
+- **المستويات:** أي حكم على درجة (متقدم/متمكن/أساسي/دون الأساسي، الإتقان، الطلاب المعرضون للخطر) يمر عبر `lib/levels.ts`.
+- **الصلاحيات:** كل مسار API يبدأ بـ `requireUserRole(req, [...])` ثم `if (!auth.ok) return authErrorResponse(auth);`.
+- **التكرار:** قبل كتابة دالة مساعدة، ابحث في `lib/`. إن احتجتها في ملفين فمكانها `lib/`.
+- **اسم المنتج والشعار:** من `lib/brand.ts` فقط.

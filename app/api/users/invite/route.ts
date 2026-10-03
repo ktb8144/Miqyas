@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
-import { getInviteRedirectTo } from "@/lib/api";
+import { inviteOrCreateAuthUser } from "@/lib/invite";
 
 export const dynamic = "force-dynamic";
 
@@ -26,50 +26,6 @@ function publicUser(row: Record<string, unknown>) {
     subject: row.subject ? String(row.subject) : null,
     phone: row.phone ? String(row.phone) : null,
     status: String(row.status ?? "invited"),
-  };
-}
-
-function randomTemporaryPassword() {
-  const random = crypto.getRandomValues(new Uint32Array(2)).join("");
-  return `Miqyas@${random}!`;
-}
-
-async function createAuthUser(db: ReturnType<typeof getAdminClient>, email: string, name: string, role: string) {
-  const metadata = { name, role };
-  const redirectTo = getInviteRedirectTo();
-  const { data: invited, error: inviteError } = await db.auth.admin.inviteUserByEmail(email, {
-    data: metadata,
-    redirectTo,
-  });
-
-  if (!inviteError && invited.user) {
-    return { userId: invited.user.id, inviteMethod: "email_invite" };
-  }
-
-  const temporaryPassword = randomTemporaryPassword();
-  const { data: created, error: createError } = await db.auth.admin.createUser({
-    email,
-    password: temporaryPassword,
-    email_confirm: false,
-    user_metadata: metadata,
-  });
-
-  if (createError || !created.user) {
-    throw createError ?? new Error("Failed to create auth user");
-  }
-
-  const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: {
-      redirectTo,
-    },
-  });
-
-  return {
-    userId: created.user.id,
-    inviteMethod: linkError ? "temporary_password_created" : "password_reset_link",
-    actionLink: linkData?.properties?.action_link ?? null,
   };
 }
 
@@ -146,7 +102,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const authUser = await createAuthUser(db, email, parsed.data.name, requestedRole);
+    const authUser = await inviteOrCreateAuthUser(email, parsed.data.name, requestedRole);
 
     const { data: userRow, error: insertError } = await db
       .from("users")
@@ -170,8 +126,8 @@ export async function POST(req: NextRequest) {
         success: true,
         user: publicUser(userRow),
         invite: {
-          method: authUser.inviteMethod,
-          actionLink: authUser.actionLink ?? null,
+          method: authUser.method,
+          actionLink: authUser.actionLink,
         },
       },
       { status: 201 }

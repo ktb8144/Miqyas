@@ -13,7 +13,7 @@ export function ImpactTab({ d }: { d: PrincipalDashboardState }) {
       <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="text-xl font-black text-brand-navy">أثر مقياس</h3>
+            <h3 className="text-xl font-black text-brand-navy">أثر دالا</h3>
             <p className="mt-1 text-sm font-bold text-slate-400">تقرير مبدئي مبني على بيانات المدرسة الحالية</p>
           </div>
           <button onClick={() => window.print()} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500">طباعة التقرير</button>

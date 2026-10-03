@@ -87,7 +87,7 @@ function LoginContent() {
         <div className="grid w-full items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="hidden lg:block">
             <div className="mb-7 inline-flex rounded-full border border-teal-100 bg-teal-50/80 px-4 py-2 text-xs font-extrabold text-brand">
-              دخول آمن لمنصة مقياس
+              دخول آمن لمنصة دالا
             </div>
             <h1 className="text-5xl font-black leading-tight tracking-normal text-brand-navy">
               تابع القياس والتحليل من لوحة واحدة.
@@ -182,7 +182,7 @@ function LoginContent() {
               </form>
 
               <p className="mt-6 text-center text-xs font-semibold text-slate-400">
-                ليس لديك حساب؟ تواصل مع مدير مقياس في مدرستك
+                ليس لديك حساب؟ تواصل مع مدير دالا في مدرستك
               </p>
             </div>
           </div>

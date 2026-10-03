@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { BRAND } from "@/lib/brand";
 
 type BrandLogoProps = {
   contextTitle?: string;
@@ -23,7 +24,7 @@ export function BrandLogo({
   size = "md",
 }: BrandLogoProps) {
   const imageSize = logoSize[size];
-  const imageHeight = Math.round(imageSize * (317 / 344));
+  const imageHeight = Math.round(imageSize / BRAND.logoAspect);
 
   return (
     <Link
@@ -33,8 +34,8 @@ export function BrandLogo({
       }`}
     >
       <Image
-        src="/miqyas-logo.png"
-        alt="شعار مقياس"
+        src={BRAND.logoSrc}
+        alt={`شعار ${BRAND.nameAr}`}
         width={imageSize}
         height={imageHeight}
         priority={size === "lg"}

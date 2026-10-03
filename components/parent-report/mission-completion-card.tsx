@@ -215,10 +215,10 @@ export function MissionCompletionCard({
                 onChange={(event) => setConsentAccepted(event.target.checked)}
                 className="mt-1 h-4 w-4 accent-brand"
               />
-              <span>أوافق على استخدام رقم الجوال للتواصل معي بخصوص خطة التدريب الإضافية في مِقياس لهذا الطالب فقط.</span>
+              <span>أوافق على استخدام رقم الجوال للتواصل معي بخصوص خطة التدريب الإضافية في دالا لهذا الطالب فقط.</span>
             </label>
             <p className="mt-3 text-xs font-bold leading-6 text-slate-400">
-              لن نستخدم رقم الجوال إلا للتواصل معكم بخصوص خطة التدريب الإضافية في مِقياس، ويمكنكم طلب حذفه لاحقًا.
+              لن نستخدم رقم الجوال إلا للتواصل معكم بخصوص خطة التدريب الإضافية في دالا، ويمكنكم طلب حذفه لاحقًا.
             </p>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
               <button

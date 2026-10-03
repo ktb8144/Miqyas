@@ -20,7 +20,7 @@ export function PackageResultsModal({ d }: { d: TeacherDashboardState }) {
       <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
           <div>
-            <p className="text-sm font-extrabold text-brand">نتائج اختبار مقياس</p>
+            <p className="text-sm font-extrabold text-brand">نتائج اختبار دالا</p>
             <h2 className="mt-1 text-xl font-black text-brand-navy">{packageResultsAssignment.packageTitle}</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">{packageResultsAssignment.className}</p>
           </div>

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminOverview } from "@/lib/admin-overview";
+import { getAdminOverview } from "@/lib/admin/overview";
 import { requireAdmin, authErrorResponse } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";

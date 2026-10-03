@@ -7,7 +7,7 @@ import { normalizeSaudiMobile } from "@/lib/format";
 export const dynamic = "force-dynamic";
 
 const CONSENT_TEXT =
-  "أوافق على استخدام رقم الجوال للتواصل معي بخصوص خطة التدريب الإضافية في مِقياس لهذا الطالب فقط.";
+  "أوافق على استخدام رقم الجوال للتواصل معي بخصوص خطة التدريب الإضافية في دالا لهذا الطالب فقط.";
 
 const schema = z.object({
   token: z.string().trim().min(20),

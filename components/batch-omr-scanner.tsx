@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { ETEC_LEVELS } from "@/lib/levels";
 import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
+import { BRAND } from "@/lib/brand";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -160,7 +161,7 @@ function drawVideoCoverToPortraitCanvas(video: HTMLVideoElement, canvas: HTMLCan
 
 function sendBrowserNotification(body: string) {
   if (!("Notification" in window)) return;
-  const show = () => new Notification("مِقياس", { body, icon: "/favicon.ico" });
+  const show = () => new Notification(BRAND.nameAr, { body, icon: "/favicon.ico" });
   if (Notification.permission === "granted") {
     show();
   } else if (Notification.permission !== "denied") {

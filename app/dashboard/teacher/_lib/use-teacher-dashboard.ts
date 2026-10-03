@@ -41,7 +41,7 @@ export function useTeacherDashboard() {
   const [, setPlanSource] = useState<"current_week" | "upcoming" | "none">("none");
   const [planLoading, setPlanLoading] = useState(false);
 
-  // ── Miqyas package workflow state ───────────────────────────────────────────
+  // ── Package workflow state ───────────────────────────────────────────
   const [packages, setPackages] = useState<TeacherPackage[]>([]);
   const [packageAssignments, setPackageAssignments] = useState<TeacherPackageAssignment[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
@@ -242,7 +242,7 @@ export function useTeacherDashboard() {
       ]);
 
       if (!packagesRes.ok || !packagesJson.success) {
-        throw new Error(packagesJson.error || "تعذر تحميل اختبارات مقياس");
+        throw new Error(packagesJson.error || "تعذر تحميل اختبارات دالا");
       }
 
       if (!assignmentsRes.ok || !assignmentsJson.success) {
@@ -288,7 +288,7 @@ export function useTeacherDashboard() {
         return next;
       });
     } catch (err) {
-      setPackagesError(err instanceof Error ? err.message : "تعذر تحميل اختبارات مقياس");
+      setPackagesError(err instanceof Error ? err.message : "تعذر تحميل اختبارات دالا");
     } finally {
       setPackagesLoading(false);
     }
@@ -444,7 +444,7 @@ export function useTeacherDashboard() {
     });
 
     if (!updates.length) {
-      throw new Error("لم يتم العثور على طلاب مطابقين لحفظ نتائج اختبار مقياس");
+      throw new Error("لم يتم العثور على طلاب مطابقين لحفظ نتائج اختبار دالا");
     }
 
     const failures: string[] = [];
@@ -477,7 +477,7 @@ export function useTeacherDashboard() {
       return;
     }
 
-    setPackageSuccess("تم حفظ نتائج اختبار مقياس بنجاح.");
+    setPackageSuccess("تم حفظ نتائج اختبار دالا بنجاح.");
     setActivePackageAssignment(null);
     await loadPackageWorkflow();
   };

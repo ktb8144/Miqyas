@@ -78,7 +78,7 @@ export function WeeklyPlansView({ d }: { d: TeacherDashboardState }) {
         <div className="rounded-[1.5rem] border border-dashed border-teal-100 bg-white p-8 text-center shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
           <h3 className="text-xl font-black text-brand-navy">لا توجد خطة مفعّلة لهذا الأسبوع.</h3>
           <p className="mt-2 text-sm font-bold text-slate-400">
-            يمكنك التواصل مع مدير النظام لتفعيل خطة الصفوف 3-6 في مواد مقياس الحالية.
+            يمكنك التواصل مع مدير النظام لتفعيل خطة الصفوف 3-6 في مواد دالا الحالية.
           </p>
         </div>
       )}

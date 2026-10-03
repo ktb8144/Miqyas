@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireAdmin, authErrorResponse } from "@/lib/auth";
 import { normalizeUser } from "@/lib/admin/normalize";
-import { getInviteRedirectTo } from "@/lib/api";
+import { inviteOrCreateAuthUser } from "@/lib/invite";
 
 export const dynamic = "force-dynamic";
 
@@ -15,47 +15,6 @@ const userCreateSchema = z.object({
   subject: z.string().trim().nullable().optional(),
   phone: z.string().trim().max(20).nullable().optional(),
 });
-
-function createTemporaryPassword() {
-  const random = crypto.getRandomValues(new Uint32Array(2)).join("");
-  return `Miqyas@${random}!`;
-}
-
-async function createInvitedAuthUser(db: ReturnType<typeof getAdminClient>, email: string, name: string, role: string) {
-  const metadata = { name, role };
-  const redirectTo = getInviteRedirectTo();
-  const { data: invited, error: inviteError } = await db.auth.admin.inviteUserByEmail(email, {
-    data: metadata,
-    redirectTo,
-  });
-
-  if (!inviteError && invited.user) {
-    return { userId: invited.user.id, method: "email_invite", actionLink: null as string | null };
-  }
-
-  const { data: created, error: createError } = await db.auth.admin.createUser({
-    email,
-    password: createTemporaryPassword(),
-    email_confirm: false,
-    user_metadata: metadata,
-  });
-
-  if (createError || !created.user) throw createError ?? new Error("Failed to create auth user");
-
-  const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: {
-      redirectTo,
-    },
-  });
-
-  return {
-    userId: created.user.id,
-    method: linkError ? "temporary_password_created" : "password_reset_link",
-    actionLink: linkData?.properties?.action_link ?? null,
-  };
-}
 
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
@@ -123,7 +82,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const authUser = await createInvitedAuthUser(db, email, name, role);
+    const authUser = await inviteOrCreateAuthUser(email, name, role);
 
     const { data, error } = await db
       .from("users")

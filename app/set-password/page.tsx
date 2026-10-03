@@ -122,7 +122,7 @@ export default function SetPasswordPage() {
               تعيين كلمة المرور
             </h1>
             <p className="mb-7 text-center text-sm leading-7 text-slate-400">
-              اختر كلمة مرور جديدة لإكمال تفعيل حسابك في مقياس.
+              اختر كلمة مرور جديدة لإكمال تفعيل حسابك في دالا.
             </p>
 
             {checkingSession ? (

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
-  title: "مِقياس — نقيس لنحسن",
-  description: "منصة تقييم مدارس المرحلة الابتدائية السعودية",
+  title: `${BRAND.nameAr} — ${BRAND.tagline}`,
+  description: BRAND.description,
 };
 
 export default function RootLayout({

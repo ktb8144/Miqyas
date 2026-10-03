@@ -146,7 +146,7 @@ export function ClassesView({ d }: { d: TeacherDashboardState }) {
                 </button>
                 {classAssignments.length ? (
                   <div className="space-y-2 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
-                    <div className="text-xs font-extrabold text-brand">حزمة مقياس مطبقة</div>
+                    <div className="text-xs font-extrabold text-brand">حزمة دالا مطبقة</div>
                     {classAssignments.length > 1 && (
                       <select
                         value={selectedAssignmentId}
@@ -162,12 +162,12 @@ export function ClassesView({ d }: { d: TeacherDashboardState }) {
                       onClick={() => selectedAssignment && setActivePackageAssignment(selectedAssignment)}
                       className="w-full rounded-xl bg-brand-navy py-2.5 text-sm font-extrabold text-white transition hover:bg-brand-navy-light"
                     >
-                      بدء تصحيح حزمة مقياس
+                      بدء تصحيح حزمة دالا
                     </button>
                   </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-xs font-bold leading-6 text-slate-400">
-                    لا توجد حزمة مقياس مطبقة على هذا الفصل. انتقل إلى التصحيح والنتائج لتطبيق حزمة.
+                    لا توجد حزمة دالا مطبقة على هذا الفصل. انتقل إلى التصحيح والنتائج لتطبيق حزمة.
                   </div>
                 )}
               </div>
