@@ -5,6 +5,7 @@ import { StudentImportFlow } from "@/components/student-import-flow";
 import { toEnglishDigits } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 import type { TeacherDashboardState } from "../_lib/use-teacher-dashboard";
+import { StudentProfileLink } from "@/components/student-profile/student-profile-link";
 
 export function StudentsView({ d }: { d: TeacherDashboardState }) {
   const {
@@ -117,7 +118,7 @@ export function StudentsView({ d }: { d: TeacherDashboardState }) {
                           رقم الطالب: {toEnglishDigits(s.studentCode ?? i + 1)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-900">{s.name}</td>
+                      <td className="px-4 py-3 font-medium text-gray-900"><StudentProfileLink studentId={s.id} name={s.name} /></td>
                       <td className="px-4 py-3">
                         {packageScore ? (
                           <div>

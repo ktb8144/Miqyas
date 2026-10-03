@@ -2,6 +2,7 @@
 
 import { toEnglishDigits } from "@/lib/format";
 import type { TeacherDashboardState } from "../_lib/use-teacher-dashboard";
+import { StudentProfileLink } from "@/components/student-profile/student-profile-link";
 
 export function PackageResultsModal({ d }: { d: TeacherDashboardState }) {
   const {
@@ -152,7 +153,7 @@ export function PackageResultsModal({ d }: { d: TeacherDashboardState }) {
                       {packageResults.students.map((student) => (
                         <tr key={student.id}>
                           <td className="px-4 py-3 text-sm font-black text-brand">{toEnglishDigits(student.studentCode ?? "—")}</td>
-                          <td className="px-4 py-3 text-sm font-bold text-brand-navy">{student.studentName}</td>
+                          <td className="px-4 py-3 text-sm font-bold text-brand-navy"><StudentProfileLink studentId={student.studentId} name={student.studentName} /></td>
                           <td className="px-4 py-3 text-sm font-bold text-slate-600">{toEnglishDigits(`${student.score}/${student.total}`)}</td>
                           <td className="px-4 py-3 text-sm font-bold text-slate-600">{toEnglishDigits(student.percentage)}٪</td>
                           <td className="px-4 py-3 text-sm font-bold text-slate-600">{student.level || "—"}</td>

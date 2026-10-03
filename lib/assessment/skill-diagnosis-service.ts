@@ -1,6 +1,7 @@
 import "server-only";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { percentOf } from "@/lib/math";
+import { firstJoin, misconceptionForOption } from "@/lib/assessment/question-helpers";
 import type { ClassPackageAssignmentRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
 
 type AssignmentRow = Pick<ClassPackageAssignmentRow, "id" | "package_id" | "school_id" | "class_id" | "teacher_id">;
@@ -51,11 +52,6 @@ type SkillBucket = {
   wrongOptions: Map<string, number>;
 };
 
-function firstJoin<T>(value: T | T[] | null | undefined): T | null {
-  if (!value) return null;
-  return Array.isArray(value) ? value[0] ?? null : value;
-}
-
 function confidenceFor(questionCount: number, totalAttempts: number, dominantWrongRate: number) {
   if (questionCount < 2 || totalAttempts < 6) return "low" as const;
   if (dominantWrongRate >= 60) return "high" as const;
@@ -69,12 +65,7 @@ function confidenceLabel(value: "high" | "medium" | "low") {
 }
 
 function misconceptionFor(question: QuestionResultRow, selectedOption: string) {
-  const packageQuestion = firstJoin(question.package_questions);
-  const raw = packageQuestion?.misconceptions_json;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const map = raw as Record<string, unknown>;
-  const value = map[selectedOption] ?? map[`option_${selectedOption}`] ?? map[selectedOption.trim()];
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  return misconceptionForOption(firstJoin(question.package_questions)?.misconceptions_json, selectedOption);
 }
 
 function topEntry(map: Map<string, number>) {

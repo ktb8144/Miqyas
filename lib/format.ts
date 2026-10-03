@@ -132,3 +132,16 @@ export function cleanName(name: string) {
 export function normalizeName(name: string) {
   return cleanName(name).toLowerCase();
 }
+
+const SHORT_DATE = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+/** ISO date → "3 أكتوبر 2026" (Gregorian, Latin digits); "—" when missing. */
+export function formatShortDate(value: string | null | undefined) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : SHORT_DATE.format(date);
+}

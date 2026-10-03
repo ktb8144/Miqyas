@@ -3,6 +3,7 @@
 import { toEnglishDigits } from "@/lib/format";
 import { EmptyState, KpiCard, formatPct } from "./ui";
 import type { PrincipalDashboardState } from "../_lib/use-principal-dashboard";
+import { StudentProfileLink } from "@/components/student-profile/student-profile-link";
 
 export function ImpactTab({ d }: { d: PrincipalDashboardState }) {
   const { report } = d;
@@ -48,7 +49,7 @@ export function ImpactTab({ d }: { d: PrincipalDashboardState }) {
           <h3 className="mb-4 font-black text-brand-navy">الطلاب الذين يحتاجون تدخلًا</h3>
           {report.atRiskStudents.length ? report.atRiskStudents.map((student) => (
             <div key={student.id} className="mb-3 rounded-xl border border-red-100 bg-red-50/60 p-3">
-              <div className="font-bold text-brand-navy">{student.name}</div>
+              <div className="font-bold text-brand-navy"><StudentProfileLink studentId={student.id} name={student.name} /></div>
               <div className="mt-1 text-xs font-bold text-red-500">{student.className} — {toEnglishDigits(student.percentage)}%</div>
             </div>
           )) : <EmptyState>لا يوجد طلاب متعثرون حسب البيانات الحالية</EmptyState>}
