@@ -3,13 +3,31 @@ import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { LEVEL_THRESHOLDS } from "@/lib/levels";
 import { average } from "@/lib/math";
-import type { ClassRow as DbClassRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
+import { chunk, fetchAllRows } from "@/lib/db/paginate";
+import type { ClassRow as DbClassRow, StudentPackageResultRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
 const AT_RISK_THRESHOLD = LEVEL_THRESHOLDS.basic;
+/** Skill analysis looks at recent answers only, so the dashboard reflects the current situation. */
+const SKILL_WINDOW_DAYS = 60;
+/** A skill needs at least this many answers before it is ranked, to avoid noise from one question. */
+const MIN_SKILL_ANSWERS = 5;
 
-type StudentRow = Pick<DbStudentRow, "id" | "name" | "class_id" | "score" | "total">;
+type StudentRow = Pick<DbStudentRow, "id" | "name" | "class_id">;
+
+type ResultRow = Pick<StudentPackageResultRow, "id" | "student_id" | "percentage" | "created_at"> & {
+  class_id: string;
+  teacher_id: string;
+};
+
+type AnswerRow = {
+  is_correct: boolean;
+  package_questions: {
+    skill_text: string | null;
+    learning_skills: { skill_name: string | null } | null;
+  } | null;
+};
 
 type ClassRow = Pick<DbClassRow, "id" | "name" | "grade" | "subject" | "teacher_id" | "school_id"> & {
   students: StudentRow[];
@@ -29,11 +47,21 @@ type WeeklyPlanRow = {
   difficulty_level: string;
 };
 
-// NOTE: reads the legacy students.score/total columns (see docs/CLEANUP.md).
-// A score of 0 is treated as "not tested yet".
-function studentPercent(score: number | null | undefined, total: number | null | undefined) {
-  if (!score || !total || total <= 0) return null;
-  return Math.round((score / total) * 100);
+function toNumber(value: unknown) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+/** Groups result percentages by a key and returns the rounded average per key. */
+function averageBy(results: ResultRow[], key: (row: ResultRow) => string) {
+  const groups = new Map<string, number[]>();
+  for (const row of results) {
+    const pct = toNumber(row.percentage);
+    if (pct === null) continue;
+    const k = key(row);
+    groups.set(k, [...(groups.get(k) ?? []), pct]);
+  }
+  return new Map(Array.from(groups, ([k, values]) => [k, average(values)] as const));
 }
 
 function clamp(value: number) {
@@ -69,7 +97,7 @@ export async function GET(req: NextRequest) {
     const [schoolRes, teachersRes, classesRes] = await Promise.all([
       db.from("schools").select("id, name, city, region, active, trial").eq("id", schoolId).single(),
       db.from("users").select("id, name, email, phone, subject, status, created_at").eq("school_id", schoolId).eq("role", "teacher").order("created_at", { ascending: false }),
-      db.from("classes").select("id, name, grade, subject, teacher_id, school_id, students(id, name, class_id, score, total)").eq("school_id", schoolId).order("created_at", { ascending: false }),
+      db.from("classes").select("id, name, grade, subject, teacher_id, school_id, students(id, name, class_id)").eq("school_id", schoolId).order("created_at", { ascending: false }),
     ]);
 
     if (schoolRes.error) throw schoolRes.error;
@@ -88,8 +116,22 @@ export async function GET(req: NextRequest) {
       }))
     );
 
+    // ── Results: every scanned package sitting in this school ────────────────
+    const results = await fetchAllRows<ResultRow>((from, to) =>
+      db
+        .from("student_package_results")
+        .select("id, student_id, class_id, teacher_id, percentage, created_at")
+        .eq("school_id", schoolId)
+        .order("id")
+        .range(from, to)
+    );
+
+    const studentAverages = averageBy(results, (row) => row.student_id);
+    const classAverages = averageBy(results, (row) => row.class_id);
+    const teacherAverages = averageBy(results, (row) => row.teacher_id);
+
     const scoredStudents = students
-      .map((student) => ({ ...student, percentage: studentPercent(student.score, student.total) }))
+      .map((student) => ({ ...student, percentage: studentAverages.get(student.id) ?? null }))
       .filter((student): student is typeof student & { percentage: number } => student.percentage !== null);
 
     const performanceAverage = average(scoredStudents.map((student) => student.percentage));
@@ -104,27 +146,51 @@ export async function GET(req: NextRequest) {
         percentage: student.percentage,
       }));
 
-    const classesWithResults = new Set(scoredStudents.map((student) => student.class_id)).size;
+    const classesWithResults = new Set(results.map((row) => row.class_id)).size;
     const implementationRate = classes.length
       ? Math.round((classesWithResults / classes.length) * 100)
       : null;
 
-    const subjectScores = new Map<string, number[]>();
-    scoredStudents.forEach((student) => {
-      const subject = student.subject || "غير محدد";
-      subjectScores.set(subject, [...(subjectScores.get(subject) ?? []), student.percentage]);
-    });
-    const weakSkills = Array.from(subjectScores.entries())
-      .map(([skill, values]) => ({ skill, average: average(values) ?? 0, count: values.length }))
+    // ── Weakest skills: real per-question answers from the recent window ─────
+    const since = new Date(Date.now() - SKILL_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const recentResultIds = results.filter((row) => row.created_at && row.created_at >= since).map((row) => row.id);
+    const answers: AnswerRow[] = [];
+    for (const ids of chunk(recentResultIds, 200)) {
+      answers.push(
+        ...(await fetchAllRows<AnswerRow>((from, to) =>
+          db
+            .from("student_question_results")
+            .select("is_correct, package_questions(skill_text, learning_skills(skill_name))")
+            .in("student_package_result_id", ids)
+            .order("id")
+            .range(from, to)
+        ))
+      );
+    }
+    const skillTotals = new Map<string, { correct: number; total: number }>();
+    for (const answer of answers) {
+      const skill =
+        answer.package_questions?.learning_skills?.skill_name?.trim()
+        || answer.package_questions?.skill_text?.trim();
+      if (!skill) continue;
+      const current = skillTotals.get(skill) ?? { correct: 0, total: 0 };
+      current.total += 1;
+      if (answer.is_correct) current.correct += 1;
+      skillTotals.set(skill, current);
+    }
+    const weakSkills = Array.from(skillTotals, ([skill, t]) => ({
+      skill,
+      average: Math.round((t.correct / t.total) * 100),
+      count: t.total,
+    }))
+      .filter((item) => item.count >= MIN_SKILL_ANSWERS)
       .sort((a, b) => a.average - b.average)
       .slice(0, 5);
 
     const teacherRows = teachers.map((teacher) => {
       const teacherClasses = classes.filter((classRow) => classRow.teacher_id === teacher.id);
       const teacherStudents = students.filter((student) => student.teacherId === teacher.id);
-      const teacherScores = teacherStudents
-        .map((student) => studentPercent(student.score, student.total))
-        .filter((value): value is number => value !== null);
+      const teacherAverage = teacherAverages.get(teacher.id) ?? null;
       return {
         id: teacher.id,
         name: teacher.name,
@@ -135,8 +201,8 @@ export async function GET(req: NextRequest) {
         classNames: teacherClasses.map((classRow) => classRow.name),
         classesCount: teacherClasses.length,
         studentsCount: teacherStudents.length,
-        average: average(teacherScores),
-        active: teacherClasses.length > 0 || teacherScores.length > 0,
+        average: teacherAverage,
+        active: teacherClasses.length > 0 || teacherAverage !== null,
       };
     });
 
@@ -219,7 +285,7 @@ export async function GET(req: NextRequest) {
     const improvement = {
       value: null as number | null,
       label: "لا توجد بيانات كافية لحساب التحسن",
-      note: "يحتاج دالة إلى نتائج أسبوعين أو أكثر لحساب التحسن الحقيقي.",
+      note: "نحسب التحسن عند إعادة قياس المهارات نفسها، لأن مقارنة اختبارات تقيس مهارات مختلفة لا تعطي نتيجة صحيحة.",
     };
 
     const readinessInputs = [performanceAverage, implementationRate, teacherEngagement].filter(
@@ -266,16 +332,13 @@ export async function GET(req: NextRequest) {
         teachers: teacherRows,
         classes: classes.map((classRow) => {
           const classStudents = students.filter((student) => student.class_id === classRow.id);
-          const classScores = classStudents
-            .map((student) => studentPercent(student.score, student.total))
-            .filter((value): value is number => value !== null);
           return {
             id: classRow.id,
             name: classRow.name,
             grade: classRow.grade,
             subject: classRow.subject ?? "غير محدد",
             studentsCount: classStudents.length,
-            average: average(classScores),
+            average: classAverages.get(classRow.id) ?? null,
           };
         }),
         alerts: [
@@ -287,7 +350,7 @@ export async function GET(req: NextRequest) {
         ],
         notes: [
           performanceAverage === null ? "لا توجد درجات كافية لحساب متوسط الأداء." : null,
-          "المهارات الأضعف تستخدم المادة كبديل مؤقت حتى تتوفر بيانات مهارة تفصيلية.",
+          weakSkills.length ? `المهارات الأضعف محسوبة من إجابات الطلاب في آخر ${SKILL_WINDOW_DAYS} يومًا.` : null,
           improvement.value === null ? improvement.note : null,
         ].filter(Boolean),
       },
