@@ -89,7 +89,7 @@ function LoginContent() {
             <div className="mb-7 inline-flex rounded-full border border-teal-100 bg-teal-50/80 px-4 py-2 text-xs font-extrabold text-brand">
               دخول آمن لمنصة دالة
             </div>
-            <h1 className="text-5xl font-black leading-tight tracking-normal text-brand-navy">
+            <h1 className="text-5xl/[1.4] font-black tracking-normal text-brand-navy">
               تابع القياس والتحليل من لوحة واحدة.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-9 text-slate-500">

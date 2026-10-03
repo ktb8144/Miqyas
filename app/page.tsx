@@ -288,7 +288,7 @@ export default function LandingPage() {
               <Sparkles className="h-4 w-4" />
               بيانات أوضح، قرار أسرع
             </div>
-            <h1 className="text-5xl font-black leading-[1.12] tracking-normal text-brand-navy md:text-6xl lg:text-7xl">
+            <h1 className="text-5xl/[1.4] font-black tracking-normal text-brand-navy md:text-6xl/[1.4] lg:text-7xl/[1.4]">
               نقيس لنرتقي
             </h1>
             <p className="mx-auto mt-8 max-w-xl text-lg leading-10 text-slate-500 md:mx-0">
@@ -329,7 +329,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
             <div className="text-sm font-extrabold text-brand">المميزات</div>
-            <h2 className="mt-3 text-3xl font-black tracking-normal text-brand-navy md:text-4xl">
+            <h2 className="mt-3 text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-4xl/[1.45]">
               كل ما تحتاجه في منصة واحدة
             </h2>
           </div>
@@ -370,7 +370,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="order-1 text-center lg:order-2 lg:text-right">
-            <h2 className="text-3xl font-black leading-tight tracking-normal text-brand-navy md:text-5xl">
+            <h2 className="text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-5xl/[1.45]">
               من نتيجة الاختبار إلى خطة التحسين
             </h2>
             <p className="mt-6 max-w-xl text-lg leading-9 text-slate-500 lg:mr-0">
@@ -385,7 +385,7 @@ export default function LandingPage() {
 
       <section id="trust" className="px-5 py-24 lg:px-10">
         <div className="mx-auto max-w-6xl text-center">
-          <h2 className="text-3xl font-black tracking-normal text-brand-navy">يثق بنا</h2>
+          <h2 className="text-3xl/[1.45] font-black tracking-normal text-brand-navy">يثق بنا</h2>
           <p className="mt-4 text-slate-500">المدارس تختار دالة لتحسين التعليم وقياس الأثر.</p>
 
           <div className="mt-16 grid gap-10 md:grid-cols-3">
@@ -409,7 +409,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
             <div className="text-sm font-extrabold text-brand">الأسعار</div>
-            <h2 className="mt-3 text-3xl font-black tracking-normal text-brand-navy md:text-4xl">
+            <h2 className="mt-3 text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-4xl/[1.45]">
               باقات مرنة حسب حجم المدرسة
             </h2>
             <p className="mx-auto mt-4 max-w-2xl leading-8 text-slate-500">
@@ -460,7 +460,7 @@ export default function LandingPage() {
             <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand lg:mx-0">
               <Lock className="h-6 w-6" />
             </div>
-            <h2 className="text-3xl font-black tracking-normal text-brand-navy">
+            <h2 className="text-3xl/[1.45] font-black tracking-normal text-brand-navy">
               طلب تجربة مجانية
             </h2>
             <p className="mt-4 leading-8 text-slate-500">
