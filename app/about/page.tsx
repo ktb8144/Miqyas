@@ -17,36 +17,32 @@ import { BRAND } from "@/lib/brand";
 
 export const metadata: Metadata = {
   title: `من نحن — ${BRAND.nameAr}`,
-  description: `${BRAND.nameAr} بُنيت من داخل الفصل السعودي: معلم بخبرة تتجاوز 12 عامًا، ومطوّر أسئلة اختبارات، وباحث دكتوراه في الذكاء الاصطناعي في التعليم.`,
+  description: `${BRAND.nameAr} بُنيت من داخل الفصل السعودي، بخبرات تجمع التدريس، وبناء أسئلة الاختبارات، والبحث في الذكاء الاصطناعي في التعليم.`,
 };
 
-// Founder credentials — keep every line factual and verifiable.
-const founder = {
-  name: "فهد",
-  role: "المؤسس",
-  credentials: [
+// The expertise behind the product — keep every line factual and verifiable.
+const expertise = [
     {
       icon: School,
-      title: "معلم بخبرة تتجاوز 12 عامًا",
-      desc: "في مدارس المنطقة الشرقية، يعرف الفصل والحصة والشواهد وضغط نهاية الفصل من الداخل.",
+      title: "خبرة تدريس تتجاوز 12 عامًا",
+      desc: "في مدارس المنطقة الشرقية. نعرف الفصل والحصة والشواهد وضغط نهاية الفصل من الداخل.",
     },
     {
       icon: PenLine,
-      title: "مطوّر أسئلة اختبارات",
-      desc: "حاصل على برنامج مطوّر أسئلة الاختبارات من هيئة تقويم التعليم والتدريب.",
+      title: "تطوير أسئلة الاختبارات",
+      desc: "تأهيل في برنامج مطوّر أسئلة الاختبارات من هيئة تقويم التعليم والتدريب.",
     },
     {
       icon: BrainCircuit,
-      title: "باحث دكتوراه في الذكاء الاصطناعي في التعليم",
-      desc: "كلية تقنية المعلومات، قسم علوم البيانات والذكاء الاصطناعي، جامعة موناش، أستراليا.",
+      title: "بحث في الذكاء الاصطناعي في التعليم",
+      desc: "على مستوى الدكتوراه في علوم البيانات والذكاء الاصطناعي، بجامعة موناش في أستراليا.",
     },
     {
       icon: GraduationCap,
-      title: "ماجستير في التعليم الرقمي",
-      desc: "وخريج برنامج «بناء قادة التغيير» في جامعة ملبورن.",
+      title: "التعليم الرقمي وقيادة التغيير",
+      desc: "ماجستير في التعليم الرقمي، وبرنامج «بناء قادة التغيير» في جامعة ملبورن.",
     },
-  ],
-};
+];
 
 const principles = [
   {
@@ -87,7 +83,7 @@ export default function AboutPage() {
             بُنيت من داخل الفصل السعودي
           </h1>
           <p className="mx-auto mt-8 max-w-2xl text-lg leading-10 text-slate-500">
-            {BRAND.nameAr} لم تبدأ من شركة تقنية تبحث عن سوق، بل من معلم رأى كل عام نفس المشهد: المدرسة تنتظر نتائج نافس،
+            {BRAND.nameAr} لم تبدأ من شركة تقنية تبحث عن سوق، بل من داخل الفصل. رأينا كل عام نفس المشهد: المدرسة تنتظر نتائج نافس،
             ثم تصلها أرقامًا مجمّعة بعد فوات الأوان. فبنينا أداة تعطي المعلم والقائد هذه الصورة كل أسبوع، وهم ما زالوا قادرين على التغيير.
           </p>
         </div>
@@ -96,18 +92,17 @@ export default function AboutPage() {
       <section className="border-y border-slate-100 bg-slate-50/40 px-5 py-24 lg:px-10">
         <div className="mx-auto grid max-w-6xl items-start gap-12 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="text-center lg:text-right">
-            <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-[2rem] bg-brand text-5xl font-black text-white shadow-[0_18px_40px_rgba(21,159,145,0.18)] lg:mx-0">
-              {founder.name.charAt(0)}
-            </div>
-            <h2 className="mt-6 text-3xl/[1.45] font-black tracking-normal text-brand-navy">{founder.name}</h2>
-            <p className="mt-1 text-sm font-extrabold text-brand">{founder.role}</p>
+            <div className="text-sm font-extrabold text-brand">الخبرات التي بنت {BRAND.nameAr}</div>
+            <h2 className="mt-3 text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-4xl/[1.45]">
+              الفصل، والاختبار، والبيانات
+            </h2>
             <p className="mt-6 max-w-md leading-9 text-slate-500 lg:mr-0">
-              يجمع بين ثلاث خبرات نادرًا ما تجتمع في منتج تعليمي: التدريس في الفصل، وبناء أسئلة الاختبارات، والبحث في الذكاء الاصطناعي وعلوم البيانات.
+              ثلاث خبرات نادرًا ما تجتمع في منتج تعليمي واحد: التدريس في الفصل، وبناء أسئلة الاختبارات، والبحث في الذكاء الاصطناعي وعلوم البيانات. من اجتماعها خرجت {BRAND.nameAr}.
             </p>
           </div>
 
           <div className="grid gap-5 sm:grid-cols-2">
-            {founder.credentials.map((item) => {
+            {expertise.map((item) => {
               const Icon = item.icon;
               return (
                 <article key={item.title} className="rounded-[1.75rem] border border-slate-100 bg-white p-7 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
