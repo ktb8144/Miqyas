@@ -10,6 +10,7 @@ import { formatSchoolDateRange, toEnglishDigits } from "@/lib/format";
 import { normalizeSubject } from "@/lib/subjects";
 import { COLORS } from "@/lib/theme";
 import { getLevel, levelColor } from "@/lib/levels";
+import { assignmentStatusLabel, difficultyLabel, packageTypeLabel } from "@/lib/labels";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -440,39 +441,6 @@ export default function TeacherDashboard() {
       6: "السادس",
     };
     return grade ? labels[grade] ?? String(grade) : "غير محدد";
-  };
-
-  const difficultyLabel = (value?: string | null) => {
-    const labels: Record<string, string> = {
-      easy: "سهل",
-      medium: "متوسط",
-      hard: "متقدم",
-      nafs_simulation: "محاكاة نافس",
-    };
-    return value ? labels[value] ?? value : "غير محدد";
-  };
-
-  const packageStatusLabel = (value?: string | null) => {
-    const labels: Record<string, string> = {
-      assigned: "مُعيّن",
-      printed: "تمت الطباعة",
-      in_progress: "قيد التنفيذ",
-      scanned: "تم التصحيح",
-      completed: "مكتمل",
-      available: "متاح",
-      active: "نشط",
-      completed_school: "مكتمل",
-    };
-    return value ? labels[value] ?? value : "غير محدد";
-  };
-
-  const packageTypeLabel = (value?: string | null) => {
-    const labels: Record<string, string> = {
-      weekly: "اختبار أسبوعي",
-      diagnostic: "اختبار تشخيصي",
-      nafs_simulation: "محاكاة نافس",
-    };
-    return value ? labels[value] ?? value : "اختبار مقياس";
   };
 
   const packageDateLabel = (item: { start_date?: string | null; end_date?: string | null; startDate?: string | null; endDate?: string | null }) => {
@@ -1586,7 +1554,7 @@ export default function TeacherDashboard() {
                             </p>
                           </div>
                           <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand">
-                            {packageStatusLabel(item.status)}
+                            {assignmentStatusLabel(item.status)}
                           </span>
                         </div>
 

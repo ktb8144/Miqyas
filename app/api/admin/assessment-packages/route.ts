@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, authErrorResponse } from "@/lib/auth";
 import { AssessmentValidationError, parsePackageAnswerKey, syncPackageQuestionsFromAnswerKey } from "@/lib/assessment";
+import { emptyToNull } from "@/lib/api";
+import { countPackageQuestions, countIncompletePackageQuestions, countRowsByPackage } from "@/lib/packages";
+import type { AssessmentPackageRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
@@ -26,69 +29,11 @@ const packageSchema = z.object({
   status: z.enum(["draft", "published", "archived"]).optional().default("draft"),
 });
 
-type PackageRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  subject: string;
-  grade: number;
-  week_number: number | null;
-  assessment_code: string | null;
-  duration_minutes: number | null;
-  package_type: string | null;
-  status: string;
-  start_date: string | null;
-  end_date: string | null;
-  student_pdf_url: string | null;
-  questions_pdf_url: string | null;
-  teacher_pdf_url: string | null;
-  answer_sheet_pdf_url: string | null;
-  answer_key_file_url: string | null;
-  published_at: string | null;
-  created_at: string;
-};
-
-function emptyToNull(value?: string | null) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
-async function countPackageRows(packageIds: string[], table: "package_questions" | "school_package_assignments") {
-  const db = getAdminClient();
-  const entries = await Promise.all(
-    packageIds.map(async (packageId) => {
-      const { count, error } = await db
-        .from(table)
-        .select("id", { count: "exact", head: true })
-        .eq("package_id", packageId);
-      if (error) throw error;
-      return [packageId, count ?? 0] as const;
-    })
-  );
-  return new Map(entries);
-}
-
-async function countIncompletePackageQuestions(packageIds: string[]) {
-  const db = getAdminClient();
-  const entries = await Promise.all(
-    packageIds.map(async (packageId) => {
-      const { count, error } = await db
-        .from("package_questions")
-        .select("id", { count: "exact", head: true })
-        .eq("package_id", packageId)
-        .or("and(nafs_domain_id.is.null,domain_text.is.null),and(skill_id.is.null,skill_text.is.null)");
-      if (error) throw error;
-      return [packageId, count ?? 0] as const;
-    })
-  );
-  return new Map(entries);
-}
+type PackageRow = Pick<AssessmentPackageRow, "id" | "title" | "description" | "subject" | "grade" | "week_number" | "assessment_code" | "duration_minutes" | "package_type" | "status" | "start_date" | "end_date" | "student_pdf_url" | "questions_pdf_url" | "teacher_pdf_url" | "answer_sheet_pdf_url" | "answer_key_file_url" | "published_at" | "created_at">;
 
 export async function GET(req: NextRequest) {
   const auth = await requireAdmin(req);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const db = getAdminClient();
@@ -122,8 +67,8 @@ export async function GET(req: NextRequest) {
     const packages = (data ?? []) as PackageRow[];
     const packageIds = packages.map((item) => item.id);
     const [questionCounts, schoolCounts, incompleteQuestionCounts] = await Promise.all([
-      countPackageRows(packageIds, "package_questions"),
-      countPackageRows(packageIds, "school_package_assignments"),
+      countPackageQuestions(packageIds),
+      countRowsByPackage("school_package_assignments", packageIds),
       countIncompletePackageQuestions(packageIds),
     ]);
 
@@ -148,9 +93,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const auth = await requireAdmin(req);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const parsed = packageSchema.safeParse(await req.json());

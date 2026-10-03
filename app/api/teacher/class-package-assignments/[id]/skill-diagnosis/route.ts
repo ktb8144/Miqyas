@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { analyzeClassPackageAssignmentSkills } from "@/lib/assessment/skill-diagnosis-service";
 
 export const dynamic = "force-dynamic";
@@ -7,9 +7,7 @@ export const revalidate = 0;
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireUserRole(req, ["teacher"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const schoolId = auth.profile.school_id;

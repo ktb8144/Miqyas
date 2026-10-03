@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireUserRole } from "@/lib/auth";
-import { normalizeSubject } from "@/lib/subjects";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
+import { countPackageQuestions, classMatchesPackage } from "@/lib/packages";
+import type { AssessmentPackageRow, ClassRow as DbClassRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
-type ClassRow = {
-  id: string;
-  name: string;
-  grade: number | null;
-  subject: string | null;
-};
+type ClassRow = Pick<DbClassRow, "id" | "name" | "grade" | "subject">;
 
 type SchoolAssignmentRow = {
   id: string;
@@ -18,53 +14,11 @@ type SchoolAssignmentRow = {
   status: string;
 };
 
-type PackageRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  subject: string;
-  grade: number;
-  week_number: number | null;
-  duration_minutes: number | null;
-  package_type: string | null;
-  start_date: string | null;
-  end_date: string | null;
-  status: string;
-  student_pdf_url: string | null;
-  questions_pdf_url: string | null;
-  answer_sheet_pdf_url: string | null;
-  published_at: string | null;
-  created_at: string;
-};
-
-function classMatchesPackage(classItem: ClassRow, assessmentPackage: PackageRow) {
-  const grade = Number(classItem.grade);
-  const classSubject = normalizeSubject(classItem.subject);
-  return Number.isFinite(grade) && grade === assessmentPackage.grade && classSubject === normalizeSubject(assessmentPackage.subject);
-}
-
-async function countPackageQuestions(packageIds: string[]) {
-  const db = getAdminClient();
-  const entries = await Promise.all(
-    packageIds.map(async (packageId) => {
-      const { count, error } = await db
-        .from("package_questions")
-        .select("id", { count: "exact", head: true })
-        .eq("package_id", packageId);
-
-      if (error) throw error;
-      return [packageId, count ?? 0] as const;
-    })
-  );
-
-  return new Map(entries);
-}
+type PackageRow = Pick<AssessmentPackageRow, "id" | "title" | "description" | "subject" | "grade" | "week_number" | "duration_minutes" | "package_type" | "start_date" | "end_date" | "status" | "student_pdf_url" | "questions_pdf_url" | "answer_sheet_pdf_url" | "published_at" | "created_at">;
 
 export async function GET(req: NextRequest) {
   const auth = await requireUserRole(req, ["teacher"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const schoolId = auth.profile.school_id;

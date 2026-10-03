@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, authErrorResponse } from "@/lib/auth";
+import { normalizeSchool, schoolErrorResponse } from "@/lib/admin/normalize";
+import { logDbError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -17,80 +19,10 @@ const schoolCreateSchema = z.object({
   trial: z.boolean().default(true),
 });
 
-function normalizeSchool(row: Record<string, unknown>) {
-  return {
-    id: String(row.id),
-    name: String(row.name ?? ""),
-    city: String(row.city ?? ""),
-    region: row.region === null ? null : String(row.region ?? ""),
-    type: String(row.type ?? ""),
-    principal: "—",
-    teachers: Number(row.teachers ?? 0),
-    students: Number(row.students ?? 0),
-    status: normalizeSchoolStatus(row.active, row.trial),
-    score: String(row.score ?? "—"),
-  };
-}
-
-function normalizeSchoolStatus(active: unknown, trial: unknown) {
-  if (active === false) return "موقوفة";
-  if (trial === true) return "تجريبية";
-  return "نشطة";
-}
-
-function logSchoolError(action: string, err: unknown) {
-  const details =
-    err && typeof err === "object"
-      ? {
-          code: "code" in err ? err.code : undefined,
-          message: "message" in err ? err.message : undefined,
-          details: "details" in err ? err.details : undefined,
-          hint: "hint" in err ? err.hint : undefined,
-        }
-      : { message: err instanceof Error ? err.message : "Unknown error" };
-
-  console.error(`admin schools ${action} failed`, details);
-}
-
-function errorResponse(err: unknown, fallback = "تعذر تنفيذ العملية على المدارس") {
-  const code = err && typeof err === "object" && "code" in err ? err.code : undefined;
-  const message = err && typeof err === "object" && "message" in err ? String(err.message) : "";
-  const details = err && typeof err === "object" && "details" in err ? String(err.details) : undefined;
-  const hint = err && typeof err === "object" && "hint" in err ? String(err.hint) : undefined;
-
-  return NextResponse.json(
-    {
-      success: false,
-      error:
-        code === "PGRST204"
-          ? "تعذر حفظ المدرسة بسبب عدم تطابق أعمدة جدول schools في Supabase."
-          : message.includes("violates not-null constraint")
-            ? "تعذر حفظ المدرسة بسبب نقص حقل مطلوب في جدول schools."
-            : message.includes("violates check constraint")
-              ? "تعذر حفظ المدرسة بسبب قيمة غير مسموحة في أحد الحقول."
-              : fallback,
-      details,
-      hint,
-      code,
-    },
-    { status: 500 }
-  );
-}
-
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
 
-  if (!admin.ok) {
-    console.warn("admin schools list blocked", {
-      status: admin.status,
-      reason: admin.error,
-    });
-
-    return NextResponse.json(
-      { success: false, error: admin.error },
-      { status: admin.status }
-    );
-  }
+  if (!admin.ok) return authErrorResponse(admin);
 
   try {
     const { data, error } = await getAdminClient()
@@ -105,25 +37,15 @@ export async function GET(req: NextRequest) {
       data: (data ?? []).map((row) => normalizeSchool(row)),
     });
   } catch (err) {
-    logSchoolError("list", err);
-    return errorResponse(err);
+    logDbError("admin schools list", err);
+    return schoolErrorResponse(err, "تعذر تنفيذ العملية على المدارس");
   }
 }
 
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin(req);
 
-  if (!admin.ok) {
-    console.warn("admin schools create blocked", {
-      status: admin.status,
-      reason: admin.error,
-    });
-
-    return NextResponse.json(
-      { success: false, error: admin.error },
-      { status: admin.status }
-    );
-  }
+  if (!admin.ok) return authErrorResponse(admin);
 
   try {
     const parsed = schoolCreateSchema.safeParse(await req.json());
@@ -170,7 +92,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    logSchoolError("create", err);
-    return errorResponse(err, "تعذر إنشاء المدرسة في Supabase");
+    logDbError("admin schools create", err);
+    return schoolErrorResponse(err, "تعذر إنشاء المدرسة في Supabase");
   }
 }

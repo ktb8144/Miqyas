@@ -1,19 +1,11 @@
 import "server-only";
 import { getAdminClient } from "@/lib/supabase-admin";
+import { percentOf } from "@/lib/math";
+import type { ClassPackageAssignmentRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
 
-type AssignmentRow = {
-  id: string;
-  package_id: string;
-  school_id: string;
-  class_id: string;
-  teacher_id: string;
-};
+type AssignmentRow = Pick<ClassPackageAssignmentRow, "id" | "package_id" | "school_id" | "class_id" | "teacher_id">;
 
-type StudentRow = {
-  id: string;
-  name: string;
-  student_code: string | null;
-};
+type StudentRow = Pick<DbStudentRow, "id" | "name" | "student_code">;
 
 type StudentResultRow = {
   id: string;
@@ -62,10 +54,6 @@ type SkillBucket = {
 function firstJoin<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
-}
-
-function pct(correct: number, total: number) {
-  return total > 0 ? Math.round((correct / total) * 100) : 0;
 }
 
 function confidenceFor(questionCount: number, totalAttempts: number, dominantWrongRate: number) {
@@ -255,7 +243,7 @@ export async function analyzeClassPackageAssignmentSkills({
   });
 
   const skillEvidence = Array.from(buckets.values()).map((bucket) => {
-    const masteryRate = pct(bucket.correctAttempts, bucket.totalAttempts);
+    const masteryRate = percentOf(bucket.correctAttempts, bucket.totalAttempts);
     const questionCount = bucket.questionNumbers.size;
     const affectedStudents = Array.from(bucket.affectedStudentIds).map((id) => {
       const student = studentsById.get(id);
@@ -338,7 +326,7 @@ export async function analyzeClassPackageAssignmentSkills({
     skillEvidence,
     questionEvidence: Array.from(questionEvidence.values()).map((item) => ({
       questionNumber: item.questionNumber,
-      masteryRate: pct(item.correct, item.total),
+      masteryRate: percentOf(item.correct, item.total),
       totalAttempts: item.total,
       topWrongOption: item.topWrongOption,
       wrongOptions: Array.from(item.wrongOptions.entries()).map(([option, count]) => ({ option, count })),

@@ -1,27 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
+import { cleanName, normalizeName } from "@/lib/format";
 
 const saveStudentsSchema = z.object({
   classId: z.string().uuid(),
   names: z.array(z.string().trim().min(1).max(120)).min(1).max(200),
 });
 
-function normalizeName(name: string) {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function cleanName(name: string) {
-  return name.trim().replace(/\s+/g, " ");
-}
-
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireUserRole(req, ["teacher"]);
-    if (!auth.ok) {
-      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-    }
+    if (!auth.ok) return authErrorResponse(auth);
 
     const parsed = saveStudentsSchema.safeParse(await req.json());
     if (!parsed.success) {

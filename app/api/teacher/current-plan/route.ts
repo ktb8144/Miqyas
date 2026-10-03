@@ -1,23 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
+import { normalizeSubject } from "@/lib/subjects";
+import type { ClassRow as DbClassRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
-type ClassRow = {
-  id: string;
-  name: string;
-  grade: number | null;
-  subject: string | null;
-};
-
-function normalizeSubject(subject: string | null | undefined) {
-  const value = (subject ?? "").trim();
-  if (["لغة عربية", "اللغة العربية", "عربية", "قراءة", "لغتي"].includes(value)) return "لغة عربية";
-  if (value === "رياضيات" || value === "الرياضيات") return "رياضيات";
-  if (value === "علوم" || value === "العلوم") return "علوم";
-  return value;
-}
+type ClassRow = Pick<DbClassRow, "id" | "name" | "grade" | "subject">;
 
 function normalizeGrade(grade: number | string | null | undefined) {
   const value = Number(grade);
@@ -26,9 +15,7 @@ function normalizeGrade(grade: number | string | null | undefined) {
 
 export async function GET(req: NextRequest) {
   const auth = await requireUserRole(req, ["teacher"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const db = getAdminClient();

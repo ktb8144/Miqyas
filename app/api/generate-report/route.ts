@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateClassReport } from "@/lib/gemini";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
 
 const reportSchema = z.object({
   teacherName: z.string().trim().min(1),
@@ -19,9 +19,7 @@ const reportSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const auth = await requireUserRole(req, ["principal", "teacher"]);
-    if (!auth.ok) {
-      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-    }
+    if (!auth.ok) return authErrorResponse(auth);
 
     const parsed = reportSchema.safeParse(await req.json());
     if (!parsed.success) {

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, authErrorResponse } from "@/lib/auth";
 import { AssessmentValidationError, parsePackageAnswerKey, syncPackageQuestionsFromAnswerKey } from "@/lib/assessment";
+import { emptyToNull } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +29,6 @@ const packageUpdateSchema = z.object({
   status: z.enum(["draft", "published", "archived"]).optional(),
 });
 
-function emptyToNull(value?: string | null) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
 async function loadCounts(packageId: string) {
   const db = getAdminClient();
   const [questionResult, schoolResult] = await Promise.all([
@@ -50,9 +46,7 @@ async function loadCounts(packageId: string) {
 
 export async function GET(req: NextRequest, { params }: Params) {
   const auth = await requireAdmin(req);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const db = getAdminClient();
@@ -114,9 +108,7 @@ export async function GET(req: NextRequest, { params }: Params) {
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   const auth = await requireAdmin(req);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const parsed = packageUpdateSchema.safeParse(await req.json());

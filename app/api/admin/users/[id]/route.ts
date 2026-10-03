@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, authErrorResponse } from "@/lib/auth";
+import { normalizeUser } from "@/lib/admin/normalize";
 
 export const dynamic = "force-dynamic";
 
@@ -18,29 +19,10 @@ type Params = {
   };
 };
 
-function normalizeUser(row: Record<string, unknown>) {
-  const school = row.schools as { name?: string } | null | undefined;
-  return {
-    id: String(row.id),
-    auth_id: row.auth_id ? String(row.auth_id) : null,
-    name: String(row.name ?? ""),
-    email: String(row.email ?? ""),
-    role: String(row.role ?? "teacher"),
-    school_id: row.school_id ? String(row.school_id) : null,
-    school: school?.name ?? "كل المدارس",
-    status: String(row.status ?? "نشط"),
-  };
-}
-
 export async function PATCH(req: NextRequest, { params }: Params) {
   const admin = await requireAdmin(req);
 
-  if (!admin.ok) {
-    return NextResponse.json(
-      { success: false, error: admin.error },
-      { status: admin.status }
-    );
-  }
+  if (!admin.ok) return authErrorResponse(admin);
 
   try {
     const parsed = userUpdateSchema.safeParse(await req.json());

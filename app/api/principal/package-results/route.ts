@@ -1,41 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
+import { toPercent } from "@/lib/math";
+import type { AssessmentPackageRow, ClassPackageAssignmentRow, StudentPackageResultRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
-type AssignmentRow = {
-  id: string;
-  package_id: string;
-  class_id: string;
-  teacher_id: string;
-  status: string;
-  scanned_at: string | null;
-};
+type AssignmentRow = Pick<ClassPackageAssignmentRow, "id" | "package_id" | "class_id" | "teacher_id" | "status" | "scanned_at">;
 
-type PackageRow = {
-  id: string;
-  title: string;
-  subject: string;
-  grade: number;
-  week_number: number | null;
-};
+type PackageRow = Pick<AssessmentPackageRow, "id" | "title" | "subject" | "grade" | "week_number">;
 
-type ResultRow = {
-  class_package_assignment_id: string;
-  percentage: number | string | null;
-};
+type ResultRow = Pick<StudentPackageResultRow, "class_package_assignment_id" | "percentage">;
 
 type QuestionResultRow = {
   is_correct: boolean;
   nafs_domains?: { domain_name?: string | null } | null;
   learning_skills?: { skill_name?: string | null } | null;
 };
-
-function pct(value: number | string | null | undefined) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.round(numeric) : 0;
-}
 
 function weakest(items: Array<{ name: string; isCorrect: boolean }>) {
   const grouped = new Map<string, { name: string; wrong: number; total: number }>();
@@ -54,9 +35,7 @@ function weakest(items: Array<{ name: string; isCorrect: boolean }>) {
 
 export async function GET(req: NextRequest) {
   const auth = await requireUserRole(req, ["admin", "principal", "supervisor"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const schoolId = auth.profile.school_id;
@@ -106,7 +85,7 @@ export async function GET(req: NextRequest) {
       const packageAssignmentIds = new Set(packageAssignments.map((item) => item.id));
       const packageResults = results.filter((item) => packageAssignmentIds.has(item.class_package_assignment_id));
       const average = packageResults.length
-        ? Math.round(packageResults.reduce((sum, item) => sum + pct(item.percentage), 0) / packageResults.length)
+        ? Math.round(packageResults.reduce((sum, item) => sum + toPercent(item.percentage), 0) / packageResults.length)
         : null;
       const packageQuestionRows = questionRows.filter((item) => item.package_id === packageId);
       const scannedClasses = packageAssignments.filter((item) => item.status === "scanned" || item.scanned_at).length;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
+import { errorJson, logDbError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -11,27 +12,6 @@ const trialRequestSchema = z.object({
   email: z.string().trim().email(),
   message: z.string().trim().optional(),
 });
-
-function logTrialRequestError(err: unknown) {
-  const details =
-    err && typeof err === "object"
-      ? {
-          code: "code" in err ? err.code : undefined,
-          message: "message" in err ? err.message : undefined,
-          details: "details" in err ? err.details : undefined,
-          hint: "hint" in err ? err.hint : undefined,
-        }
-      : { message: err instanceof Error ? err.message : "Unknown error" };
-
-  console.error("trial request create failed", details);
-}
-
-function errorResponse() {
-  return NextResponse.json(
-    { success: false, error: "تعذر إرسال طلب التجربة حاليًا" },
-    { status: 500 }
-  );
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -64,7 +44,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    logTrialRequestError(err);
-    return errorResponse();
+    logDbError("trial request create", err);
+    return errorJson("تعذر إرسال طلب التجربة حاليًا");
   }
 }

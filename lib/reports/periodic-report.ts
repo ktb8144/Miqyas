@@ -3,6 +3,9 @@ import { getAdminClient } from "@/lib/supabase-admin";
 import { toEnglishDigits } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 import { LEVEL_THRESHOLDS, MASTERY_THRESHOLD, getLevelFromPercentage } from "@/lib/levels";
+import { normalizeSubject } from "@/lib/subjects";
+import { toPercent, average } from "@/lib/math";
+import type { AssessmentPackageRow, ClassPackageAssignmentRow, ClassRow as DbClassRow, StudentPackageResultRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
 
 export type PeriodicReportType =
   | "learning_outcomes_followup"
@@ -31,37 +34,13 @@ type UserProfile = {
   school_id: string | null;
 };
 
-type ClassRow = {
-  id: string;
-  name: string;
-  grade: number | null;
-  subject: string | null;
-};
+type ClassRow = Pick<DbClassRow, "id" | "name" | "grade" | "subject">;
 
-type StudentRow = {
-  id: string;
-  name: string;
-  class_id: string;
-};
+type StudentRow = Pick<DbStudentRow, "id" | "name" | "class_id">;
 
-type AssignmentRow = {
-  id: string;
-  package_id: string;
-  class_id: string;
-  status: string;
-  scanned_at: string | null;
-  created_at: string | null;
-};
+type AssignmentRow = Pick<ClassPackageAssignmentRow, "id" | "package_id" | "class_id" | "status" | "scanned_at" | "created_at">;
 
-type PackageRow = {
-  id: string;
-  title: string;
-  subject: string;
-  grade: number | null;
-  week_number: number | null;
-  start_date: string | null;
-  end_date: string | null;
-};
+type PackageRow = Pick<AssessmentPackageRow, "id" | "title" | "subject" | "grade" | "week_number" | "start_date" | "end_date">;
 
 export type PeriodicReportWeek = {
   weekNumber: number;
@@ -73,17 +52,7 @@ export type PeriodicReportWeek = {
   packageCount: number;
 };
 
-type ResultRow = {
-  id: string;
-  class_package_assignment_id: string;
-  student_id: string;
-  score: number | string;
-  total: number | string;
-  percentage: number | string | null;
-  level: string | null;
-  scanned_at: string | null;
-  created_at: string | null;
-};
+type ResultRow = Pick<StudentPackageResultRow, "id" | "class_package_assignment_id" | "student_id" | "score" | "total" | "percentage" | "level" | "scanned_at" | "created_at">;
 
 type QuestionResultRow = {
   student_package_result_id: string;
@@ -91,15 +60,6 @@ type QuestionResultRow = {
   nafs_domains?: { domain_name?: string | null } | null;
   learning_skills?: { skill_name?: string | null } | null;
 };
-
-function pct(value: unknown) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.round(numeric) : 0;
-}
-
-function avg(values: number[]) {
-  return values.length ? Math.round(values.reduce((sum, item) => sum + item, 0) / values.length) : null;
-}
 
 function inRange(dateValue: string | null | undefined, from: string, to: string) {
   if (!dateValue) return false;
@@ -154,15 +114,6 @@ function weekLabel(weekNumber: number | null | undefined, startDate?: string | n
   const startHijri = hijriDate(startDate);
   if (!weekNumber) return startHijri ? `يبدأ ${startHijri}` : "أسبوع غير محدد";
   return `الأسبوع ${toArabicDigits(weekNumber)}${startHijri ? ` - يبدأ ${startHijri}` : ""}`;
-}
-
-function normalizeSubject(value?: string | null) {
-  const text = (value ?? "").trim();
-  if (!text) return "";
-  if (["رياضيات", "الرياضيات"].includes(text)) return "رياضيات";
-  if (["لغة عربية", "اللغة العربية", "قراءة", "لغتي", "عربية"].includes(text)) return "لغة عربية";
-  if (["علوم", "العلوم"].includes(text)) return "علوم";
-  return text;
 }
 
 function reportTitle(type: PeriodicReportType) {
@@ -319,8 +270,8 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
     : { data: [], error: null };
   if (questionResultsRes.error) throw questionResultsRes.error;
 
-  const percentages = results.map((item) => pct(item.percentage));
-  const performanceAverage = avg(percentages);
+  const percentages = results.map((item) => toPercent(item.percentage));
+  const performanceAverage = average(percentages);
   const mastered = percentages.filter((item) => item >= MASTERY_THRESHOLD).length;
   const notMastered = percentages.length - mastered;
   const masteryPercentage = percentages.length ? Math.round((mastered / percentages.length) * 100) : null;
@@ -331,8 +282,8 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
   const improvement = (() => {
     if (results.length < 2) return null;
     const sorted = [...results].sort((a, b) => String(a.scanned_at ?? a.created_at).localeCompare(String(b.scanned_at ?? b.created_at)));
-    const first = avg(sorted.slice(0, Math.ceil(sorted.length / 2)).map((item) => pct(item.percentage)));
-    const last = avg(sorted.slice(Math.floor(sorted.length / 2)).map((item) => pct(item.percentage)));
+    const first = average(sorted.slice(0, Math.ceil(sorted.length / 2)).map((item) => toPercent(item.percentage)));
+    const last = average(sorted.slice(Math.floor(sorted.length / 2)).map((item) => toPercent(item.percentage)));
     return first !== null && last !== null ? last - first : null;
   })();
 
@@ -426,7 +377,7 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
     studentName: options.showStudentNames ? studentsById.get(item.student_id)?.name ?? "طالب غير محدد" : "محجوب",
     score: Number(item.score),
     total: Number(item.total),
-    percentage: pct(item.percentage),
+    percentage: toPercent(item.percentage),
     level: item.level || "غير محدد",
   }));
 

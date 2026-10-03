@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { buildPeriodicReport, renderPeriodicReportHtml } from "@/lib/reports/periodic-report";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -25,9 +25,7 @@ const schema = z.object({
 
 export async function POST(req: NextRequest) {
   const auth = await requireUserRole(req, ["admin", "principal", "supervisor"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const parsed = schema.safeParse(await req.json());

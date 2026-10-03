@@ -1,28 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { LEVEL_THRESHOLDS } from "@/lib/levels";
+import { average } from "@/lib/math";
+import type { ClassRow as DbClassRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
 const AT_RISK_THRESHOLD = LEVEL_THRESHOLDS.basic;
 
-type StudentRow = {
-  id: string;
-  name: string;
-  class_id: string;
-  score: number | null;
-  total: number | null;
-};
+type StudentRow = Pick<DbStudentRow, "id" | "name" | "class_id" | "score" | "total">;
 
-type ClassRow = {
-  id: string;
-  name: string;
-  grade: number | null;
-  subject: string | null;
-  teacher_id: string;
-  school_id: string;
-  students?: StudentRow[];
+type ClassRow = Pick<DbClassRow, "id" | "name" | "grade" | "subject" | "teacher_id" | "school_id"> & {
+  students: StudentRow[];
 };
 
 type WeeklyPlanRow = {
@@ -39,14 +29,11 @@ type WeeklyPlanRow = {
   difficulty_level: string;
 };
 
-function pct(score: number | null | undefined, total: number | null | undefined) {
+// NOTE: reads the legacy students.score/total columns (see docs/CLEANUP.md).
+// A score of 0 is treated as "not tested yet".
+function studentPercent(score: number | null | undefined, total: number | null | undefined) {
   if (!score || !total || total <= 0) return null;
   return Math.round((score / total) * 100);
-}
-
-function avg(values: number[]) {
-  if (!values.length) return null;
-  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
 }
 
 function clamp(value: number) {
@@ -63,9 +50,7 @@ function normalizePlanSubject(subject?: string | null) {
 
 export async function GET(req: NextRequest) {
   const auth = await requireUserRole(req, ["admin", "principal"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const db = getAdminClient();
@@ -104,10 +89,10 @@ export async function GET(req: NextRequest) {
     );
 
     const scoredStudents = students
-      .map((student) => ({ ...student, percentage: pct(student.score, student.total) }))
+      .map((student) => ({ ...student, percentage: studentPercent(student.score, student.total) }))
       .filter((student): student is typeof student & { percentage: number } => student.percentage !== null);
 
-    const performanceAverage = avg(scoredStudents.map((student) => student.percentage));
+    const performanceAverage = average(scoredStudents.map((student) => student.percentage));
     const atRiskStudents = scoredStudents
       .filter((student) => student.percentage < AT_RISK_THRESHOLD)
       .sort((a, b) => a.percentage - b.percentage)
@@ -130,7 +115,7 @@ export async function GET(req: NextRequest) {
       subjectScores.set(subject, [...(subjectScores.get(subject) ?? []), student.percentage]);
     });
     const weakSkills = Array.from(subjectScores.entries())
-      .map(([skill, values]) => ({ skill, average: avg(values) ?? 0, count: values.length }))
+      .map(([skill, values]) => ({ skill, average: average(values) ?? 0, count: values.length }))
       .sort((a, b) => a.average - b.average)
       .slice(0, 5);
 
@@ -138,7 +123,7 @@ export async function GET(req: NextRequest) {
       const teacherClasses = classes.filter((classRow) => classRow.teacher_id === teacher.id);
       const teacherStudents = students.filter((student) => student.teacherId === teacher.id);
       const teacherScores = teacherStudents
-        .map((student) => pct(student.score, student.total))
+        .map((student) => studentPercent(student.score, student.total))
         .filter((value): value is number => value !== null);
       return {
         id: teacher.id,
@@ -150,7 +135,7 @@ export async function GET(req: NextRequest) {
         classNames: teacherClasses.map((classRow) => classRow.name),
         classesCount: teacherClasses.length,
         studentsCount: teacherStudents.length,
-        average: avg(teacherScores),
+        average: average(teacherScores),
         active: teacherClasses.length > 0 || teacherScores.length > 0,
       };
     });
@@ -282,7 +267,7 @@ export async function GET(req: NextRequest) {
         classes: classes.map((classRow) => {
           const classStudents = students.filter((student) => student.class_id === classRow.id);
           const classScores = classStudents
-            .map((student) => pct(student.score, student.total))
+            .map((student) => studentPercent(student.score, student.total))
             .filter((value): value is number => value !== null);
           return {
             id: classRow.id,
@@ -290,7 +275,7 @@ export async function GET(req: NextRequest) {
             grade: classRow.grade,
             subject: classRow.subject ?? "غير محدد",
             studentsCount: classStudents.length,
-            average: avg(classScores),
+            average: average(classScores),
           };
         }),
         alerts: [

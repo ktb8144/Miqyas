@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { hashParentReportToken } from "@/lib/parent-report";
+import { normalizeSaudiMobile } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +16,6 @@ const schema = z.object({
   relation: z.string().trim().max(40).optional().or(z.literal("")),
   consentAccepted: z.boolean().optional().default(false),
 });
-
-function normalizeSaudiMobile(value: string) {
-  const digits = value.replace(/[^\d]/g, "");
-  if (digits.startsWith("9665") && digits.length === 12) return `0${digits.slice(3)}`;
-  if (digits.startsWith("5") && digits.length === 9) return `0${digits}`;
-  return digits;
-}
 
 export async function POST(req: NextRequest) {
   try {

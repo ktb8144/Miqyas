@@ -27,8 +27,9 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
-import { toEnglishDigits } from "@/lib/format";
+import { toEnglishDigits, formatNumber } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
+import { packageStatusLabel, packageTypeLabel } from "@/lib/labels";
 
 type Tab = "overview" | "schools" | "users" | "packages" | "trialRequests" | "reports";
 type ModalType = "school" | "user";
@@ -257,28 +258,6 @@ const navItems = [
   { id: "trialRequests", label: "طلبات التجربة", icon: ClipboardList },
   { id: "reports", label: "التقارير", icon: BarChart3 },
 ] satisfies { id: Tab; label: string; icon: typeof LayoutDashboard }[];
-
-function formatNumber(value: number) {
-  return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
-}
-
-function packageStatusLabel(value: string) {
-  const labels: Record<string, string> = {
-    draft: "مسودة",
-    published: "منشورة",
-    archived: "مؤرشفة",
-  };
-  return labels[value] ?? value;
-}
-
-function packageTypeLabel(value?: string | null) {
-  const labels: Record<string, string> = {
-    weekly: "أسبوعي",
-    nafs_simulation: "محاكاة نافس",
-    diagnostic: "تشخيصي",
-  };
-  return value ? labels[value] ?? value : "أسبوعي";
-}
 
 function StatusBadge({ status }: { status: string }) {
   const tone =

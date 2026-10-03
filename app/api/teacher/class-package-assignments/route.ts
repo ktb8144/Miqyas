@@ -1,48 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { normalizeSubject } from "@/lib/subjects";
+import { countPackageQuestions } from "@/lib/packages";
+import type { AssessmentPackageRow, ClassPackageAssignmentRow, ClassRow as DbClassRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
-type ClassRow = {
-  id: string;
-  name: string;
-  grade: number | null;
-  subject: string | null;
-  school_id: string;
-  teacher_id: string;
-};
+type ClassRow = Pick<DbClassRow, "id" | "name" | "grade" | "subject" | "school_id" | "teacher_id">;
 
-type PackageRow = {
-  id: string;
-  title: string;
-  subject: string;
-  grade: number;
-  week_number: number | null;
-  duration_minutes: number | null;
-  package_type: string | null;
-  status: string;
-  start_date: string | null;
-  end_date: string | null;
-  student_pdf_url: string | null;
-  questions_pdf_url: string | null;
-  answer_sheet_pdf_url: string | null;
-};
+type PackageRow = Pick<AssessmentPackageRow, "id" | "title" | "subject" | "grade" | "week_number" | "duration_minutes" | "package_type" | "status" | "start_date" | "end_date" | "student_pdf_url" | "questions_pdf_url" | "answer_sheet_pdf_url">;
 
-type AssignmentRow = {
-  id: string;
-  package_id: string;
-  school_id: string;
-  class_id: string;
-  teacher_id: string;
-  status: string;
-  printed_at: string | null;
-  scanned_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-};
+type AssignmentRow = Pick<ClassPackageAssignmentRow, "id" | "package_id" | "school_id" | "class_id" | "teacher_id" | "status" | "printed_at" | "scanned_at" | "completed_at" | "created_at">;
 
 const createSchema = z.object({
   packageId: z.string().uuid(),
@@ -56,21 +26,6 @@ function canMatchPackageToClass(assessmentPackage: PackageRow, classItem: ClassR
   if (hasGrade && classGrade !== assessmentPackage.grade) return false;
   if (hasSubject && normalizeSubject(classItem.subject) !== normalizeSubject(assessmentPackage.subject)) return false;
   return true;
-}
-
-async function countPackageQuestions(packageIds: string[]) {
-  const db = getAdminClient();
-  const entries = await Promise.all(
-    Array.from(new Set(packageIds)).map(async (packageId) => {
-      const { count, error } = await db
-        .from("package_questions")
-        .select("id", { count: "exact", head: true })
-        .eq("package_id", packageId);
-      if (error) throw error;
-      return [packageId, count ?? 0] as const;
-    })
-  );
-  return new Map(entries);
 }
 
 function shapeAssignment(row: AssignmentRow, assessmentPackage?: PackageRow, classItem?: ClassRow, questionCount = 0) {
@@ -99,9 +54,7 @@ function shapeAssignment(row: AssignmentRow, assessmentPackage?: PackageRow, cla
 
 export async function GET(req: NextRequest) {
   const auth = await requireUserRole(req, ["teacher"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const schoolId = auth.profile.school_id;
@@ -164,9 +117,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const auth = await requireUserRole(req, ["teacher"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const parsed = createSchema.safeParse(await req.json());
@@ -289,9 +240,7 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const auth = await requireUserRole(req, ["teacher"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const parsed = z.object({

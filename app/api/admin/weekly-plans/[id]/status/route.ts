@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, authErrorResponse } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -14,9 +14,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const admin = await requireAdmin(req);
-  if (!admin.ok) {
-    return NextResponse.json({ success: false, error: admin.error }, { status: admin.status });
-  }
+  if (!admin.ok) return authErrorResponse(admin);
 
   try {
     const parsed = statusSchema.safeParse(await req.json());

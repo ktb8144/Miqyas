@@ -1,25 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
+import { toPercent } from "@/lib/math";
+import type { StudentPackageResultRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
-type ResultRow = {
-  id: string;
-  student_id: string;
-  score: number | string;
-  total: number | string;
-  percentage: number | string | null;
-  level: string | null;
-  scanned_at: string | null;
-  created_at: string | null;
-};
+type ResultRow = Pick<StudentPackageResultRow, "id" | "student_id" | "score" | "total" | "percentage" | "level" | "scanned_at" | "created_at">;
 
-type StudentRow = {
-  id: string;
-  name: string;
-  student_code: string | null;
-};
+type StudentRow = Pick<DbStudentRow, "id" | "name" | "student_code">;
 
 type QuestionResultRow = {
   is_correct: boolean;
@@ -31,11 +20,6 @@ type PackageQuestionRow = {
   skill_text: string | null;
   domain_text: string | null;
 };
-
-function pct(value: number | string | null | undefined) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.round(numeric) : 0;
-}
 
 function weakest(items: Array<{ name: string; isCorrect: boolean }>) {
   const grouped = new Map<string, { name: string; wrong: number; total: number }>();
@@ -54,9 +38,7 @@ function weakest(items: Array<{ name: string; isCorrect: boolean }>) {
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireUserRole(req, ["teacher"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const db = getAdminClient();
@@ -187,7 +169,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
 
     const average = results.length
-      ? Math.round(results.reduce((sum, item) => sum + pct(item.percentage), 0) / results.length)
+      ? Math.round(results.reduce((sum, item) => sum + toPercent(item.percentage), 0) / results.length)
       : null;
 
     const assignmentRecord = assignment as unknown as {
@@ -228,7 +210,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             studentName: student?.name ?? "طالب غير محدد",
             score: Number(item.score),
             total: Number(item.total),
-            percentage: pct(item.percentage),
+            percentage: toPercent(item.percentage),
             level: item.level ?? "",
             scannedAt: item.scanned_at,
           };

@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { getAdminClient } from "@/lib/supabase-admin";
+import { toPercent } from "@/lib/math";
 
 export function hashParentReportToken(token: string) {
   return crypto.createHash("sha256").update(token).digest("hex");
@@ -10,11 +11,6 @@ type QuestionResultRow = {
   nafs_domains?: { domain_name?: string | null } | null;
   learning_skills?: { skill_name?: string | null; remediation_summary?: string | null } | null;
 };
-
-function pct(value: number | string | null | undefined) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? Math.round(numeric) : 0;
-}
 
 export function getWeakestSkill(rows: QuestionResultRow[]) {
   const grouped = new Map<string, { name: string; domain: string; wrong: number; total: number; remediation?: string | null }>();
@@ -112,7 +108,7 @@ export async function loadParentReportData(token: string, eventType?: "open_repo
     tokenRow,
     student: studentResult.data,
     result,
-    percentage: result ? pct(result.percentage) : null,
+    percentage: result ? toPercent(result.percentage) : null,
     questionRows: (questionRows.data ?? []) as QuestionResultRow[],
     weakestSkill: getWeakestSkill((questionRows.data ?? []) as QuestionResultRow[]),
   };

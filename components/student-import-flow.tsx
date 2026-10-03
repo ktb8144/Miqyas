@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
-import { toEnglishDigits } from "@/lib/format";
+import { toEnglishDigits, cleanName, normalizeName } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 
 type Step =
@@ -21,14 +21,6 @@ type MergeInfo = {
   added: number;
   duplicates: number;
 };
-
-function normalizeName(name: string) {
-  return name.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-function cleanName(name: string) {
-  return name.trim().replace(/\s+/g, " ");
-}
 
 function mergeNames(current: string[], incoming: string[]) {
   const merged = current.map(cleanName).filter(Boolean);

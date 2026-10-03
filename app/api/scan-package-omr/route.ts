@@ -4,6 +4,7 @@ import { scanAnswerSheet, scanQuestionPaperAnswers } from "@/lib/gemini";
 import { getLevel } from "@/lib/levels";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole } from "@/lib/auth";
+import type { AssessmentPackageRow, ClassPackageAssignmentRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
@@ -12,21 +13,9 @@ const VALID_EMPTY_ANSWERS = new Set(["blank", "unclear"]);
 const DEBUG_SCAN =
   process.env.NODE_ENV !== "production" || process.env.DEBUG_SCAN === "true";
 
-type AssignmentRow = {
-  id: string;
-  package_id: string;
-  school_id: string;
-  class_id: string;
-  teacher_id: string;
-  status: string;
-};
+type AssignmentRow = Pick<ClassPackageAssignmentRow, "id" | "package_id" | "school_id" | "class_id" | "teacher_id" | "status">;
 
-type PackageRow = {
-  id: string;
-  status: string;
-  subject: string;
-  grade: number;
-};
+type PackageRow = Pick<AssessmentPackageRow, "id" | "status" | "subject" | "grade">;
 
 type PackageQuestionRow = {
   id: string;

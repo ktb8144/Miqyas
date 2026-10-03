@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { toEnglishDigits } from "@/lib/format";
+import { toEnglishDigits, normalizeSaudiMobile } from "@/lib/format";
 
 type MissionQuestion = {
   id: string;
@@ -60,13 +60,6 @@ export function MissionCompletionCard({
   const selectedAnswer = answers[currentQuestion.id];
   const hasAnsweredCurrent = selectedAnswer !== undefined;
   const progress = Math.round(((currentIndex + (hasAnsweredCurrent ? 1 : 0)) / questions.length) * 100);
-
-  const normalizeSaudiMobile = (value: string) => {
-    const digits = toEnglishDigits(value).replace(/\D/g, "");
-    if (digits.startsWith("9665") && digits.length === 12) return `0${digits.slice(3)}`;
-    if (digits.startsWith("5") && digits.length === 9) return `0${digits}`;
-    return digits;
-  };
 
   const complete = async () => {
     if (answeredCount !== questions.length) return;

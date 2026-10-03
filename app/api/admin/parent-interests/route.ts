@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, authErrorResponse } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -50,9 +50,7 @@ function getLinkStatus(token?: TokenRow) {
 
 export async function GET(req: NextRequest) {
   const admin = await requireAdmin(req);
-  if (!admin.ok) {
-    return NextResponse.json({ success: false, error: admin.error }, { status: admin.status });
-  }
+  if (!admin.ok) return authErrorResponse(admin);
 
   try {
     const db = getAdminClient();

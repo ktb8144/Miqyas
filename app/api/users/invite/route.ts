@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireUserRole } from "@/lib/auth";
+import { requireUserRole, authErrorResponse } from "@/lib/auth";
+import { getInviteRedirectTo } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -31,20 +32,6 @@ function publicUser(row: Record<string, unknown>) {
 function randomTemporaryPassword() {
   const random = crypto.getRandomValues(new Uint32Array(2)).join("");
   return `Miqyas@${random}!`;
-}
-
-function getInviteRedirectTo() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "");
-
-  if (appUrl) {
-    return `${appUrl}/auth/callback`;
-  }
-
-  if (process.env.NODE_ENV === "development") {
-    return "http://localhost:3000/auth/callback";
-  }
-
-  throw new Error("NEXT_PUBLIC_APP_URL is required for production invites");
 }
 
 async function createAuthUser(db: ReturnType<typeof getAdminClient>, email: string, name: string, role: string) {
@@ -88,9 +75,7 @@ async function createAuthUser(db: ReturnType<typeof getAdminClient>, email: stri
 
 export async function POST(req: NextRequest) {
   const auth = await requireUserRole(req, ["admin", "principal"]);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const parsed = inviteUserSchema.safeParse(await req.json());

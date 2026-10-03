@@ -109,3 +109,26 @@ export function formatSchoolDateRange({
   if (gregorianRange) return gregorianRange;
   return "";
 }
+
+/** 1234 → "1,234" with Latin digits. */
+export function formatNumber(value: number) {
+  return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
+}
+
+/** Saudi mobile in local form: "+966 5x…" / "5x…" → "05x…". */
+export function normalizeSaudiMobile(value: string) {
+  const digits = toEnglishDigits(value).replace(/\D/g, "");
+  if (digits.startsWith("9665") && digits.length === 12) return `0${digits.slice(3)}`;
+  if (digits.startsWith("5") && digits.length === 9) return `0${digits}`;
+  return digits;
+}
+
+/** Trim and collapse inner whitespace in a person's name. */
+export function cleanName(name: string) {
+  return name.trim().replace(/\s+/g, " ");
+}
+
+/** Comparison key for names (cleaned + lower-cased). */
+export function normalizeName(name: string) {
+  return cleanName(name).toLowerCase();
+}

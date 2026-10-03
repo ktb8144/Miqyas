@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, authErrorResponse } from "@/lib/auth";
 import { createClassAssignmentsForPackage } from "@/lib/assessment";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +9,7 @@ type Params = { params: { id: string } };
 
 export async function POST(req: NextRequest, { params }: Params) {
   const auth = await requireAdmin(req);
-  if (!auth.ok) {
-    return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
-  }
+  if (!auth.ok) return authErrorResponse(auth);
 
   try {
     const db = getAdminClient();

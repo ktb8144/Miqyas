@@ -1,5 +1,5 @@
 import "server-only";
-import { normalizeSubject } from "@/lib/subjects";
+import { classMatchesPackage } from "@/lib/packages";
 
 const OPTION_LABELS = ["أ", "ب", "ج", "د"] as const;
 
@@ -46,7 +46,6 @@ function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export { normalizeSubject };
 
 export function parsePackageAnswerKey(input: unknown) {
   const source = typeof input === "string" ? input.trim() : input;
@@ -153,15 +152,6 @@ export async function syncPackageQuestionsFromAnswerKey({
   if (error) throw error;
 
   return { syncedQuestionCount: data?.length ?? 0 };
-}
-
-function classMatchesPackage(classItem: { grade?: number | string | null; subject?: string | null }, assessmentPackage: PackageForSync) {
-  const classGrade = Number(classItem.grade);
-  return (
-    Number.isFinite(classGrade) &&
-    classGrade === Number(assessmentPackage.grade) &&
-    normalizeSubject(classItem.subject) === normalizeSubject(assessmentPackage.subject)
-  );
 }
 
 export async function createClassAssignmentsForPackage({

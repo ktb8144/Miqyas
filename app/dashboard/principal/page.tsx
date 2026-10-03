@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
-import { formatSchoolDateRange, toEnglishDigits } from "@/lib/format";
+import { formatSchoolDateRange, toEnglishDigits, formatNumber, normalizeSaudiMobile } from "@/lib/format";
 import {
   Bar,
   BarChart,
@@ -18,6 +18,7 @@ import {
 } from "recharts";
 import { COLORS } from "@/lib/theme";
 import { LEVEL_THRESHOLDS, MASTERY_THRESHOLD } from "@/lib/levels";
+import { difficultyLabel } from "@/lib/labels";
 
 const TABS = ["لوحة القيادة", "أثر مقياس", "أداء المعلمين", "التنبيهات", "التحسن", "التقارير الدورية"];
 
@@ -119,10 +120,6 @@ type PeriodicReportWeek = {
   packageCount: number;
 };
 
-function formatNumber(value: number) {
-  return toEnglishDigits(new Intl.NumberFormat("en-US").format(value));
-}
-
 function formatPct(value: number | null) {
   return value === null ? "لا توجد بيانات" : `${toEnglishDigits(value)}%`;
 }
@@ -146,16 +143,6 @@ function KpiCard({ label, value, sub, icon, color = COLORS.brand }: { label: str
       <div className="text-sm font-bold text-slate-500">{label}</div>
     </div>
   );
-}
-
-function difficultyLabel(value: string) {
-  const labels: Record<string, string> = {
-    easy: "سهل",
-    medium: "متوسط",
-    hard: "متقدم",
-    nafs_simulation: "محاكاة نافس",
-  };
-  return labels[value] ?? value;
 }
 
 function TeacherCard({ teacher }: { teacher: PrincipalReport["teachers"][number] }) {
@@ -400,13 +387,6 @@ export default function PrincipalDashboard() {
       void loadPeriodicWeeks();
     }
   }, [activeTab, loadPeriodicWeeks, periodicWeeks.length]);
-
-  const normalizeSaudiMobile = (value: string) => {
-    const digits = toEnglishDigits(value).replace(/\D/g, "");
-    if (digits.startsWith("9665") && digits.length === 12) return `0${digits.slice(3)}`;
-    if (digits.startsWith("5") && digits.length === 9) return `0${digits}`;
-    return digits;
-  };
 
   const inviteTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
