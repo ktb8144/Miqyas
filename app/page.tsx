@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
-import { FREE_TRIAL, PRICING_PLANS } from "@/lib/pricing";
+import { FREE_TRIAL_NOTE, PRICING_PLANS } from "@/lib/pricing";
 
 const initialTrialForm = {
   name: "",
@@ -316,11 +316,6 @@ export default function LandingPage() {
             <h2 className="mt-3 text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-4xl/[1.45]">
               أسعار واضحة للمعلم والمدرسة
             </h2>
-            <div className="mx-auto mt-6 inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl border border-brand/20 bg-teal-50/70 px-6 py-4">
-              <Gift className="h-5 w-5 text-brand" />
-              <span className="text-lg font-black text-brand-navy">{FREE_TRIAL.headline}</span>
-              <span className="text-sm font-extrabold text-brand">{FREE_TRIAL.note}</span>
-            </div>
           </div>
 
           <div className="mt-14 grid gap-6 md:grid-cols-3">
@@ -350,6 +345,12 @@ export default function LandingPage() {
                       {feature}
                     </div>
                   ))}
+                  {plan.freeTrial && (
+                    <div className="flex items-start gap-3 rounded-xl bg-white/80 px-3 py-2 text-sm font-extrabold leading-6 text-brand">
+                      <Gift className="mt-0.5 h-4 w-4 shrink-0" />
+                      {FREE_TRIAL_NOTE}
+                    </div>
+                  )}
                 </div>
                 <Link
                   href={plan.href}
