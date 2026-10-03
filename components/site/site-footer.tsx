@@ -15,6 +15,7 @@ export function SiteFooter() {
           <div className="space-y-3 text-sm font-semibold text-slate-500">
             <Link href="/#features" className="block hover:text-brand">المميزات</Link>
             <Link href="/#pricing" className="block hover:text-brand">الأسعار</Link>
+            <Link href="/teachers" className="block hover:text-brand">باقة المعلم</Link>
             <Link href="/login" className="block hover:text-brand">تسجيل الدخول</Link>
           </div>
         </div>

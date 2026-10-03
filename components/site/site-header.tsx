@@ -6,6 +6,7 @@ export const siteNavLinks = [
   { label: "الرئيسية", href: "/" },
   { label: "المميزات", href: "/#features" },
   { label: "الأسعار", href: "/#pricing" },
+  { label: "للمعلم", href: "/teachers" },
   { label: "من نحن", href: "/about" },
   { label: "تواصل معنا", href: "/#trial" },
 ];

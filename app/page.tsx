@@ -375,6 +375,15 @@ export default function LandingPage() {
               </article>
             ))}
           </div>
+          <div className="mt-8 flex flex-col items-center justify-between gap-4 rounded-[1.5rem] border border-brand/20 bg-teal-50/50 p-6 text-center md:flex-row md:text-right">
+            <div>
+              <div className="text-lg font-black text-brand-navy">معلم وتريد الاشتراك بنفسك؟</div>
+              <p className="mt-1 text-sm font-bold leading-7 text-slate-500">باقة المعلم: اختبارات أسبوعية لفصولك وملف شواهد جاهز لتقييمك السنوي.</p>
+            </div>
+            <Link href="/teachers" className="shrink-0 rounded-xl bg-brand px-6 py-3 text-sm font-extrabold text-white transition hover:bg-brand-dark">
+              تعرّف على باقة المعلم
+            </Link>
+          </div>
         </div>
       </section>
 
