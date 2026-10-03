@@ -4,7 +4,6 @@ import {
   BookOpenCheck,
   BrainCircuit,
   CalendarCheck,
-  GraduationCap,
   PenLine,
   School,
   ShieldCheck,
@@ -25,22 +24,17 @@ const expertise = [
     {
       icon: School,
       title: "خبرة تدريس تتجاوز 12 عامًا",
-      desc: "في مدارس المنطقة الشرقية. نعرف الفصل والحصة والشواهد وضغط نهاية الفصل من الداخل.",
+      desc: "في المدارس السعودية. نعرف الفصل والحصة والشواهد وضغط نهاية الفصل من الداخل.",
     },
     {
       icon: PenLine,
-      title: "تطوير أسئلة الاختبارات",
-      desc: "تأهيل في برنامج مطوّر أسئلة الاختبارات من هيئة تقويم التعليم والتدريب.",
+      title: "خبرة تطوير أسئلة الاختبارات",
+      desc: "حاصلون على برنامج «مطوّر أسئلة الاختبارات» من هيئة تقويم التعليم والتدريب.",
     },
     {
       icon: BrainCircuit,
       title: "بحث في الذكاء الاصطناعي في التعليم",
       desc: "على مستوى الدكتوراه في علوم البيانات والذكاء الاصطناعي، بجامعة موناش في أستراليا.",
-    },
-    {
-      icon: GraduationCap,
-      title: "التعليم الرقمي وقيادة التغيير",
-      desc: "ماجستير في التعليم الرقمي، وبرنامج «بناء قادة التغيير» في جامعة ملبورن.",
     },
 ];
 
@@ -101,7 +95,7 @@ export default function AboutPage() {
             </p>
           </div>
 
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid gap-5">
             {expertise.map((item) => {
               const Icon = item.icon;
               return (
