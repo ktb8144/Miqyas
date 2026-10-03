@@ -28,7 +28,7 @@ export function BrandLogo({
   return (
     <Link
       href="/"
-      className={`flex rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D9E75]/30 ${
+      className={`flex rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/30 ${
         centered ? "flex-col items-center text-center" : "items-center gap-3"
       }`}
     >

@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 function InvalidMission() {
   return (
-    <main className="min-h-screen bg-[#f7fafc] px-5 py-10 text-[#0b2447]" dir="rtl">
+    <main className="min-h-screen bg-[#f7fafc] px-5 py-10 text-brand-navy" dir="rtl">
       <section className="mx-auto max-w-2xl rounded-[1.5rem] border border-red-100 bg-white p-8 text-center shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <h1 className="text-2xl font-black">رابط التدريب غير صالح</h1>
         <p className="mt-3 text-sm font-bold leading-7 text-slate-500">
@@ -31,17 +31,17 @@ export default async function StudentMissionPage({ params }: { params: { token: 
   };
 
   return (
-    <main className="min-h-screen bg-[#f7fafc] px-5 py-8 text-[#0b2447]" dir="rtl">
+    <main className="min-h-screen bg-[#f7fafc] px-5 py-8 text-brand-navy" dir="rtl">
       <section className="mx-auto max-w-2xl space-y-5">
         <div className="rounded-[1.75rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-          <p className="text-sm font-extrabold text-[#159f91]">تدريب مجاني قصير</p>
+          <p className="text-sm font-extrabold text-brand">تدريب مجاني قصير</p>
           <h1 className="mt-2 text-3xl font-black">مهمة تدريبية للطالب {student.name}</h1>
           <p className="mt-3 text-sm font-bold leading-7 text-slate-500">
             سؤال واحد في كل مرة، وتغذية راجعة مباشرة بعد كل إجابة.
           </p>
           <div className="mt-4 rounded-xl bg-amber-50 p-4">
             <p className="text-sm font-bold text-slate-500">المهارة المستهدفة</p>
-            <h2 className="mt-1 text-xl font-black text-[#BA7517]">{weak.name}</h2>
+            <h2 className="mt-1 text-xl font-black text-warning">{weak.name}</h2>
           </div>
         </div>
 

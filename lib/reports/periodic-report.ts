@@ -1,6 +1,8 @@
 import "server-only";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { toEnglishDigits } from "@/lib/format";
+import { COLORS } from "@/lib/theme";
+import { LEVEL_THRESHOLDS, MASTERY_THRESHOLD, getLevelFromPercentage } from "@/lib/levels";
 
 export type PeriodicReportType =
   | "learning_outcomes_followup"
@@ -174,8 +176,8 @@ function reportTitle(type: PeriodicReportType) {
 }
 
 function needLevel(masteryPercentage: number) {
-  if (masteryPercentage >= 80) return "احتياج منخفض";
-  if (masteryPercentage >= 60) return "احتياج متوسط";
+  if (masteryPercentage >= LEVEL_THRESHOLDS.proficient) return "احتياج منخفض";
+  if (masteryPercentage >= LEVEL_THRESHOLDS.basic) return "احتياج متوسط";
   return "احتياج عالٍ";
 }
 
@@ -319,7 +321,7 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
 
   const percentages = results.map((item) => pct(item.percentage));
   const performanceAverage = avg(percentages);
-  const mastered = percentages.filter((item) => item >= 70).length;
+  const mastered = percentages.filter((item) => item >= MASTERY_THRESHOLD).length;
   const notMastered = percentages.length - mastered;
   const masteryPercentage = percentages.length ? Math.round((mastered / percentages.length) * 100) : null;
   const notMasteredPercentage = percentages.length ? 100 - (masteryPercentage ?? 0) : null;
@@ -335,10 +337,10 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
   })();
 
   const levelDistribution = {
-    high: percentages.filter((item) => item >= 85).length,
-    medium: percentages.filter((item) => item >= 70 && item < 85).length,
-    low: percentages.filter((item) => item >= 50 && item < 70).length,
-    veryLow: percentages.filter((item) => item < 50).length,
+    high: percentages.filter((item) => getLevelFromPercentage(item) === "متقدم").length,
+    medium: percentages.filter((item) => getLevelFromPercentage(item) === "متمكن").length,
+    low: percentages.filter((item) => getLevelFromPercentage(item) === "أساسي").length,
+    veryLow: percentages.filter((item) => getLevelFromPercentage(item) === "دون الأساسي").length,
   };
 
   const skillGroups = new Map<string, { name: string; correct: number; total: number }>();
@@ -391,8 +393,8 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
       description: results.length ? `تم رصد ${results.length} نتيجة طالب.` : "لا توجد نتائج محفوظة في الفترة المحددة.",
     },
     {
-      indicator: "تحقق نسبة إتقان لا تقل عن 70%",
-      status: masteryPercentage === null ? "غير متحقق" : masteryPercentage >= 70 ? "متحقق" : masteryPercentage >= 50 ? "متحقق إلى حد ما" : "غير متحقق",
+      indicator: `تحقق نسبة إتقان لا تقل عن ${MASTERY_THRESHOLD}%`,
+      status: masteryPercentage === null ? "غير متحقق" : masteryPercentage >= MASTERY_THRESHOLD ? "متحقق" : masteryPercentage >= LEVEL_THRESHOLDS.basic ? "متحقق إلى حد ما" : "غير متحقق",
       description: masteryPercentage === null ? "لا توجد بيانات كافية." : `نسبة الإتقان الحالية ${masteryPercentage}%.`,
     },
     {
@@ -404,7 +406,7 @@ export async function buildPeriodicReport(profile: UserProfile, options: Periodi
 
   const weakest = skillAnalysis[0] ?? domainAnalysis[0] ?? null;
   const recommendations = [
-    performanceAverage === null ? "البدء بتنفيذ اختبار محاكي واحد على الأقل لبناء خط أساس." : `متوسط الأداء العام ${performanceAverage}%، ويوصى بمتابعة الفصول الأقل من 70%.`,
+    performanceAverage === null ? "البدء بتنفيذ اختبار محاكي واحد على الأقل لبناء خط أساس." : `متوسط الأداء العام ${performanceAverage}%، ويوصى بمتابعة الفصول الأقل من ${MASTERY_THRESHOLD}%.`,
     weakest ? `تركيز خطة التحسين القادمة على: ${weakest.name}.` : "استكمال ربط الأسئلة بالمهارات لإظهار توصيات أدق.",
     notMastered > 0 ? `إعداد تدخل قصير للطلاب غير المتقنين وعددهم ${notMastered}.` : "تعزيز الممارسات الحالية للطلاب المتقنين.",
   ];
@@ -487,13 +489,13 @@ export function renderPeriodicReportHtml(report: BuiltPeriodicReport) {
 <title>${escapeHtml(fileTitle)}</title>
 <style>
   @page { size: A4; margin: 14mm; }
-  body { font-family: Arial, Tahoma, sans-serif; color: #0b2447; margin: 0; background: #fff; }
+  body { font-family: Arial, Tahoma, sans-serif; color: ${COLORS.navy}; margin: 0; background: #fff; }
   .page { max-width: 980px; margin: 0 auto; }
-  .official-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 16px; border-bottom: 2px solid #0b2447; padding-bottom: 14px; }
+  .official-header { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 16px; border-bottom: 2px solid ${COLORS.navy}; padding-bottom: 14px; }
   .center { text-align: center; }
   .muted { color: #64748b; font-size: 12px; line-height: 1.8; }
   h1 { font-size: 22px; margin: 8px 0 4px; }
-  h2 { font-size: 16px; margin: 24px 0 10px; padding: 8px 12px; background: #f8fafc; border-right: 4px solid #0b2447; border-radius: 8px; }
+  h2 { font-size: 16px; margin: 24px 0 10px; padding: 8px 12px; background: #f8fafc; border-right: 4px solid ${COLORS.navy}; border-radius: 8px; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   .card { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; }
   .label { color: #64748b; font-size: 11px; font-weight: 700; }
@@ -510,7 +512,7 @@ export function renderPeriodicReportHtml(report: BuiltPeriodicReport) {
 </head>
 <body>
 <div class="page">
-  <button class="no-print" onclick="window.print()" style="position:fixed;left:16px;top:16px;padding:10px 16px;border-radius:10px;border:0;background:#0b2447;color:white;font-weight:900">طباعة / حفظ PDF</button>
+  <button class="no-print" onclick="window.print()" style="position:fixed;left:16px;top:16px;padding:10px 16px;border-radius:10px;border:0;background:${COLORS.navy};color:white;font-weight:900">طباعة / حفظ PDF</button>
   <section class="official-header">
     <div class="muted">
       <strong>الإدارة العامة للتعليم بـ</strong> ${escapeHtml(report.educationRegion || ".............")}<br />

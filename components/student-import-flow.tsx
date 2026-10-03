@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from "react";
 import { toEnglishDigits } from "@/lib/format";
+import { COLORS } from "@/lib/theme";
 
 type Step =
   | "choice"
@@ -226,7 +227,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             <button
               onClick={openCamera}
               className="flex flex-col items-center gap-3 p-8 rounded-xl border-2 hover:shadow-md transition-all text-center"
-              style={{ borderColor: "#1D9E75", background: "#f0fdf8" }}
+              style={{ borderColor: COLORS.brand, background: "#f0fdf8" }}
             >
               <span className="text-5xl">📷</span>
               <div>
@@ -237,7 +238,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
               </div>
               <span
                 className="px-3 py-1 rounded-full text-xs font-bold text-white"
-                style={{ background: "#1D9E75" }}
+                style={{ background: COLORS.brand }}
               >
                 مدعوم بالذكاء الاصطناعي
               </span>
@@ -267,7 +268,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
         <div className="text-center">
           <div
             className="relative inline-block rounded-xl overflow-hidden mb-4 border-4 w-full max-w-md"
-            style={{ borderColor: "#1D9E75" }}
+            style={{ borderColor: COLORS.brand }}
           >
             <video
               ref={videoRef}
@@ -293,7 +294,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             <button
               onClick={capturePhoto}
               className="px-8 py-3 rounded-xl text-white font-bold shadow-md hover:opacity-90"
-              style={{ background: "#1D9E75" }}
+              style={{ background: COLORS.brand }}
             >
               📸 التقاط الصورة
             </button>
@@ -324,7 +325,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             <div className="w-16 h-16 rounded-full border-4 border-gray-200" />
             <div
               className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-t-transparent animate-spin"
-              style={{ borderColor: "#1D9E75", borderTopColor: "transparent" }}
+              style={{ borderColor: COLORS.brand, borderTopColor: "transparent" }}
             />
           </div>
           <p className="text-gray-700 font-bold text-lg">جارٍ قراءة الأسماء...</p>
@@ -341,14 +342,14 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
               <span className="font-bold text-gray-900">مراجعة الأسماء المستخرجة</span>
               <span
                 className="mr-2 px-2.5 py-0.5 rounded-full text-sm font-bold text-white"
-                style={{ background: "#1D9E75" }}
+                style={{ background: COLORS.brand }}
               >
                 {toEnglishDigits(editableNames.filter(n => n.trim()).length)} اسم
               </span>
             </div>
             <button
               onClick={openCamera}
-              className="text-sm font-bold text-[#1D9E75] hover:opacity-80"
+              className="text-sm font-bold text-brand hover:opacity-80"
             >
               + إضافة صفحة أخرى بالكاميرا
             </button>
@@ -391,8 +392,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
               <div key={i} className="flex items-center gap-2">
                 <span className="text-gray-400 text-sm w-6 text-center flex-shrink-0">{toEnglishDigits(i + 1)}</span>
                 <input
-                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-right text-sm focus:outline-none focus:ring-2"
-                  style={{ focusRingColor: "#1D9E75" } as React.CSSProperties}
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-right text-sm focus:outline-none focus:ring-2 focus:ring-brand"
                   value={name}
                   onChange={(e) => updateName(i, e.target.value)}
                   placeholder="اسم الطالب"
@@ -412,7 +412,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
           <button
             onClick={addEmptyName}
             className="w-full py-2.5 rounded-lg border-2 border-dashed text-sm font-medium mb-5 hover:bg-gray-50 transition-all"
-            style={{ borderColor: "#1D9E75", color: "#1D9E75" }}
+            style={{ borderColor: COLORS.brand, color: COLORS.brand }}
           >
             + إضافة اسم
           </button>
@@ -422,7 +422,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             onClick={confirmSave}
             disabled={editableNames.filter(n => n.trim()).length === 0}
             className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90 disabled:opacity-50"
-            style={{ background: "#1D9E75" }}
+            style={{ background: COLORS.brand }}
           >
             💾 حفظ {toEnglishDigits(editableNames.filter(n => n.trim()).length)} طالب في الفصل
           </button>
@@ -436,7 +436,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             <div className="w-16 h-16 rounded-full border-4 border-gray-200" />
             <div
               className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-t-transparent animate-spin"
-              style={{ borderColor: "#1D9E75", borderTopColor: "transparent" }}
+              style={{ borderColor: COLORS.brand, borderTopColor: "transparent" }}
             />
           </div>
           <p className="text-gray-700 font-bold">جارٍ الحفظ...</p>
@@ -487,7 +487,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
               onClick={handleManualSave}
               disabled={!manualText.split("\n").filter(n => n.trim()).length}
               className="flex-1 py-3 rounded-xl text-white font-bold shadow-md hover:opacity-90 disabled:opacity-50"
-              style={{ background: "#1D9E75" }}
+              style={{ background: COLORS.brand }}
             >
               مراجعة القائمة ←
             </button>

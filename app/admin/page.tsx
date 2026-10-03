@@ -28,6 +28,7 @@ import {
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
 import { toEnglishDigits } from "@/lib/format";
+import { COLORS } from "@/lib/theme";
 
 type Tab = "overview" | "schools" | "users" | "packages" | "trialRequests" | "reports";
 type ModalType = "school" | "user";
@@ -300,7 +301,7 @@ function PrimaryButton({ children, onClick, disabled }: { children: React.ReactN
     <button
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex items-center gap-2 rounded-xl bg-[#159f91] px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-[#10877b] disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2.5 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-brand-dark disabled:opacity-60"
     >
       <Plus className="h-4 w-4" />
       {children}
@@ -324,7 +325,7 @@ function SoftButton({
       onClick={onClick}
       disabled={disabled}
       title={title}
-      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-[#0b2447] transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:cursor-not-allowed disabled:opacity-50"
+      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-brand-navy transition hover:border-brand/40 hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
     >
       {children}
     </button>
@@ -349,7 +350,7 @@ function StatCard({
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-bold text-slate-400">{title}</p>
-          <p className="mt-3 text-3xl font-black text-[#0b2447]">{value}</p>
+          <p className="mt-3 text-3xl font-black text-brand-navy">{value}</p>
         </div>
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: `${accent}14`, color: accent }}>
           <Icon className="h-6 w-6" />
@@ -372,8 +373,8 @@ function PageHeader({
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <p className="mb-2 text-sm font-extrabold text-[#159f91]">مدير النظام</p>
-        <h1 className="text-3xl font-black tracking-normal text-[#0b2447]">{title}</h1>
+        <p className="mb-2 text-sm font-extrabold text-brand">مدير النظام</p>
+        <h1 className="text-3xl font-black tracking-normal text-brand-navy">{title}</h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">{description}</p>
       </div>
       {action}
@@ -396,7 +397,7 @@ function SearchBar({
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-xl border border-slate-100 bg-white py-3 pl-4 pr-11 text-sm font-semibold text-[#0b2447] outline-none transition placeholder:text-slate-300 focus:border-[#159f91]/40"
+        className="w-full rounded-xl border border-slate-100 bg-white py-3 pl-4 pr-11 text-sm font-semibold text-brand-navy outline-none transition placeholder:text-slate-300 focus:border-brand/40"
         placeholder={placeholder}
       />
     </div>
@@ -458,7 +459,7 @@ function ActionDropdown({
         aria-label={`إجراءات ${label}`}
         title={`إجراءات ${label}`}
         disabled={disabled}
-        className="rounded-xl border border-slate-100 p-2 text-slate-400 transition hover:text-[#159f91] disabled:opacity-50"
+        className="rounded-xl border border-slate-100 p-2 text-slate-400 transition hover:text-brand disabled:opacity-50"
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
@@ -538,10 +539,10 @@ function AdminModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4" dir="rtl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-navy/40 px-4" dir="rtl">
       <div className="w-full max-w-md rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-xl font-black text-[#0b2447]">{config.title}</h2>
+          <h2 className="text-xl font-black text-brand-navy">{config.title}</h2>
           <button onClick={onClose} className="rounded-xl px-3 py-1 text-xl font-bold text-slate-400 hover:bg-slate-50">
             ×
           </button>
@@ -551,26 +552,26 @@ function AdminModal({
             <label key={field.name} className="block">
               <span className="mb-2 block text-sm font-extrabold text-slate-500">{field.label}</span>
               {field.type === "select" ? (
-                <select name={field.name} defaultValue={initialValues?.[field.name]} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
+                <select name={field.name} defaultValue={initialValues?.[field.name]} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none transition focus:border-brand/40 focus:bg-white">
                   <option value="admin">admin</option>
                   <option value="principal">principal</option>
                   <option value="teacher">teacher</option>
                 </select>
               ) : field.type === "schoolType" ? (
-                <select name={field.name} defaultValue={initialValues?.[field.name] ?? "حكومية"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
+                <select name={field.name} defaultValue={initialValues?.[field.name] ?? "حكومية"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none transition focus:border-brand/40 focus:bg-white">
                   <option value="حكومية">حكومية</option>
                   <option value="أهلية">أهلية</option>
                   <option value="عالمية">عالمية</option>
                 </select>
               ) : field.type === "school" ? (
-                <select name={field.name} defaultValue={initialValues?.[field.name] ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white">
+                <select name={field.name} defaultValue={initialValues?.[field.name] ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none transition focus:border-brand/40 focus:bg-white">
                   <option value="">بدون مدرسة</option>
                   {(schools ?? []).map((school) => (
                     <option key={school.id} value={school.id}>{school.name}</option>
                   ))}
                 </select>
               ) : (
-                <input name={field.name} required={(type === "school" && ["name", "city"].includes(field.name)) || (type === "user" && ["name", "email"].includes(field.name))} defaultValue={initialValues?.[field.name]} type={field.type} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white" />
+                <input name={field.name} required={(type === "school" && ["name", "city"].includes(field.name)) || (type === "user" && ["name", "email"].includes(field.name))} defaultValue={initialValues?.[field.name]} type={field.type} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none transition focus:border-brand/40 focus:bg-white" />
               )}
             </label>
           ))}
@@ -579,7 +580,7 @@ function AdminModal({
               {formError}
             </div>
           )}
-          <button disabled={submitting} className="w-full rounded-xl bg-[#159f91] py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-60">
+          <button disabled={submitting} className="w-full rounded-xl bg-brand py-3 text-sm font-extrabold text-white transition hover:bg-brand-dark disabled:opacity-60">
             {submitting ? "جارٍ الحفظ..." : "حفظ"}
           </button>
         </form>
@@ -607,14 +608,14 @@ function OverviewTab({
       value: formatNumber(overview.schools.total),
       hint: "عدد المدارس المسجلة في المنصة",
       icon: Building2,
-      accent: "#159f91",
+      accent: COLORS.brand,
     },
     {
       title: "المستخدمون",
       value: formatNumber(overview.users.total),
       hint: `admin ${overview.users.byRole.admin} · principal ${overview.users.byRole.principal} · teacher ${overview.users.byRole.teacher}`,
       icon: UsersRound,
-      accent: "#0b2447",
+      accent: COLORS.navy,
     },
     {
       title: "الطلاب",
@@ -662,10 +663,10 @@ function OverviewTab({
         <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-black text-[#0b2447]">آخر النشاطات</h2>
+              <h2 className="text-lg font-black text-brand-navy">آخر النشاطات</h2>
               <p className="mt-1 text-sm text-slate-400">سيتم ربطها بسجل نشاط فعلي في مرحلة لاحقة</p>
             </div>
-            <Activity className="h-5 w-5 text-[#159f91]" />
+            <Activity className="h-5 w-5 text-brand" />
           </div>
           <EmptyState message="لا توجد نشاطات فعلية مرتبطة بعد." />
         </div>
@@ -673,7 +674,7 @@ function OverviewTab({
         <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-black text-[#0b2447]">المهارات الأضعف</h2>
+              <h2 className="text-lg font-black text-brand-navy">المهارات الأضعف</h2>
               <p className="mt-1 text-sm text-slate-400">ستظهر بعد ربط نتائج الحزم والتصحيح</p>
             </div>
             <TrendingDown className="h-5 w-5 text-rose-500" />
@@ -741,12 +742,12 @@ function SchoolsTab({
             <tbody className="divide-y divide-slate-100">
               {schools.map((school) => (
                 <tr key={school.id} className="transition hover:bg-slate-50/70">
-                  <td className="px-5 py-4 font-extrabold text-[#0b2447]">{school.name}</td>
+                  <td className="px-5 py-4 font-extrabold text-brand-navy">{school.name}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{school.city}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{school.principal}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{school.teachers}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{formatNumber(school.students)}</td>
-                  <td className="px-5 py-4 font-extrabold text-[#159f91]">{school.score}</td>
+                  <td className="px-5 py-4 font-extrabold text-brand">{school.score}</td>
                   <td className="px-5 py-4"><StatusBadge status={school.status} /></td>
                   <td className="px-5 py-4">
                     <ActionDropdown
@@ -832,7 +833,7 @@ function UsersTab({
           {users.map((user) => (
             <div key={user.id} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
               <div className="mb-5 flex items-start justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#159f91]">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand">
                   <UserRoundCog className="h-6 w-6" />
                 </div>
                 <div className="flex items-center gap-2">
@@ -846,16 +847,16 @@ function UsersTab({
                   />
                 </div>
               </div>
-              <h3 className="font-black text-[#0b2447]">{user.name}</h3>
+              <h3 className="font-black text-brand-navy">{user.name}</h3>
               <p className="mt-1 text-xs font-semibold text-slate-400" dir="ltr">{user.email}</p>
               <div className="mt-5 space-y-2 text-sm font-bold text-slate-500">
                 <div className="flex justify-between gap-3">
                   <span>الدور</span>
-                  <span className="text-[#0b2447]">{roleLabel[user.role] ?? user.role}</span>
+                  <span className="text-brand-navy">{roleLabel[user.role] ?? user.role}</span>
                 </div>
                 <div className="flex justify-between gap-3">
                   <span>المدرسة</span>
-                  <span className="text-[#0b2447]">{user.school}</span>
+                  <span className="text-brand-navy">{user.school}</span>
                 </div>
               </div>
             </div>
@@ -917,7 +918,7 @@ function TrialRequestsTab({
             <tbody className="divide-y divide-slate-100">
               {requests.map((request) => (
                 <tr key={request.id} className="transition hover:bg-slate-50/70">
-                  <td className="px-5 py-4 font-extrabold text-[#0b2447]">{request.name}</td>
+                  <td className="px-5 py-4 font-extrabold text-brand-navy">{request.name}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{request.school_name}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{request.phone}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{request.email}</td>
@@ -930,7 +931,7 @@ function TrialRequestsTab({
                       value={request.status}
                       disabled={busyTrialRequestId === request.id}
                       onChange={(event) => onUpdateStatus(request, event.target.value)}
-                      className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-extrabold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white disabled:opacity-60"
+                      className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-extrabold text-brand-navy outline-none transition focus:border-brand/40 focus:bg-white disabled:opacity-60"
                     >
                       <option value="new">جديد</option>
                       <option value="contacted">تم التواصل</option>
@@ -1002,25 +1003,25 @@ function PackageModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4" dir="rtl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-navy/40 px-4" dir="rtl">
       <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-xl font-black text-[#0b2447]">{initialValues ? "تعديل حزمة اختبار" : "إنشاء حزمة اختبار"}</h2>
+          <h2 className="text-xl font-black text-brand-navy">{initialValues ? "تعديل حزمة اختبار" : "إنشاء حزمة اختبار"}</h2>
           <button onClick={onClose} className="rounded-xl px-3 py-1 text-xl font-bold text-slate-400 hover:bg-slate-50">×</button>
         </div>
         {error && <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
         <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
           <label className="md:col-span-2">
             <span className="mb-2 block text-sm font-extrabold text-slate-500">عنوان الحزمة</span>
-            <input name="title" required defaultValue={initialValues?.title ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="title" required defaultValue={initialValues?.title ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <label className="md:col-span-2">
             <span className="mb-2 block text-sm font-extrabold text-slate-500">الوصف</span>
-            <textarea name="description" rows={3} defaultValue={initialValues?.description ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <textarea name="description" rows={3} defaultValue={initialValues?.description ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">المادة</span>
-            <select name="subject" defaultValue={initialValues?.subject ?? "رياضيات"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white">
+            <select name="subject" defaultValue={initialValues?.subject ?? "رياضيات"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white">
               <option value="رياضيات">رياضيات</option>
               <option value="لغة عربية">لغة عربية</option>
               <option value="علوم">علوم</option>
@@ -1028,21 +1029,21 @@ function PackageModal({
           </label>
           <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">الصف</span>
-            <select name="grade" defaultValue={String(initialValues?.grade ?? 6)} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white">
+            <select name="grade" defaultValue={String(initialValues?.grade ?? 6)} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white">
               {[3, 4, 5, 6].map((grade) => <option key={grade} value={grade}>{toEnglishDigits(grade)}</option>)}
             </select>
           </label>
           <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">رقم الأسبوع</span>
-            <input name="week_number" type="number" min={1} defaultValue={initialValues?.week_number ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="week_number" type="number" min={1} defaultValue={initialValues?.week_number ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">رقم النموذج</span>
-            <input name="assessment_code" defaultValue={initialValues?.assessment_code ?? ""} placeholder="مثال: M4-W03-A" className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="assessment_code" defaultValue={initialValues?.assessment_code ?? ""} placeholder="مثال: M4-W03-A" className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">نوع الحزمة</span>
-            <select name="package_type" defaultValue={initialValues?.package_type ?? "weekly"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white">
+            <select name="package_type" defaultValue={initialValues?.package_type ?? "weekly"} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white">
               <option value="weekly">أسبوعي</option>
               <option value="diagnostic">تشخيصي</option>
               <option value="nafs_simulation">محاكاة نافس</option>
@@ -1050,15 +1051,15 @@ function PackageModal({
           </label>
           <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">مدة الاختبار بالدقائق</span>
-            <input name="duration_minutes" type="number" min={1} defaultValue={initialValues?.duration_minutes ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="duration_minutes" type="number" min={1} defaultValue={initialValues?.duration_minutes ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">تاريخ البداية</span>
-            <input name="start_date" type="date" defaultValue={initialValues?.start_date ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="start_date" type="date" defaultValue={initialValues?.start_date ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <label>
             <span className="mb-2 block text-sm font-extrabold text-slate-500">تاريخ النهاية</span>
-            <input name="end_date" type="date" defaultValue={initialValues?.end_date ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="end_date" type="date" defaultValue={initialValues?.end_date ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <label className="md:col-span-2">
             <span className="mb-2 block text-sm font-extrabold text-slate-500">ملف الأسئلة PDF</span>
@@ -1066,14 +1067,14 @@ function PackageModal({
               type="file"
               accept="application/pdf"
               onChange={(event) => setQuestionsPdfFile(event.target.files?.[0] ?? null)}
-              className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white"
+              className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white"
             />
             {initialValues?.questions_pdf_url || initialValues?.student_pdf_url ? (
               <a
                 href={initialValues.questions_pdf_url ?? initialValues.student_pdf_url ?? ""}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-2 inline-flex text-xs font-extrabold text-[#159f91]"
+                className="mt-2 inline-flex text-xs font-extrabold text-brand"
               >
                 عرض الملف الحالي
               </a>
@@ -1081,15 +1082,15 @@ function PackageModal({
           </label>
           <label className="md:col-span-2">
             <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ملف الأسئلة PDF</span>
-            <input name="questions_pdf_url" type="url" defaultValue={initialValues?.questions_pdf_url ?? initialValues?.student_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="questions_pdf_url" type="url" defaultValue={initialValues?.questions_pdf_url ?? initialValues?.student_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <label className="md:col-span-2">
             <span className="mb-2 block text-sm font-extrabold text-slate-500">رابط ورقة الإجابة PDF اختياري</span>
-            <input name="answer_sheet_pdf_url" type="url" defaultValue={initialValues?.answer_sheet_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="answer_sheet_pdf_url" type="url" defaultValue={initialValues?.answer_sheet_pdf_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
-          <section className="md:col-span-2 rounded-2xl border border-[#159f91]/15 bg-[#159f91]/[0.04] p-4">
+          <section className="md:col-span-2 rounded-2xl border border-brand/15 bg-brand/[0.04] p-4">
             <div className="mb-3">
-              <h3 className="text-base font-black text-[#0b2447]">مفتاح الإجابة والمهارات</h3>
+              <h3 className="text-base font-black text-brand-navy">مفتاح الإجابة والمهارات</h3>
               <p className="mt-1 text-xs font-bold leading-6 text-slate-500">
                 ألصق مفتاح الإجابة بصيغة JSON. سيتم حفظه للأدمن فقط وتحويله إلى أسئلة وخيارات للتصحيح الآلي من السيرفر.
               </p>
@@ -1106,19 +1107,19 @@ function PackageModal({
                   setAnswerKeyValidationError(null);
                 }}
                 placeholder={ANSWER_KEY_JSON_EXAMPLE}
-                className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 font-mono text-xs font-bold leading-6 text-[#0b2447] outline-none focus:border-[#159f91]/40"
+                className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 font-mono text-xs font-bold leading-6 text-brand-navy outline-none focus:border-brand/40"
               />
             </label>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={handleValidateAnswerKey}
-                className="rounded-xl border border-[#159f91]/25 bg-white px-4 py-2 text-xs font-extrabold text-[#159f91]"
+                className="rounded-xl border border-brand/25 bg-white px-4 py-2 text-xs font-extrabold text-brand"
               >
                 التحقق من JSON
               </button>
               {answerKeyValidation ? (
-                <span className="text-xs font-extrabold text-[#159f91]">
+                <span className="text-xs font-extrabold text-brand">
                   تم التحقق من {toEnglishDigits(answerKeyValidation.count)} سؤال
                 </span>
               ) : null}
@@ -1128,7 +1129,7 @@ function PackageModal({
             </div>
             {answerKeyValidation?.summary.length ? (
               <div className="mt-3 rounded-xl border border-emerald-100 bg-white px-4 py-3">
-                <p className="mb-2 text-xs font-black text-[#0b2447]">ملخص المفتاح</p>
+                <p className="mb-2 text-xs font-black text-brand-navy">ملخص المفتاح</p>
                 <div className="space-y-1 text-xs font-bold text-slate-600">
                   {answerKeyValidation.summary.slice(0, 8).map((item) => (
                     <p key={item}>{item}</p>
@@ -1148,10 +1149,10 @@ function PackageModal({
           </section>
           <label className="md:col-span-2">
             <span className="mb-2 block text-sm font-extrabold text-slate-500">خيار متقدم: رابط ملف مفتاح الإجابة والمهارات اختياري</span>
-            <input name="answer_key_file_url" type="url" defaultValue={initialValues?.answer_key_file_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white" />
+            <input name="answer_key_file_url" type="url" defaultValue={initialValues?.answer_key_file_url ?? ""} className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none focus:border-brand/40 focus:bg-white" />
           </label>
           <div className="flex gap-3 md:col-span-2">
-            <button disabled={submitting} className="flex-1 rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
+            <button disabled={submitting} className="flex-1 rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
               {submitting ? "جارٍ الحفظ..." : "حفظ الحزمة"}
             </button>
             <button type="button" onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-extrabold text-slate-500">إلغاء</button>
@@ -1201,11 +1202,11 @@ function QuestionImportModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4" dir="rtl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-navy/40 px-4" dir="rtl">
       <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-black text-[#0b2447]">استيراد مفتاح الإجابة</h2>
+            <h2 className="text-xl font-black text-brand-navy">استيراد مفتاح الإجابة</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">{assessmentPackage.title}</p>
           </div>
           <button onClick={onClose} className="rounded-xl px-3 py-1 text-xl font-bold text-slate-400 hover:bg-slate-50">×</button>
@@ -1223,7 +1224,7 @@ function QuestionImportModal({
           rows={16}
           dir="ltr"
           placeholder={ANSWER_KEY_JSON_EXAMPLE}
-          className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-mono text-sm text-[#0b2447] outline-none focus:border-[#159f91]/40 focus:bg-white"
+          className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-mono text-sm text-brand-navy outline-none focus:border-brand/40 focus:bg-white"
         />
         {validation ? (
           <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold leading-7 text-emerald-700">
@@ -1240,10 +1241,10 @@ function QuestionImportModal({
           </pre>
         </details>
         <div className="mt-4 flex gap-3">
-          <button onClick={handleValidate} type="button" className="rounded-xl border border-[#159f91]/25 bg-white px-5 py-3 text-sm font-extrabold text-[#159f91]">
+          <button onClick={handleValidate} type="button" className="rounded-xl border border-brand/25 bg-white px-5 py-3 text-sm font-extrabold text-brand">
             التحقق من JSON
           </button>
-          <button onClick={handleSubmit} disabled={submitting} className="rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
+          <button onClick={handleSubmit} disabled={submitting} className="rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
             {submitting ? "جارٍ الاستيراد..." : "استيراد واستبدال الأسئلة"}
           </button>
           <button onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-extrabold text-slate-500">إلغاء</button>
@@ -1287,11 +1288,11 @@ function PublishPackageModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4" dir="rtl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-navy/40 px-4" dir="rtl">
       <div className="w-full max-w-xl rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
         <div className="mb-5 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-black text-[#0b2447]">نشر الحزمة للمدارس</h2>
+            <h2 className="text-xl font-black text-brand-navy">نشر الحزمة للمدارس</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">{assessmentPackage.title}</p>
           </div>
           <button onClick={onClose} className="rounded-xl px-3 py-1 text-xl font-bold text-slate-400 hover:bg-slate-50">×</button>
@@ -1299,7 +1300,7 @@ function PublishPackageModal({
         {error && <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
         <div className="max-h-72 space-y-2 overflow-y-auto">
           {activeSchools.map((school) => (
-            <label key={school.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447]">
+            <label key={school.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy">
               <input type="checkbox" checked={selected.includes(school.id)} onChange={() => toggle(school.id)} />
               <span>{school.name}</span>
               <span className="text-slate-400">{school.city}</span>
@@ -1308,7 +1309,7 @@ function PublishPackageModal({
           {!activeSchools.length && <EmptyState message="لا توجد مدارس نشطة للنشر." />}
         </div>
         <div className="mt-5 flex gap-3">
-          <button onClick={handleSubmit} disabled={submitting || selected.length === 0} className="rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
+          <button onClick={handleSubmit} disabled={submitting || selected.length === 0} className="rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
             {submitting ? "جارٍ النشر..." : "نشر الحزمة"}
           </button>
           <button onClick={onClose} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-extrabold text-slate-500">إلغاء</button>
@@ -1368,14 +1369,14 @@ function PackagesTab({
         {packages.map((item) => {
           const pdfReady = Boolean(item.questions_pdf_url || item.student_pdf_url);
           const readiness = !pdfReady
-            ? { label: "ناقصة ملف الأسئلة", color: "#BA7517", bg: "#fffbeb" }
+            ? { label: "ناقصة ملف الأسئلة", color: COLORS.warning, bg: "#fffbeb" }
             : item.question_count <= 0
-              ? { label: "ناقصة مفتاح الإجابة", color: "#BA7517", bg: "#fffbeb" }
+              ? { label: "ناقصة مفتاح الإجابة", color: COLORS.warning, bg: "#fffbeb" }
               : item.incomplete_question_count > 0
-                ? { label: "تحتاج ربط مهارات", color: "#E24B4A", bg: "#fff5f5" }
+                ? { label: "تحتاج ربط مهارات", color: COLORS.danger, bg: "#fff5f5" }
                 : item.status !== "published" || item.assigned_school_count <= 0
                   ? { label: "غير منشورة", color: "#64748b", bg: "#f8fafc" }
-                  : { label: "جاهزة للتجربة", color: "#159f91", bg: "#f0fdf8" };
+                  : { label: "جاهزة للتجربة", color: COLORS.brand, bg: "#f0fdf8" };
           const busy = busyPackageId === item.id;
           return (
             <div key={item.id} className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
@@ -1388,26 +1389,26 @@ function PackagesTab({
                     <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">{item.subject}</span>
                     <span className="rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">صف {toEnglishDigits(item.grade)}</span>
                   </div>
-                  <h3 className="mt-3 text-xl font-black text-[#0b2447]">{item.title}</h3>
+                  <h3 className="mt-3 text-xl font-black text-brand-navy">{item.title}</h3>
                   <p className="mt-2 text-sm font-bold text-slate-400">
                     الأسبوع {toEnglishDigits(item.week_number ?? "—")} · نموذج {toEnglishDigits(item.assessment_code ?? "—")} · {toEnglishDigits(item.duration_minutes ?? "—")} دقيقة
                   </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
                   <div className="rounded-xl bg-slate-50 px-4 py-3">
-                    <div className="text-lg font-black text-[#0b2447]">{toEnglishDigits(item.question_count)}</div>
+                    <div className="text-lg font-black text-brand-navy">{toEnglishDigits(item.question_count)}</div>
                     <div className="text-xs font-bold text-slate-400">سؤال</div>
                   </div>
                   <div className="rounded-xl bg-slate-50 px-4 py-3">
-                    <div className="text-lg font-black text-[#0b2447]">{toEnglishDigits(item.assigned_school_count)}</div>
+                    <div className="text-lg font-black text-brand-navy">{toEnglishDigits(item.assigned_school_count)}</div>
                     <div className="text-xs font-bold text-slate-400">مدرسة</div>
                   </div>
                   <div className="rounded-xl bg-slate-50 px-4 py-3">
-                    <div className={`text-lg font-black ${pdfReady ? "text-[#159f91]" : "text-amber-600"}`}>{pdfReady ? "جاهز" : "ناقص"}</div>
+                    <div className={`text-lg font-black ${pdfReady ? "text-brand" : "text-amber-600"}`}>{pdfReady ? "جاهز" : "ناقص"}</div>
                     <div className="text-xs font-bold text-slate-400">ملف الأسئلة</div>
                   </div>
                   <div className="rounded-xl bg-slate-50 px-4 py-3">
-                    <div className="text-lg font-black text-[#0b2447]">{item.published_at ? "نُشر" : "—"}</div>
+                    <div className="text-lg font-black text-brand-navy">{item.published_at ? "نُشر" : "—"}</div>
                     <div className="text-xs font-bold text-slate-400">النشر</div>
                   </div>
                 </div>
@@ -1448,7 +1449,7 @@ function ReportsTab() {
         }
       />
       <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-        <h2 className="text-lg font-black text-[#0b2447]">تقارير النظام</h2>
+        <h2 className="text-lg font-black text-brand-navy">تقارير النظام</h2>
         <p className="mt-2 text-sm font-bold leading-7 text-slate-500">
           لا يتم عرض مؤشرات تجريبية في لوحة الإدارة. ستظهر التقارير هنا بعد ربط نتائج الحزم وبيانات المدارس الفعلية.
         </p>
@@ -1995,7 +1996,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
+    <div className="min-h-screen bg-[#f7fafc] text-brand-navy" dir="rtl">
       {modalType && (
         <AdminModal
           type={modalType}
@@ -2052,8 +2053,8 @@ export default function AdminPage() {
                 onClick={() => setActiveTab(item.id)}
                 className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-extrabold transition ${
                   isActive
-                    ? "bg-[#159f91] text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)]"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-[#0b2447]"
+                    ? "bg-brand text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)]"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-brand-navy"
                 }`}
               >
                 <Icon className="h-5 w-5" />
@@ -2066,14 +2067,14 @@ export default function AdminPage() {
         <div className="border-t border-slate-100 p-4">
           <Link
             href="/admin/weekly-plans"
-            className="mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:bg-slate-50 hover:text-[#0b2447]"
+            className="mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:bg-slate-50 hover:text-brand-navy"
           >
             <BookOpenCheck className="h-5 w-5" />
             إدارة الخطة الأسبوعية
           </Link>
           <Link
             href="/admin/parent-interests"
-            className="mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:bg-slate-50 hover:text-[#0b2447]"
+            className="mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:bg-slate-50 hover:text-brand-navy"
           >
             <UserRoundCog className="h-5 w-5" />
             اهتمامات أولياء الأمور
@@ -2097,14 +2098,14 @@ export default function AdminPage() {
             </div>
             <div className="hidden xl:block">
               <p className="text-sm font-bold text-slate-400">المسار الحالي</p>
-              <p className="mt-1 font-black text-[#0b2447]">{activeTitle}</p>
+              <p className="mt-1 font-black text-brand-navy">{activeTitle}</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="hidden items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-4 py-2 text-xs font-extrabold text-emerald-700 md:flex">
                 <CheckCircle2 className="h-4 w-4" />
                 صلاحية مدير نظام
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0b2447] text-white">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-navy text-white">
                 <ShieldCheck className="h-5 w-5" />
               </div>
             </div>
@@ -2119,7 +2120,7 @@ export default function AdminPage() {
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
                   className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-xs font-extrabold ${
-                    isActive ? "bg-[#159f91] text-white" : "bg-slate-50 text-slate-500"
+                    isActive ? "bg-brand text-white" : "bg-slate-50 text-slate-500"
                   }`}
                 >
                   <Icon className="h-4 w-4" />

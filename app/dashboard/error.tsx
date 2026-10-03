@@ -1,6 +1,7 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { COLORS } from "@/lib/theme";
 
 export default function DashboardError({
   error,
@@ -32,7 +33,7 @@ export default function DashboardError({
           <button
             onClick={reset}
             className="px-6 py-2.5 rounded-xl text-white font-bold text-sm"
-            style={{ background: "#1D9E75" }}
+            style={{ background: COLORS.brand }}
           >
             إعادة المحاولة
           </button>

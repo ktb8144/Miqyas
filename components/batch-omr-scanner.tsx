@@ -2,6 +2,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { ETEC_LEVELS } from "@/lib/levels";
 import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
+import { COLORS } from "@/lib/theme";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -250,7 +251,7 @@ function RetakeModal({
             onClick={capture}
             disabled={!cameraReady}
             className="flex-1 py-3 rounded-xl text-white font-bold disabled:opacity-50"
-            style={{ background: "#1D9E75" }}
+            style={{ background: COLORS.brand }}
           >
             📸 التقاط وتحليل
           </button>
@@ -299,7 +300,7 @@ function PaperReviewModal({
         <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs text-gray-500 flex-shrink-0 flex items-center justify-between gap-2">
           <span>الإجابات الصحيحة لا تظهر في واجهة المعلم.</span>
           {result.imageBase64 && (
-            <button onClick={() => setShowImage(true)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-bold text-[#1D9E75]">
+            <button onClick={() => setShowImage(true)} className="rounded-lg border border-slate-200 bg-white px-2 py-1 font-bold text-brand">
               عرض الورقة كاملة
             </button>
           )}
@@ -324,7 +325,7 @@ function PaperReviewModal({
                         className="flex-1 h-9 rounded-lg font-bold text-sm border-2 transition-all hover:opacity-80"
                         style={
                           isSelected
-                            ? { background: "#1D9E75", borderColor: "#1D9E75", color: "white" }
+                            ? { background: COLORS.brand, borderColor: COLORS.brand, color: "white" }
                             : { borderColor: "#e5e7eb", color: "#374151" }
                         }
                       >
@@ -333,7 +334,7 @@ function PaperReviewModal({
                     );
                   })}
                 </div>
-                <span className="w-5 text-center text-sm flex-shrink-0 font-bold" style={{ color: selected ? "#1D9E75" : "#9ca3af" }}>
+                <span className="w-5 text-center text-sm flex-shrink-0 font-bold" style={{ color: selected ? COLORS.brand : "#9ca3af" }}>
                   {selected ? "✓" : "—"}
                 </span>
               </div>
@@ -351,7 +352,7 @@ function PaperReviewModal({
             }}
             disabled={saving}
             className="flex-1 py-3 rounded-xl text-white font-bold text-sm hover:opacity-90 transition-all disabled:opacity-60"
-            style={{ background: "#1D9E75" }}
+            style={{ background: COLORS.brand }}
           >
             {saving ? "جارٍ إعادة التصحيح..." : "تأكيد القراءة وإعادة التصحيح"}
           </button>
@@ -793,7 +794,7 @@ export function BatchOMRScanner({
                     <div className="border-t border-white/10 bg-slate-950 p-4">
                       <p className="mb-3 text-center text-sm font-bold text-white/80">راجع وضوح رقم الطالب وجميع الاختيارات.</p>
                       <div className="grid grid-cols-2 gap-3">
-                        <button onClick={acceptCapture} disabled={captureBusy} className="rounded-2xl bg-[#1D9E75] py-3 text-sm font-black text-white disabled:opacity-60">
+                        <button onClick={acceptCapture} disabled={captureBusy} className="rounded-2xl bg-brand py-3 text-sm font-black text-white disabled:opacity-60">
                           استخدام الصورة
                         </button>
                         <button onClick={retakePendingCapture} disabled={captureBusy} className="rounded-2xl border border-white/20 py-3 text-sm font-black text-white disabled:opacity-60">
@@ -826,7 +827,7 @@ export function BatchOMRScanner({
               <button
                 onClick={captureOne}
                 disabled={papers.length >= MAX_PAPERS || captureBusy || !!pendingCapture}
-                className="w-full rounded-2xl bg-[#1D9E75] py-4 text-base font-black text-white shadow-lg disabled:opacity-50"
+                className="w-full rounded-2xl bg-brand py-4 text-base font-black text-white shadow-lg disabled:opacity-50"
               >
                 {captureBusy ? "جارٍ تجهيز الصورة..." : "تصوير الورقة"}
               </button>
@@ -860,10 +861,10 @@ export function BatchOMRScanner({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: "#e6f7f1", color: "#1D9E75" }}>
+          <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: "#e6f7f1", color: COLORS.brand }}>
             وضع التصحيح: حزمة
           </span>
-          <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "#e6f7f1", color: "#1D9E75" }}>
+          <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "#e6f7f1", color: COLORS.brand }}>
             الذكاء الاصطناعي
           </span>
         </div>
@@ -894,7 +895,7 @@ export function BatchOMRScanner({
             ) : (
               <div className="text-center py-6 mb-5 border-2 border-dashed border-gray-200 rounded-xl">
                 <div className="text-4xl mb-2">📷</div>
-                <button onClick={openCamera} className="px-8 py-3 rounded-xl text-white font-bold shadow-md hover:opacity-90 mb-2" style={{ background: "#1D9E75" }}>
+                <button onClick={openCamera} className="px-8 py-3 rounded-xl text-white font-bold shadow-md hover:opacity-90 mb-2" style={{ background: COLORS.brand }}>
                   التصحيح بالكاميرا
                 </button>
                 <div className="mt-2 flex justify-center gap-2 text-xs font-bold text-gray-500">
@@ -923,7 +924,7 @@ export function BatchOMRScanner({
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm font-medium text-gray-700">
-                    تم تصوير <span className="font-bold" style={{ color: "#1D9E75" }}>{formatCount(papers.length)}</span> / <span className="font-bold">{formatCount(MAX_PAPERS)}</span> ورقة
+                    تم تصوير <span className="font-bold" style={{ color: COLORS.brand }}>{formatCount(papers.length)}</span> / <span className="font-bold">{formatCount(MAX_PAPERS)}</span> ورقة
                   </span>
                   {totalStudents > 0 && papers.length < totalStudents && papers.length < MAX_PAPERS && (
                     <span className="text-xs text-amber-600 font-medium">
@@ -948,7 +949,7 @@ export function BatchOMRScanner({
                 </div>
                 {/* Start grading button — always visible once papers exist and camera is closed */}
                 {!cameraOpen && (
-                  <button onClick={processAll} className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:opacity-90" style={{ background: "#1D9E75" }}>
+                  <button onClick={processAll} className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:opacity-90" style={{ background: COLORS.brand }}>
                     بدء تصحيح {formatCount(papers.length)} ورقة
                   </button>
                 )}
@@ -962,7 +963,7 @@ export function BatchOMRScanner({
           <div className="py-10 text-center">
             <div className="relative w-20 h-20 mx-auto mb-5">
               <div className="w-20 h-20 rounded-full border-4 border-gray-200" />
-              <div className="absolute top-0 left-0 w-20 h-20 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: "#7F77DD", borderTopColor: "transparent" }} />
+              <div className="absolute top-0 left-0 w-20 h-20 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: COLORS.accent, borderTopColor: "transparent" }} />
             </div>
             <p className="font-bold text-gray-900 text-lg mb-1">
               جارٍ تحليل الأوراق... {toEnglishDigits(`${processingCount}/${papers.length}`)}
@@ -975,7 +976,7 @@ export function BatchOMRScanner({
             <div className="w-full max-w-xs mx-auto bg-gray-100 rounded-full h-3 mb-2">
               <div
                 className="h-3 rounded-full transition-all duration-500"
-                style={{ width: `${papers.length ? (processingCount / papers.length) * 100 : 0}%`, background: "#7F77DD" }}
+                style={{ width: `${papers.length ? (processingCount / papers.length) * 100 : 0}%`, background: COLORS.accent }}
               />
             </div>
             <p className="text-xs text-gray-400">يعالج جميع الأوراق في نفس الوقت بالتوازي</p>
@@ -1051,7 +1052,7 @@ export function BatchOMRScanner({
                             <div>
                               <input
                                 className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right w-full focus:outline-none focus:ring-1 max-w-[180px]"
-                                style={{ "--tw-ring-color": "#1D9E75" } as React.CSSProperties}
+                                style={{ "--tw-ring-color": COLORS.brand } as React.CSSProperties}
                                 value={r.editedName}
                                 onChange={(e) => updateName(r.paperId, e.target.value)}
                                 placeholder="أدخل اسم الطالب"
@@ -1069,7 +1070,7 @@ export function BatchOMRScanner({
                             <select
                               value={r.matchedStudentId ?? ""}
                               onChange={(e) => updateMatchedStudent(r.paperId, e.target.value)}
-                              className="w-full min-w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-[#1D9E75]"
+                              className="w-full min-w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-brand"
                             >
                               <option value="">اختر الطالب يدويًا</option>
                               {students.map((student) => (
@@ -1117,7 +1118,7 @@ export function BatchOMRScanner({
                               <button
                                 onClick={() => setReviewingPaperId(r.paperId)}
                                 className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-all"
-                                style={{ color: "#7F77DD" }}
+                                style={{ color: COLORS.accent }}
                               >
                                 ✏️ مراجعة
                               </button>
@@ -1135,7 +1136,7 @@ export function BatchOMRScanner({
               onClick={saveAll}
               disabled={validResults.length === 0}
               className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90"
-              style={{ background: "#1D9E75" }}
+              style={{ background: COLORS.brand }}
             >
               💾 حفظ نتائج {formatCount(validResults.length)} طالب في الفصل
             </button>

@@ -67,7 +67,7 @@ function AuthCallbackContent() {
 
   return (
     <div
-      className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-[#0b2447]"
+      className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-brand-navy"
       dir="rtl"
     >
       <div className="absolute left-10 top-24 h-96 w-96 rounded-full bg-teal-50/80 blur-3xl" />
@@ -78,8 +78,8 @@ function AuthCallbackContent() {
           <div className="mb-8 flex justify-center">
             <BrandLogo size="lg" centered />
           </div>
-          <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-teal-100 border-t-[#159f91]" />
-          <h1 className="text-2xl font-black tracking-normal text-[#0b2447]">
+          <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-teal-100 border-t-brand" />
+          <h1 className="text-2xl font-black tracking-normal text-brand-navy">
             قبول الدعوة
           </h1>
           <p className="mt-3 text-sm font-bold leading-7 text-slate-500">{message}</p>

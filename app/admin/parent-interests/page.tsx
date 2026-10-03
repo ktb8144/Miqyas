@@ -81,7 +81,7 @@ export default function ParentInterestsAdminPage() {
           <BrandLogo size="sm" contextTitle="اهتمامات أولياء الأمور" contextSubtitle="تفاصيل الأدمن فقط" />
           <Link
             href="/admin"
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-600 transition hover:border-brand/40 hover:text-brand"
           >
             العودة للوحة الإدارة
           </Link>
@@ -92,8 +92,8 @@ export default function ParentInterestsAdminPage() {
         <section className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm font-extrabold text-[#159f91]">خصوصية عالية</p>
-              <h1 className="mt-2 text-2xl font-black text-[#0b2447]">تفاصيل اهتمام أولياء الأمور بالتدريبات الإضافية</h1>
+              <p className="text-sm font-extrabold text-brand">خصوصية عالية</p>
+              <h1 className="mt-2 text-2xl font-black text-brand-navy">تفاصيل اهتمام أولياء الأمور بالتدريبات الإضافية</h1>
               <p className="mt-2 max-w-3xl text-sm font-bold leading-7 text-slate-500">
                 هذه التفاصيل تظهر للأدمن فقط. المعلم وقائد المدرسة يشاهدان مؤشرات عامة بدون أسماء الطلاب أو بيانات التواصل.
               </p>
@@ -101,7 +101,7 @@ export default function ParentInterestsAdminPage() {
             <button
               onClick={() => void loadRows()}
               disabled={loading}
-              className="rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
+              className="rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white transition hover:bg-brand-dark disabled:opacity-50"
             >
               {loading ? "جارٍ التحديث..." : "تحديث"}
             </button>
@@ -109,11 +109,11 @@ export default function ParentInterestsAdminPage() {
 
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-slate-50 p-4 text-center">
-              <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(summary.total)}</div>
+              <div className="text-2xl font-black text-brand-navy">{toEnglishDigits(summary.total)}</div>
               <div className="mt-1 text-xs font-bold text-slate-400">إجمالي الاهتمامات</div>
             </div>
             <div className="rounded-xl bg-teal-50 p-4 text-center">
-              <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(summary.withContact)}</div>
+              <div className="text-2xl font-black text-brand">{toEnglishDigits(summary.withContact)}</div>
               <div className="mt-1 text-xs font-bold text-slate-400">مع بيانات تواصل</div>
             </div>
             <div className="rounded-xl bg-emerald-50 p-4 text-center">
@@ -129,12 +129,12 @@ export default function ParentInterestsAdminPage() {
               value={skillFilter}
               onChange={(event) => setSkillFilter(event.target.value)}
               placeholder="فلترة حسب المهارة..."
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91] focus:bg-white"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none transition focus:border-brand focus:bg-white"
             />
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91] focus:bg-white"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-brand-navy outline-none transition focus:border-brand focus:bg-white"
             >
               <option value="">كل حالات الرابط</option>
               <option value="صالح">صالح</option>
@@ -143,7 +143,7 @@ export default function ParentInterestsAdminPage() {
             </select>
             <button
               onClick={() => void loadRows()}
-              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+              className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-brand/40 hover:text-brand"
             >
               تطبيق
             </button>
@@ -176,7 +176,7 @@ export default function ParentInterestsAdminPage() {
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.id} className="rounded-xl bg-slate-50/70 font-bold text-slate-600">
-                    <td className="rounded-r-xl px-3 py-3 text-[#0b2447]">{row.studentName}</td>
+                    <td className="rounded-r-xl px-3 py-3 text-brand-navy">{row.studentName}</td>
                     <td className="px-3 py-3">{row.schoolName}</td>
                     <td className="px-3 py-3">{row.className}</td>
                     <td className="px-3 py-3">{row.skillName || "غير محددة"}</td>

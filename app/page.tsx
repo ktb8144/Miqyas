@@ -154,7 +154,7 @@ function DashboardMockup() {
             ["24", "مهارة نشطة"],
           ].map(([value, label]) => (
             <div key={label} className="rounded-[1.25rem] border border-slate-100 bg-white p-4">
-              <div className="text-xl font-extrabold text-[#0b2447]">{value}</div>
+              <div className="text-xl font-extrabold text-brand-navy">{value}</div>
               <div className="mt-1 text-xs font-semibold text-slate-400">{label}</div>
             </div>
           ))}
@@ -163,14 +163,14 @@ function DashboardMockup() {
         <div className="mt-4 grid gap-4 lg:grid-cols-[1.4fr_0.8fr]">
           <div className="rounded-[1.25rem] border border-slate-100 bg-white p-4">
             <div className="mb-4 flex items-center justify-between">
-              <span className="text-sm font-extrabold text-[#0b2447]">تطور الأداء</span>
-              <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-[#159f91]">+18%</span>
+              <span className="text-sm font-extrabold text-brand-navy">تطور الأداء</span>
+              <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-brand">+18%</span>
             </div>
             <div className="flex h-32 items-end gap-3">
               {bars.map((bar, index) => (
                 <div key={index} className="flex flex-1 flex-col items-center gap-2">
                   <div
-                    className="w-full rounded-t-xl bg-gradient-to-t from-[#159f91] to-[#b9efe8]"
+                    className="w-full rounded-t-xl bg-gradient-to-t from-brand to-[#b9efe8]"
                     style={{ height: `${bar}%` }}
                   />
                   <span className="h-1 w-1 rounded-full bg-slate-300" />
@@ -180,8 +180,8 @@ function DashboardMockup() {
           </div>
 
           <div className="rounded-[1.25rem] border border-slate-100 bg-white p-4">
-            <div className="mb-4 text-sm font-extrabold text-[#0b2447]">جاهزية الأسبوع</div>
-            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-[10px] border-teal-50 border-t-[#159f91] text-xl font-extrabold text-[#0b2447]">
+            <div className="mb-4 text-sm font-extrabold text-brand-navy">جاهزية الأسبوع</div>
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-[10px] border-teal-50 border-t-brand text-xl font-extrabold text-brand-navy">
               86%
             </div>
             <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-center text-xs font-bold text-slate-400">
@@ -191,13 +191,13 @@ function DashboardMockup() {
         </div>
 
         <div className="mt-4 rounded-[1.25rem] border border-slate-100 bg-white p-4">
-          <div className="mb-3 text-sm font-extrabold text-[#0b2447]">ملخص الصفوف</div>
+          <div className="mb-3 text-sm font-extrabold text-brand-navy">ملخص الصفوف</div>
           <div className="space-y-2">
             {rows.map(([grade, score, status]) => (
               <div key={grade} className="grid grid-cols-3 rounded-xl bg-slate-50/80 px-3 py-2 text-xs font-bold text-slate-500">
                 <span>{grade}</span>
-                <span className="text-center text-[#0b2447]">{score}</span>
-                <span className="text-left text-[#159f91]">{status}</span>
+                <span className="text-center text-brand-navy">{score}</span>
+                <span className="text-left text-brand">{status}</span>
               </div>
             ))}
           </div>
@@ -247,14 +247,14 @@ export default function LandingPage() {
   }
 
   return (
-    <main id="home" className="min-h-screen bg-white text-[#0b2447]" dir="rtl">
+    <main id="home" className="min-h-screen bg-white text-brand-navy" dir="rtl">
       <nav className="sticky top-0 z-50 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
           <BrandLogo contextTitle="مقياس" size="sm" />
 
           <div className="hidden items-center gap-5 md:flex lg:gap-8">
             {navLinks.map((link) => (
-              <a key={link.href} href={link.href} className="text-xs font-bold text-slate-500 transition hover:text-[#0b2447] lg:text-sm">
+              <a key={link.href} href={link.href} className="text-xs font-bold text-slate-500 transition hover:text-brand-navy lg:text-sm">
                 {link.label}
               </a>
             ))}
@@ -263,13 +263,13 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="inline-flex rounded-xl border border-slate-200 px-4 py-3 text-sm font-extrabold text-[#0b2447] transition hover:border-[#159f91] hover:text-[#159f91] sm:px-5"
+              className="inline-flex rounded-xl border border-slate-200 px-4 py-3 text-sm font-extrabold text-brand-navy transition hover:border-brand hover:text-brand sm:px-5"
             >
               تسجيل دخول
             </Link>
             <a
               href="#trial"
-              className="rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(21,159,145,0.12)] transition hover:bg-[#10877b]"
+              className="rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(21,159,145,0.12)] transition hover:bg-brand-dark"
             >
               اطلب تجربة
             </a>
@@ -283,21 +283,21 @@ export default function LandingPage() {
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-16 md:grid-cols-[0.95fr_1.05fr] lg:gap-20">
           <div className="text-center md:text-right">
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-teal-100 bg-teal-50/80 px-4 py-2 text-xs font-extrabold text-[#159f91]">
+            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-teal-100 bg-teal-50/80 px-4 py-2 text-xs font-extrabold text-brand">
               <Sparkles className="h-4 w-4" />
               بيانات أوضح، قرار أسرع
             </div>
-            <h1 className="text-5xl font-black leading-[1.12] tracking-normal text-[#0b2447] md:text-6xl lg:text-7xl">
+            <h1 className="text-5xl font-black leading-[1.12] tracking-normal text-brand-navy md:text-6xl lg:text-7xl">
               نقيس لنرتقي
             </h1>
             <p className="mx-auto mt-8 max-w-xl text-lg leading-10 text-slate-500 md:mx-0">
               مقياس منصة ذكية لقياس أداء الطلاب وتحليل نتائجهم بدقة، تساعد المدارس على اتخاذ قرارات تعليمية مبنية على البيانات.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4 md:justify-start">
-              <a href="#trial" className="rounded-xl bg-[#159f91] px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-[#10877b]">
+              <a href="#trial" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark">
                 اطلب تجربة مجانية
               </a>
-              <a href="#features" className="rounded-xl border border-[#159f91]/30 bg-white/70 px-8 py-4 text-base font-extrabold text-[#0b2447] transition hover:border-[#159f91] hover:text-[#159f91]">
+              <a href="#features" className="rounded-xl border border-brand/30 bg-white/70 px-8 py-4 text-base font-extrabold text-brand-navy transition hover:border-brand hover:text-brand">
                 اعرف المزيد
               </a>
             </div>
@@ -313,10 +313,10 @@ export default function LandingPage() {
             const Icon = item.icon;
             return (
               <div key={item.title} className="text-center">
-                <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-[#159f91]">
+                <div className="mx-auto mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-brand">
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="font-extrabold text-[#0b2447]">{item.title}</h3>
+                <h3 className="font-extrabold text-brand-navy">{item.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-400">{item.desc}</p>
               </div>
             );
@@ -327,8 +327,8 @@ export default function LandingPage() {
       <section id="features" className="border-y border-slate-100 bg-slate-50/30 px-5 py-28 lg:px-10">
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
-            <div className="text-sm font-extrabold text-[#159f91]">المميزات</div>
-            <h2 className="mt-3 text-3xl font-black tracking-normal text-[#0b2447] md:text-4xl">
+            <div className="text-sm font-extrabold text-brand">المميزات</div>
+            <h2 className="mt-3 text-3xl font-black tracking-normal text-brand-navy md:text-4xl">
               كل ما تحتاجه في منصة واحدة
             </h2>
           </div>
@@ -338,10 +338,10 @@ export default function LandingPage() {
               const Icon = feature.icon;
               return (
                 <article key={feature.title} className="rounded-[1.75rem] border border-slate-100 bg-white p-8 text-center shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                  <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-[#159f91]">
+                  <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-brand">
                     <Icon className="h-7 w-7" />
                   </div>
-                  <h3 className="text-xl font-extrabold text-[#0b2447]">{feature.title}</h3>
+                  <h3 className="text-xl font-extrabold text-brand-navy">{feature.title}</h3>
                   <p className="mt-4 text-sm leading-8 text-slate-500">{feature.desc}</p>
                 </article>
               );
@@ -354,14 +354,14 @@ export default function LandingPage() {
         <div className="mx-auto grid max-w-6xl items-center gap-16 lg:grid-cols-2">
           <div className="order-2 lg:order-1">
             <div className="relative mx-auto h-72 max-w-sm">
-              <div className="absolute bottom-4 right-8 h-48 w-32 rounded-t-3xl bg-[#159f91]" />
+              <div className="absolute bottom-4 right-8 h-48 w-32 rounded-t-3xl bg-brand" />
               <div className="absolute bottom-4 right-44 h-36 w-24 rounded-t-3xl bg-[#39c9b9]" />
               <div className="absolute bottom-4 right-72 h-24 w-20 rounded-t-3xl bg-[#8ee5dc]" />
               <div className="absolute bottom-0 right-2 h-5 w-80 rounded-full bg-slate-200/70" />
               <div className="absolute right-4 top-4 rounded-3xl border border-slate-100 bg-white p-6 shadow-[0_16px_50px_rgba(15,35,55,0.055)]">
                 {[1, 2, 3, 4].map((item) => (
                   <div key={item} className="mb-4 flex items-center gap-3 last:mb-0">
-                    <CheckCircle2 className="h-6 w-6 text-[#159f91]" />
+                    <CheckCircle2 className="h-6 w-6 text-brand" />
                     <span className="h-3 w-32 rounded-full bg-slate-100" />
                   </div>
                 ))}
@@ -369,13 +369,13 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="order-1 text-center lg:order-2 lg:text-right">
-            <h2 className="text-3xl font-black leading-tight tracking-normal text-[#0b2447] md:text-5xl">
+            <h2 className="text-3xl font-black leading-tight tracking-normal text-brand-navy md:text-5xl">
               من نتيجة الاختبار إلى خطة التحسين
             </h2>
             <p className="mt-6 max-w-xl text-lg leading-9 text-slate-500 lg:mr-0">
               تربط المنصة بين أداء الطلاب، عمل المعلمين، ومؤشرات المدرسة حتى تعرف أين يبدأ التدخل.
             </p>
-            <a href="#trial" className="mt-9 inline-flex rounded-xl bg-[#159f91] px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-[#10877b]">
+            <a href="#trial" className="mt-9 inline-flex rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-brand-dark">
               تحدث مع الفريق
             </a>
           </div>
@@ -384,7 +384,7 @@ export default function LandingPage() {
 
       <section id="trust" className="px-5 py-24 lg:px-10">
         <div className="mx-auto max-w-6xl text-center">
-          <h2 className="text-3xl font-black tracking-normal text-[#0b2447]">يثق بنا</h2>
+          <h2 className="text-3xl font-black tracking-normal text-brand-navy">يثق بنا</h2>
           <p className="mt-4 text-slate-500">المدارس تختار مقياس لتحسين التعليم وقياس الأثر.</p>
 
           <div className="mt-16 grid gap-10 md:grid-cols-3">
@@ -392,10 +392,10 @@ export default function LandingPage() {
               const Icon = item.icon;
               return (
                 <div key={item.title} className="rounded-3xl bg-white p-6">
-                  <div className="mx-auto mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-[#159f91]">
+                  <div className="mx-auto mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-brand">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <h3 className="font-extrabold text-[#0b2447]">{item.title}</h3>
+                  <h3 className="font-extrabold text-brand-navy">{item.title}</h3>
                   <p className="mt-3 text-sm leading-7 text-slate-500">{item.desc}</p>
                 </div>
               );
@@ -407,8 +407,8 @@ export default function LandingPage() {
       <section id="pricing" className="px-5 pb-24 lg:px-10">
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
-            <div className="text-sm font-extrabold text-[#159f91]">الأسعار</div>
-            <h2 className="mt-3 text-3xl font-black tracking-normal text-[#0b2447] md:text-4xl">
+            <div className="text-sm font-extrabold text-brand">الأسعار</div>
+            <h2 className="mt-3 text-3xl font-black tracking-normal text-brand-navy md:text-4xl">
               باقات مرنة حسب حجم المدرسة
             </h2>
             <p className="mx-auto mt-4 max-w-2xl leading-8 text-slate-500">
@@ -422,17 +422,17 @@ export default function LandingPage() {
                 key={plan.name}
                 className={`rounded-[1.75rem] border p-7 shadow-[0_10px_34px_rgba(15,35,55,0.03)] ${
                   plan.highlighted
-                    ? "border-[#159f91]/25 bg-teal-50/50"
+                    ? "border-brand/25 bg-teal-50/50"
                     : "border-slate-100 bg-white"
                 }`}
               >
-                <h3 className="text-xl font-black text-[#0b2447]">{plan.name}</h3>
-                <p className="mt-3 text-2xl font-black text-[#159f91]">{plan.price}</p>
+                <h3 className="text-xl font-black text-brand-navy">{plan.name}</h3>
+                <p className="mt-3 text-2xl font-black text-brand">{plan.price}</p>
                 <p className="mt-4 min-h-16 text-sm leading-7 text-slate-500">{plan.desc}</p>
                 <div className="mt-6 space-y-3">
                   {plan.features.map((feature) => (
                     <div key={feature} className="flex items-center gap-3 text-sm font-bold text-slate-500">
-                      <CheckCircle2 className="h-4 w-4 text-[#159f91]" />
+                      <CheckCircle2 className="h-4 w-4 text-brand" />
                       {feature}
                     </div>
                   ))}
@@ -441,8 +441,8 @@ export default function LandingPage() {
                   href="#trial"
                   className={`mt-8 inline-flex w-full justify-center rounded-xl px-5 py-3 text-sm font-extrabold transition ${
                     plan.highlighted
-                      ? "bg-[#159f91] text-white hover:bg-[#10877b]"
-                      : "border border-slate-200 bg-white text-[#0b2447] hover:border-[#159f91]/40 hover:text-[#159f91]"
+                      ? "bg-brand text-white hover:bg-brand-dark"
+                      : "border border-slate-200 bg-white text-brand-navy hover:border-brand/40 hover:text-brand"
                   }`}
                 >
                   اطلب تفاصيل الباقة
@@ -456,10 +456,10 @@ export default function LandingPage() {
       <section id="trial" className="px-5 pb-24 lg:px-10">
         <div className="mx-auto grid max-w-6xl gap-10 rounded-[2rem] border border-slate-100 bg-slate-50/80 p-6 shadow-[0_14px_44px_rgba(15,35,55,0.035)] md:p-10 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="flex flex-col justify-center text-center lg:text-right">
-            <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#159f91] lg:mx-0">
+            <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand lg:mx-0">
               <Lock className="h-6 w-6" />
             </div>
-            <h2 className="text-3xl font-black tracking-normal text-[#0b2447]">
+            <h2 className="text-3xl font-black tracking-normal text-brand-navy">
               طلب تجربة مجانية
             </h2>
             <p className="mt-4 leading-8 text-slate-500">
@@ -475,7 +475,7 @@ export default function LandingPage() {
                 type="text"
                 value={trialForm.name}
                 onChange={(event) => updateTrialField("name", event.target.value)}
-                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-brand/40 focus:bg-white"
               />
             </label>
             <label className="block">
@@ -485,7 +485,7 @@ export default function LandingPage() {
                 type="text"
                 value={trialForm.school_name}
                 onChange={(event) => updateTrialField("school_name", event.target.value)}
-                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-brand/40 focus:bg-white"
               />
             </label>
             <label className="block">
@@ -495,7 +495,7 @@ export default function LandingPage() {
                 type="tel"
                 value={trialForm.phone}
                 onChange={(event) => updateTrialField("phone", event.target.value)}
-                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-brand/40 focus:bg-white"
               />
             </label>
             <label className="block">
@@ -505,7 +505,7 @@ export default function LandingPage() {
                 type="email"
                 value={trialForm.email}
                 onChange={(event) => updateTrialField("email", event.target.value)}
-                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-brand/40 focus:bg-white"
               />
             </label>
             <label className="block md:col-span-2">
@@ -514,7 +514,7 @@ export default function LandingPage() {
                 rows={4}
                 value={trialForm.message}
                 onChange={(event) => updateTrialField("message", event.target.value)}
-                className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                className="w-full resize-none rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-brand/40 focus:bg-white"
               />
             </label>
             {trialMessage && (
@@ -529,7 +529,7 @@ export default function LandingPage() {
             <button
               type="submit"
               disabled={trialState === "loading"}
-              className="rounded-xl bg-[#159f91] px-6 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-60 md:col-span-2"
+              className="rounded-xl bg-brand px-6 py-3 text-sm font-extrabold text-white transition hover:bg-brand-dark disabled:opacity-60 md:col-span-2"
             >
               {trialState === "loading" ? "جارٍ الإرسال..." : "إرسال الطلب"}
             </button>
@@ -544,30 +544,30 @@ export default function LandingPage() {
           </div>
 
           <div>
-            <h3 className="mb-4 font-extrabold text-[#0b2447]">المنتج</h3>
+            <h3 className="mb-4 font-extrabold text-brand-navy">المنتج</h3>
             <div className="space-y-3 text-sm font-semibold text-slate-500">
-              <a href="#features" className="block hover:text-[#159f91]">المميزات</a>
-              <a href="#pricing" className="block hover:text-[#159f91]">الأسعار</a>
-              <a href="#home" className="block hover:text-[#159f91]">لوحة القياس</a>
+              <a href="#features" className="block hover:text-brand">المميزات</a>
+              <a href="#pricing" className="block hover:text-brand">الأسعار</a>
+              <a href="#home" className="block hover:text-brand">لوحة القياس</a>
             </div>
           </div>
 
           <div>
-            <h3 className="mb-4 font-extrabold text-[#0b2447]">الشركة</h3>
+            <h3 className="mb-4 font-extrabold text-brand-navy">الشركة</h3>
             <div className="space-y-3 text-sm font-semibold text-slate-500">
-              <a href="#about" className="block hover:text-[#159f91]">عن مقياس</a>
-              <a href="#trial" className="block hover:text-[#159f91]">تواصل معنا</a>
+              <a href="#about" className="block hover:text-brand">عن مقياس</a>
+              <a href="#trial" className="block hover:text-brand">تواصل معنا</a>
               <span className="block">الشروط والأحكام</span>
             </div>
           </div>
 
           <div>
-            <h3 className="mb-4 font-extrabold text-[#0b2447]">الدعم</h3>
+            <h3 className="mb-4 font-extrabold text-brand-navy">الدعم</h3>
             <div className="space-y-3 text-sm font-semibold text-slate-500">
               <span className="block">مركز المساعدة</span>
               <span className="block">سياسة الخصوصية</span>
               <span className="flex items-center gap-2">
-                <Download className="h-4 w-4 text-[#159f91]" />
+                <Download className="h-4 w-4 text-brand" />
                 ملفات التقارير
               </span>
             </div>

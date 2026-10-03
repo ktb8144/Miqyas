@@ -96,7 +96,7 @@ export default function WeeklyPlansAdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
+    <div className="min-h-screen bg-[#f7fafc] text-brand-navy" dir="rtl">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
           <BrandLogo size="sm" contextTitle="إدارة الخطة الأسبوعية" contextSubtitle="الصفوف 3-6، والعلوم للصفوف 4-6" />
@@ -129,7 +129,7 @@ export default function WeeklyPlansAdminPage() {
               <option value="inactive">معطلة</option>
               <option value="archived">مؤرشفة</option>
             </select>
-            <button onClick={loadPlans} className="rounded-xl bg-[#159f91] px-4 py-3 text-sm font-extrabold text-white">
+            <button onClick={loadPlans} className="rounded-xl bg-brand px-4 py-3 text-sm font-extrabold text-white">
               تحديث
             </button>
           </div>

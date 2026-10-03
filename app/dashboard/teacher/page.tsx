@@ -8,6 +8,8 @@ import { BatchOMRScanner } from "@/components/batch-omr-scanner";
 import { supabase } from "@/lib/supabase";
 import { formatSchoolDateRange, toEnglishDigits } from "@/lib/format";
 import { normalizeSubject } from "@/lib/subjects";
+import { COLORS } from "@/lib/theme";
+import { getLevel, levelColor } from "@/lib/levels";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -188,7 +190,7 @@ function ReportModal({
             <div className="text-center py-12">
               <div className="relative w-16 h-16 mx-auto mb-4">
                 <div className="w-16 h-16 rounded-full border-4 border-gray-200" />
-                <div className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: "#1D9E75", borderTopColor: "transparent" }} />
+                <div className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: COLORS.brand, borderTopColor: "transparent" }} />
               </div>
               <p className="text-gray-600 font-medium">الذكاء الاصطناعي يحلل نتائج الفصل...</p>
               <p className="text-gray-400 text-sm mt-1">قد يستغرق ذلك بضع ثوانٍ</p>
@@ -203,11 +205,11 @@ function ReportModal({
           {report && !loading && (
             <div className="space-y-5">
               {[
-                { label: "الملخص", icon: "📋", content: report.summary, color: "#1D9E75", bg: "#f0fdf8" },
-                { label: "نقاط القوة", icon: "💪", content: report.strengths, color: "#7F77DD", bg: "#f5f3ff" },
-                { label: "نقاط التحسين", icon: "📌", content: report.weaknesses, color: "#BA7517", bg: "#fffbeb" },
-                { label: "خطة التدخل", icon: "🎯", content: report.interventionPlan, color: "#E24B4A", bg: "#fff5f5" },
-                { label: "توصيات للمعلم", icon: "💡", content: report.recommendations, color: "#1D9E75", bg: "#f0fdf8" },
+                { label: "الملخص", icon: "📋", content: report.summary, color: COLORS.brand, bg: "#f0fdf8" },
+                { label: "نقاط القوة", icon: "💪", content: report.strengths, color: COLORS.accent, bg: "#f5f3ff" },
+                { label: "نقاط التحسين", icon: "📌", content: report.weaknesses, color: COLORS.warning, bg: "#fffbeb" },
+                { label: "خطة التدخل", icon: "🎯", content: report.interventionPlan, color: COLORS.danger, bg: "#fff5f5" },
+                { label: "توصيات للمعلم", icon: "💡", content: report.recommendations, color: COLORS.brand, bg: "#f0fdf8" },
               ].map((s) => (
                 <div key={s.label} className="rounded-xl p-4" style={{ background: s.bg, border: `1px solid ${s.color}30` }}>
                   <div className="flex items-center gap-2 mb-2">
@@ -218,10 +220,10 @@ function ReportModal({
                 </div>
               ))}
               <div className="flex gap-3 pt-2">
-                <button className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm" style={{ background: "#1D9E75" }} onClick={() => window.print()}>
+                <button className="flex-1 py-2.5 rounded-xl text-white font-bold text-sm" style={{ background: COLORS.brand }} onClick={() => window.print()}>
                   🖨️ طباعة التقرير
                 </button>
-                <button className="flex-1 py-2.5 rounded-xl border-2 font-bold text-sm" style={{ borderColor: "#1D9E75", color: "#1D9E75" }} onClick={onClose}>
+                <button className="flex-1 py-2.5 rounded-xl border-2 font-bold text-sm" style={{ borderColor: COLORS.brand, color: COLORS.brand }} onClick={onClose}>
                   إغلاق
                 </button>
               </div>
@@ -328,7 +330,7 @@ function AddClassModal({
             onClick={handleCreate}
             disabled={!name.trim() || saving}
             className="w-full py-3 rounded-xl text-white font-bold text-sm disabled:opacity-50 hover:opacity-90"
-            style={{ background: "#1D9E75" }}
+            style={{ background: COLORS.brand }}
           >
             {saving ? "جارٍ الإنشاء..." : "إنشاء الفصل"}
           </button>
@@ -426,14 +428,6 @@ export default function TeacherDashboard() {
       .filter((score): score is NonNullable<typeof score> => Boolean(score));
     if (!scored.length) return null;
     return Math.round(scored.reduce((acc, score) => acc + score.percentage, 0) / scored.length);
-  };
-
-  const getPerformanceLevel = (score: number, total: number) => {
-    const pct = (score / total) * 100;
-    if (pct >= 90) return "متقدم";
-    if (pct >= 70) return "متمكن";
-    if (pct >= 50) return "أساسي";
-    return "دون الأساسي";
   };
 
   const getGradeLabel = (grade?: number | null) => {
@@ -701,7 +695,7 @@ export default function TeacherDashboard() {
           subject: reportClass.subject || teacherProfile?.subject || "غير محدد",
           results: activeStudents
             .filter((s) => s.score > 0)
-            .map((s) => ({ name: s.name, score: s.score, total: s.total, level: getPerformanceLevel(s.score, s.total) })),
+            .map((s) => ({ name: s.name, score: s.score, total: s.total, level: getLevel(s.score, s.total) })),
         }),
       });
       const json = await res.json();
@@ -981,7 +975,7 @@ export default function TeacherDashboard() {
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
+    <div className="min-h-screen bg-[#f7fafc] text-brand-navy" dir="rtl">
       {reportOpen && (
         <ReportModal report={report} loading={reportLoading} error={reportError} onClose={() => setReportOpen(false)} />
       )}
@@ -991,15 +985,15 @@ export default function TeacherDashboard() {
           <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
               <div>
-                <p className="text-sm font-extrabold text-[#159f91]">تصحيح اختبار مقياس</p>
-                <h2 className="mt-1 text-xl font-black text-[#0b2447]">{activePackageAssignment.packageTitle}</h2>
+                <p className="text-sm font-extrabold text-brand">تصحيح اختبار مقياس</p>
+                <h2 className="mt-1 text-xl font-black text-brand-navy">{activePackageAssignment.packageTitle}</h2>
                 <p className="mt-1 text-sm font-bold text-slate-400">
                   {activePackageAssignment.className} | {toEnglishDigits(activePackageStudents.length)} طالب
                 </p>
               </div>
               <button
                 onClick={() => setActivePackageAssignment(null)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
               >
                 إغلاق
               </button>
@@ -1014,7 +1008,7 @@ export default function TeacherDashboard() {
                 />
               ) : (
                 <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
-                  <h3 className="text-xl font-black text-[#0b2447]">أضف طلابًا لهذا الفصل قبل بدء التصحيح.</h3>
+                  <h3 className="text-xl font-black text-brand-navy">أضف طلابًا لهذا الفصل قبل بدء التصحيح.</h3>
                   <p className="mt-2 text-sm font-bold text-slate-400">يعتمد حفظ النتائج على ربط كل ورقة بطالب محفوظ في الفصل.</p>
                 </div>
               )}
@@ -1028,13 +1022,13 @@ export default function TeacherDashboard() {
           <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
               <div>
-                <p className="text-sm font-extrabold text-[#159f91]">نتائج اختبار مقياس</p>
-                <h2 className="mt-1 text-xl font-black text-[#0b2447]">{packageResultsAssignment.packageTitle}</h2>
+                <p className="text-sm font-extrabold text-brand">نتائج اختبار مقياس</p>
+                <h2 className="mt-1 text-xl font-black text-brand-navy">{packageResultsAssignment.packageTitle}</h2>
                 <p className="mt-1 text-sm font-bold text-slate-400">{packageResultsAssignment.className}</p>
               </div>
               <button
                 onClick={() => setPackageResultsAssignment(null)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
               >
                 إغلاق
               </button>
@@ -1054,11 +1048,11 @@ export default function TeacherDashboard() {
                 <div className="space-y-5">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl bg-slate-50 p-4">
-                      <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(packageResults.summary.studentsTestedCount)}</div>
+                      <div className="text-2xl font-black text-brand-navy">{toEnglishDigits(packageResults.summary.studentsTestedCount)}</div>
                       <div className="mt-1 text-xs font-bold text-slate-400">طلاب تم اختبارهم</div>
                     </div>
                     <div className="rounded-xl bg-slate-50 p-4">
-                      <div className="text-2xl font-black text-[#159f91]">
+                      <div className="text-2xl font-black text-brand">
                         {packageResults.summary.averagePercentage === null ? "—" : `${toEnglishDigits(packageResults.summary.averagePercentage)}٪`}
                       </div>
                       <div className="mt-1 text-xs font-bold text-slate-400">متوسط النسبة</div>
@@ -1068,13 +1062,13 @@ export default function TeacherDashboard() {
                   <div className="rounded-[1.25rem] border border-teal-100 bg-teal-50/40 p-4">
                     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <h3 className="font-black text-[#0b2447]">مهارات تحتاج تدخل</h3>
+                        <h3 className="font-black text-brand-navy">مهارات تحتاج تدخل</h3>
                         <p className="mt-1 text-xs font-bold text-slate-500">
                           الأرقام محسوبة من إجابات الطلاب، والتفسير مبني على الدليل المتاح.
                         </p>
                       </div>
                       {skillDiagnosis && (
-                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#159f91]">
+                        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand">
                           ثقة التحليل: {skillDiagnosis.confidence.label}
                         </span>
                       )}
@@ -1090,11 +1084,11 @@ export default function TeacherDashboard() {
                           <div key={`${skill.domainText}-${skill.skillText}`} className="rounded-2xl bg-white p-4 shadow-[0_8px_24px_rgba(15,35,55,0.03)]">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <h4 className="font-black text-[#0b2447]">{skill.skillText}</h4>
+                                <h4 className="font-black text-brand-navy">{skill.skillText}</h4>
                                 <p className="mt-1 text-xs font-bold text-slate-400">{skill.domainText}</p>
                               </div>
                               <div className="text-left">
-                                <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(skill.masteryRate)}٪</div>
+                                <div className="text-2xl font-black text-brand">{toEnglishDigits(skill.masteryRate)}٪</div>
                                 <div className="text-xs font-bold text-slate-400">نسبة الإتقان</div>
                               </div>
                             </div>
@@ -1129,7 +1123,7 @@ export default function TeacherDashboard() {
                               </p>
                               <button
                                 onClick={() => alert("سيتم ربط إنشاء التدريب العلاجي في خطوة لاحقة.")}
-                                className="rounded-xl bg-[#0b2447] px-4 py-2 text-xs font-extrabold text-white"
+                                className="rounded-xl bg-brand-navy px-4 py-2 text-xs font-extrabold text-white"
                               >
                                 إنشاء تدريب علاجي
                               </button>
@@ -1159,8 +1153,8 @@ export default function TeacherDashboard() {
                         <tbody className="divide-y divide-slate-50">
                           {packageResults.students.map((student) => (
                             <tr key={student.id}>
-                              <td className="px-4 py-3 text-sm font-black text-[#159f91]">{toEnglishDigits(student.studentCode ?? "—")}</td>
-                              <td className="px-4 py-3 text-sm font-bold text-[#0b2447]">{student.studentName}</td>
+                              <td className="px-4 py-3 text-sm font-black text-brand">{toEnglishDigits(student.studentCode ?? "—")}</td>
+                              <td className="px-4 py-3 text-sm font-bold text-brand-navy">{student.studentName}</td>
                               <td className="px-4 py-3 text-sm font-bold text-slate-600">{toEnglishDigits(`${student.score}/${student.total}`)}</td>
                               <td className="px-4 py-3 text-sm font-bold text-slate-600">{toEnglishDigits(student.percentage)}٪</td>
                               <td className="px-4 py-3 text-sm font-bold text-slate-600">{student.level || "—"}</td>
@@ -1177,7 +1171,7 @@ export default function TeacherDashboard() {
 
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
-                      <h3 className="font-black text-[#0b2447]">أضعف المهارات</h3>
+                      <h3 className="font-black text-brand-navy">أضعف المهارات</h3>
                       <div className="mt-3 space-y-2">
                         {packageResults.weakestSkills.length ? packageResults.weakestSkills.map((item) => (
                           <div key={item.name} className="flex justify-between rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-600">
@@ -1188,7 +1182,7 @@ export default function TeacherDashboard() {
                       </div>
                     </div>
                     <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-4">
-                      <h3 className="font-black text-[#0b2447]">أضعف مجالات نافس</h3>
+                      <h3 className="font-black text-brand-navy">أضعف مجالات نافس</h3>
                       <div className="mt-3 space-y-2">
                         {packageResults.weakestDomains.length ? packageResults.weakestDomains.map((item) => (
                           <div key={item.name} className="flex justify-between rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-600">
@@ -1223,7 +1217,7 @@ export default function TeacherDashboard() {
           />
           <button
             onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
           >
             خروج
           </button>
@@ -1243,7 +1237,7 @@ export default function TeacherDashboard() {
             <p className="mt-1 text-sm font-bold">{pageError}</p>
             <button
               onClick={loadTeacherData}
-              className="mt-4 rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white"
+              className="mt-4 rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white"
             >
               إعادة المحاولة
             </button>
@@ -1258,19 +1252,19 @@ export default function TeacherDashboard() {
             {/* ── SECTION 1: هذا الأسبوع ──────────────────────────────────────── */}
             <section>
               <div className="mb-4">
-                <p className="text-sm font-extrabold text-[#159f91]">هذا الأسبوع</p>
-                <h2 className="mt-2 text-2xl font-black tracking-normal text-[#0b2447]">مهمة التقييم الحالية</h2>
+                <p className="text-sm font-extrabold text-brand">هذا الأسبوع</p>
+                <h2 className="mt-2 text-2xl font-black tracking-normal text-brand-navy">مهمة التقييم الحالية</h2>
               </div>
               <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
                 {planLoading ? (
                   <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-6 text-center">
-                    <h3 className="text-xl font-black text-[#0b2447]">جارٍ تحميل خطة هذا الأسبوع...</h3>
+                    <h3 className="text-xl font-black text-brand-navy">جارٍ تحميل خطة هذا الأسبوع...</h3>
                   </div>
                 ) : weeklyPlanItem ? (
                   <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div className="min-w-0">
-                      <div className="mb-2 text-sm font-black text-[#159f91]">هذا الأسبوع</div>
-                      <h3 className="text-3xl font-black leading-tight text-[#0b2447]">
+                      <div className="mb-2 text-sm font-black text-brand">هذا الأسبوع</div>
+                      <h3 className="text-3xl font-black leading-tight text-brand-navy">
                         تدريب {weeklyPlanItem.plan.subject}
                       </h3>
                       <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-black text-slate-500">
@@ -1284,21 +1278,21 @@ export default function TeacherDashboard() {
                     <div className="grid gap-2 sm:grid-cols-3 lg:w-[420px]">
                       <button
                         onClick={() => setView("packages")}
-                        className="rounded-full bg-[#0b2447] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
+                        className="rounded-full bg-brand-navy px-4 py-3 text-sm font-extrabold text-white transition hover:bg-brand-navy-light"
                       >
                         بدء التقييم
                       </button>
-                      <button className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
+                      <button className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand" onClick={() => window.print()}>
                         طباعة الورقة
                       </button>
-                      <button className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => setView("packages")}>
+                      <button className="rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand" onClick={() => setView("packages")}>
                         عرض النتائج
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-6 text-center">
-                    <h3 className="text-xl font-black text-[#0b2447]">
+                    <h3 className="text-xl font-black text-brand-navy">
                       {classes.length ? "لا توجد خطة مفعّلة لهذا الأسبوع." : "أضف فصلًا للبدء في تنفيذ التقييمات."}
                     </h3>
                     <p className="mt-2 text-sm font-bold text-slate-400">
@@ -1313,7 +1307,7 @@ export default function TeacherDashboard() {
 
             {/* ── SECTION 3: فصولي ──────────────────────────────────────────────── */}
             <section>
-              <h2 className="mb-4 text-2xl font-black tracking-normal text-[#0b2447]">فصولي</h2>
+              <h2 className="mb-4 text-2xl font-black tracking-normal text-brand-navy">فصولي</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {classes.length === 0 && (
@@ -1336,12 +1330,12 @@ export default function TeacherDashboard() {
                       {/* Class header */}
                       <div className="flex items-start justify-between">
                         <div>
-                          <div className="text-xl font-black text-[#0b2447]">{cls.name}</div>
+                          <div className="text-xl font-black text-brand-navy">{cls.name}</div>
                           <div className="mt-1 text-sm font-bold text-slate-400">{cls.subject}</div>
                         </div>
                         <button
                           title="إعدادات الفصل"
-                          className="rounded-xl p-2 text-slate-300 transition hover:bg-slate-50 hover:text-[#159f91]"
+                          className="rounded-xl p-2 text-slate-300 transition hover:bg-slate-50 hover:text-brand"
                         >
                           ⚙️
                         </button>
@@ -1350,14 +1344,14 @@ export default function TeacherDashboard() {
                       {/* Stats */}
                       <div className="flex items-center gap-4">
                         <div className="text-center">
-                          <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(students.length)}</div>
+                          <div className="text-2xl font-black text-brand-navy">{toEnglishDigits(students.length)}</div>
                           <div className="text-xs font-bold text-slate-400">طالب</div>
                         </div>
                         <div className="h-10 w-px bg-slate-100" />
                         <div className="text-center">
                           {avg !== null ? (
                             <>
-                              <div className="text-2xl font-bold" style={{ color: avg >= 70 ? "#1D9E75" : avg >= 50 ? "#BA7517" : "#E24B4A" }}>
+                              <div className="text-2xl font-bold" style={{ color: levelColor(avg) }}>
                                 {toEnglishDigits(avg)}٪
                               </div>
                               <div className="text-xs font-bold text-slate-400">متوسط هذا الأسبوع</div>
@@ -1374,18 +1368,18 @@ export default function TeacherDashboard() {
                       {/* Actions */}
                       <button
                         onClick={() => handleViewStudents(cls.id)}
-                        className="w-full rounded-xl bg-[#159f91] py-3 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-[#10877b]"
+                        className="w-full rounded-xl bg-brand py-3 text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-brand-dark"
                       >
                         عرض الطلاب
                       </button>
                       {classAssignments.length ? (
                         <div className="space-y-2 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
-                          <div className="text-xs font-extrabold text-[#159f91]">حزمة مقياس مطبقة</div>
+                          <div className="text-xs font-extrabold text-brand">حزمة مقياس مطبقة</div>
                           {classAssignments.length > 1 && (
                             <select
                               value={selectedAssignmentId}
                               onChange={(event) => setSelectedClassAssignment((prev) => ({ ...prev, [cls.id]: event.target.value }))}
-                              className="w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm font-bold text-[#0b2447] outline-none"
+                              className="w-full rounded-xl border border-teal-100 bg-white px-3 py-2 text-sm font-bold text-brand-navy outline-none"
                             >
                               {classAssignments.map((assignment) => (
                                 <option key={assignment.id} value={assignment.id}>{assignment.packageTitle}</option>
@@ -1394,7 +1388,7 @@ export default function TeacherDashboard() {
                           )}
                           <button
                             onClick={() => selectedAssignment && setActivePackageAssignment(selectedAssignment)}
-                            className="w-full rounded-xl bg-[#0b2447] py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f]"
+                            className="w-full rounded-xl bg-brand-navy py-2.5 text-sm font-extrabold text-white transition hover:bg-brand-navy-light"
                           >
                             بدء تصحيح حزمة مقياس
                           </button>
@@ -1412,7 +1406,7 @@ export default function TeacherDashboard() {
               {/* Add class button */}
               <button
                 onClick={() => setShowAddClass(true)}
-                className="mt-5 w-full rounded-[1.25rem] border border-dashed border-[#159f91]/40 bg-white py-4 text-sm font-extrabold text-[#159f91] transition hover:bg-teal-50/50"
+                className="mt-5 w-full rounded-[1.25rem] border border-dashed border-brand/40 bg-white py-4 text-sm font-extrabold text-brand transition hover:bg-teal-50/50"
               >
                 + إضافة فصل جديد
               </button>
@@ -1427,21 +1421,21 @@ export default function TeacherDashboard() {
           <section className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-extrabold text-[#159f91]">التصحيح والنتائج</p>
-                <h2 className="mt-1 text-2xl font-black tracking-normal text-[#0b2447]">مسار واحد لاعتماد نتائج مقياس</h2>
+                <p className="text-sm font-extrabold text-brand">التصحيح والنتائج</p>
+                <h2 className="mt-1 text-2xl font-black tracking-normal text-brand-navy">مسار واحد لاعتماد نتائج مقياس</h2>
                 <p className="mt-2 text-sm font-bold text-slate-400">طبّق الحزمة على الفصل، ثم صحّح بالكاميرا أو اعرض تقرير الفصل.</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   onClick={loadPackageWorkflow}
                   disabled={packagesLoading}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand disabled:opacity-50"
                 >
                   {packagesLoading ? "جارٍ التحديث..." : "تحديث"}
                 </button>
                 <button
                   onClick={() => setView("classes")}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
                 >
                   ← العودة
                 </button>
@@ -1455,7 +1449,7 @@ export default function TeacherDashboard() {
             )}
 
             {packageSuccess && (
-              <div className="rounded-[1.25rem] border border-teal-100 bg-teal-50 p-4 text-sm font-bold text-[#159f91]">
+              <div className="rounded-[1.25rem] border border-teal-100 bg-teal-50 p-4 text-sm font-bold text-brand">
                 {packageSuccess}
               </div>
             )}
@@ -1463,7 +1457,7 @@ export default function TeacherDashboard() {
             <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-xl font-black text-[#0b2447]">الاختبارات المتاحة</h3>
+                  <h3 className="text-xl font-black text-brand-navy">الاختبارات المتاحة</h3>
                   <p className="mt-1 text-sm font-bold text-slate-400">اختبارات منشورة من إدارة مقياس ومفعّلة لمدرستك.</p>
                 </div>
                 <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
@@ -1484,10 +1478,10 @@ export default function TeacherDashboard() {
                       <div key={item.id} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/40 p-5">
                         <div className="mb-4 flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-xs font-extrabold text-[#159f91]">
+                            <div className="text-xs font-extrabold text-brand">
                               {packageTypeLabel(item.package_type)} | الأسبوع {toEnglishDigits(item.week_number ?? "—")}
                             </div>
-                            <h4 className="mt-1 text-lg font-black text-[#0b2447]">{item.title}</h4>
+                            <h4 className="mt-1 text-lg font-black text-brand-navy">{item.title}</h4>
                             <p className="mt-1 text-sm font-bold text-slate-400">
                               {item.subject} | الصف {toEnglishDigits(item.grade)} | {packageDateLabel(item)}
                             </p>
@@ -1508,7 +1502,7 @@ export default function TeacherDashboard() {
                                 href={link.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
                               >
                                 {link.label}
                               </a>
@@ -1529,7 +1523,7 @@ export default function TeacherDashboard() {
                             <select
                               value={selectedClassId}
                               onChange={(event) => setSelectedPackageClasses((prev) => ({ ...prev, [item.id]: event.target.value }))}
-                              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-[#0b2447] outline-none focus:border-[#159f91]"
+                              className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-brand-navy outline-none focus:border-brand"
                             >
                               {item.matchingClasses.map((classItem) => (
                                 <option key={classItem.id} value={classItem.id}>{classItem.name}</option>
@@ -1538,7 +1532,7 @@ export default function TeacherDashboard() {
                             <button
                               onClick={() => handleApplyPackage(item)}
                               disabled={!selectedClassId || applyingPackageId === item.id}
-                              className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
+                              className="rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark disabled:opacity-50"
                             >
                               {applyingPackageId === item.id ? "جارٍ التطبيق..." : "تطبيق على فصل"}
                             </button>
@@ -1554,7 +1548,7 @@ export default function TeacherDashboard() {
                 </div>
               ) : (
                 <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
-                  <h3 className="text-xl font-black text-[#0b2447]">لا توجد اختبارات منشورة حاليًا من إدارة مقياس.</h3>
+                  <h3 className="text-xl font-black text-brand-navy">لا توجد اختبارات منشورة حاليًا من إدارة مقياس.</h3>
                   <p className="mt-2 text-sm font-bold text-slate-400">ستظهر هنا الحزم الأسبوعية عند نشرها وتفعيلها لمدرستك.</p>
                 </div>
               )}
@@ -1563,7 +1557,7 @@ export default function TeacherDashboard() {
             <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <h3 className="text-xl font-black text-[#0b2447]">اختبارات فصولي</h3>
+                  <h3 className="text-xl font-black text-brand-navy">اختبارات فصولي</h3>
                   <p className="mt-1 text-sm font-bold text-slate-400">الحزم التي تم تطبيقها على فصولك.</p>
                 </div>
                 <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
@@ -1583,15 +1577,15 @@ export default function TeacherDashboard() {
                       <div key={item.id} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/40 p-5">
                         <div className="mb-4 flex items-start justify-between gap-3">
                           <div>
-                            <div className="text-xs font-extrabold text-[#159f91]">
+                            <div className="text-xs font-extrabold text-brand">
                               {item.className} | الأسبوع {toEnglishDigits(item.weekNumber ?? "—")}
                             </div>
-                            <h4 className="mt-1 text-lg font-black text-[#0b2447]">{item.packageTitle}</h4>
+                            <h4 className="mt-1 text-lg font-black text-brand-navy">{item.packageTitle}</h4>
                             <p className="mt-1 text-sm font-bold text-slate-400">
                               {item.subject} | الصف {toEnglishDigits(item.grade ?? "—")} | {packageDateLabel(item)}
                             </p>
                           </div>
-                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#159f91]">
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand">
                             {packageStatusLabel(item.status)}
                           </span>
                         </div>
@@ -1617,7 +1611,7 @@ export default function TeacherDashboard() {
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={() => void markPackagePrinted(item.id)}
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
                               >
                                 {link.label}
                               </a>
@@ -1637,7 +1631,7 @@ export default function TeacherDashboard() {
                           <button
                             onClick={() => setActivePackageAssignment(item)}
                             disabled={!studentCount}
-                            className="rounded-xl bg-[#0b2447] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#12345f] disabled:opacity-50"
+                            className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-navy-light disabled:opacity-50"
                           >
                             تصحيح بالكاميرا
                           </button>
@@ -1650,7 +1644,7 @@ export default function TeacherDashboard() {
                           </button>
                           <button
                             onClick={() => void openPackageResults(item)}
-                            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
                           >
                             عرض تقرير الفصل
                           </button>
@@ -1661,7 +1655,7 @@ export default function TeacherDashboard() {
                 </div>
               ) : (
                 <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
-                  <h3 className="text-xl font-black text-[#0b2447]">لم يتم تطبيق أي اختبار على فصولك بعد.</h3>
+                  <h3 className="text-xl font-black text-brand-navy">لم يتم تطبيق أي اختبار على فصولك بعد.</h3>
                   <p className="mt-2 text-sm font-bold text-slate-400">اختر اختبارًا منشورًا ثم طبّقه على فصل مطابق للبدء.</p>
                 </div>
               )}
@@ -1676,12 +1670,12 @@ export default function TeacherDashboard() {
           <section className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-extrabold text-[#159f91]">الخطة الأسبوعية</p>
-                <h2 className="mt-1 text-2xl font-black tracking-normal text-[#0b2447]">خطة الأسابيع لفصولي</h2>
+                <p className="text-sm font-extrabold text-brand">الخطة الأسبوعية</p>
+                <h2 className="mt-1 text-2xl font-black tracking-normal text-brand-navy">خطة الأسابيع لفصولي</h2>
               </div>
               <button
                 onClick={() => setView("classes")}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
               >
                 ← العودة للفصول
               </button>
@@ -1698,9 +1692,9 @@ export default function TeacherDashboard() {
                     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="text-sm font-bold text-slate-400">الأسبوع {toEnglishDigits(item.plan.week_number)}</div>
-                        <h3 className="mt-1 text-xl font-black text-[#0b2447]">{item.plan.skill}</h3>
+                        <h3 className="mt-1 text-xl font-black text-brand-navy">{item.plan.skill}</h3>
                       </div>
-                      <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
+                      <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-brand">
                         {difficultyLabel(item.plan.difficulty_level)}
                       </span>
                     </div>
@@ -1726,13 +1720,13 @@ export default function TeacherDashboard() {
                     <div className="mt-4 flex flex-wrap gap-3">
                       <button
                         onClick={() => handleViewStudents(item.class.id)}
-                        className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b]"
+                        className="rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark"
                       >
                         بدء التقييم
                       </button>
                       <button
                         onClick={() => window.print()}
-                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
                       >
                         طباعة ورقة الاختبار
                       </button>
@@ -1742,7 +1736,7 @@ export default function TeacherDashboard() {
               </div>
             ) : (
               <div className="rounded-[1.5rem] border border-dashed border-teal-100 bg-white p-8 text-center shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                <h3 className="text-xl font-black text-[#0b2447]">لا توجد خطة مفعّلة لهذا الأسبوع.</h3>
+                <h3 className="text-xl font-black text-brand-navy">لا توجد خطة مفعّلة لهذا الأسبوع.</h3>
                 <p className="mt-2 text-sm font-bold text-slate-400">
                   يمكنك التواصل مع مدير النظام لتفعيل خطة الصفوف 3-6 في مواد مقياس الحالية.
                 </p>
@@ -1760,11 +1754,11 @@ export default function TeacherDashboard() {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleBackToClasses}
-                className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+                className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
               >
                 ← فصولي
               </button>
-              <h2 className="text-2xl font-black text-[#0b2447]">{activeClass.name}</h2>
+              <h2 className="text-2xl font-black text-brand-navy">{activeClass.name}</h2>
               <span className="text-sm font-bold text-slate-400">{activeClass.subject}</span>
             </div>
 
@@ -1773,7 +1767,7 @@ export default function TeacherDashboard() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
                   <div className="text-sm font-bold text-slate-400 mb-0.5">مهمة هذا الأسبوع</div>
-                  <div className="font-black text-[#0b2447]">
+                  <div className="font-black text-brand-navy">
                     {activeClassPlanItem
                       ? `${activeClassPlanItem.plan.assessment_title} — ${activeClassPlanItem.plan.skill}`
                       : `${activeClass.name} — ${activeClass.subject || teacherProfile?.subject || "مادة غير محددة"}`}
@@ -1788,11 +1782,11 @@ export default function TeacherDashboard() {
                   <button
                     onClick={generateReport}
                     disabled={activeStudents.every((s) => s.score === 0)}
-                    className="flex items-center gap-2 rounded-xl bg-[#0b2447] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#12345f] disabled:opacity-50"
+                    className="flex items-center gap-2 rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-brand-navy-light disabled:opacity-50"
                   >
                     توليد تقرير الفصل
                   </button>
-                  <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]" onClick={() => window.print()}>
+                  <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand" onClick={() => window.print()}>
                     طباعة
                   </button>
                 </div>
@@ -1803,13 +1797,13 @@ export default function TeacherDashboard() {
             <div className="overflow-hidden rounded-[1.5rem] border border-slate-100 bg-white shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="p-4 border-b border-gray-100 flex items-center justify-between">
                 <div>
-                  <h3 className="font-black text-[#0b2447]">قائمة الطلاب</h3>
+                  <h3 className="font-black text-brand-navy">قائمة الطلاب</h3>
                   <p className="mt-0.5 text-sm font-bold text-slate-400">{toEnglishDigits(activeStudents.length)} طالب</p>
                 </div>
                 {/* Add students button */}
                 <button
                   onClick={() => { setShowAddStudents(true); setAddStudentMode("choice"); }}
-                  className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b]"
+                  className="rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark"
                 >
                   + إضافة طلاب
                 </button>
@@ -1839,7 +1833,7 @@ export default function TeacherDashboard() {
                           <tr key={s.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 text-gray-400 text-sm">{toEnglishDigits(i + 1)}</td>
                             <td className="px-4 py-3">
-                              <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-[#159f91]">
+                              <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-brand">
                                 رقم الطالب: {toEnglishDigits(s.studentCode ?? i + 1)}
                               </span>
                             </td>
@@ -1858,7 +1852,7 @@ export default function TeacherDashboard() {
                             <td className="px-4 py-3">
                               {packageScore ? (
                                 packageScore.level
-                                  ? <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-[#159f91]">{packageScore.level}</span>
+                                  ? <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-brand">{packageScore.level}</span>
                                   : <LevelBadge score={packageScore.score} total={packageScore.total} />
                               ) : <span className="text-gray-300 text-sm">—</span>}
                             </td>
@@ -1885,14 +1879,14 @@ export default function TeacherDashboard() {
                     <button
                       onClick={() => setAddStudentMode("import")}
                       className="flex-1 py-4 rounded-xl border-2 font-bold text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                      style={{ borderColor: "#7F77DD", color: "#7F77DD" }}
+                      style={{ borderColor: COLORS.accent, color: COLORS.accent }}
                     >
                       📷 تصوير كشف الأسماء
                     </button>
                     <button
                       onClick={() => setAddStudentMode("manual")}
                       className="flex-1 py-4 rounded-xl border-2 font-bold text-sm hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-                      style={{ borderColor: "#1D9E75", color: "#1D9E75" }}
+                      style={{ borderColor: COLORS.brand, color: COLORS.brand }}
                     >
                       ✏️ إضافة يدوي
                     </button>
@@ -1927,7 +1921,7 @@ export default function TeacherDashboard() {
                         onClick={handleManualSave}
                         disabled={!manualNames.trim() || manualSaving}
                         className="px-5 py-2.5 rounded-lg text-white text-sm font-bold hover:opacity-90 disabled:opacity-50"
-                        style={{ background: "#1D9E75" }}
+                        style={{ background: COLORS.brand }}
                       >
                         {manualSaving ? "جارٍ الحفظ..." : "حفظ"}
                       </button>

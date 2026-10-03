@@ -162,33 +162,33 @@ export function MissionCompletionCard({
   if (completed) {
     return (
       <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 text-center shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-        <p className="text-sm font-extrabold text-[#159f91]">نتيجة التدريب</p>
-        <h2 className="mt-2 text-3xl font-black text-[#0b2447]">أحسنت يا {studentName}</h2>
+        <p className="text-sm font-extrabold text-brand">نتيجة التدريب</p>
+        <h2 className="mt-2 text-3xl font-black text-brand-navy">أحسنت يا {studentName}</h2>
         <p className="mt-2 text-sm font-bold text-slate-500">أكملت التدريب المجاني بنجاح</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl bg-slate-50 p-4 text-center">
-            <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(`${score}/${questions.length}`)}</div>
+            <div className="text-2xl font-black text-brand-navy">{toEnglishDigits(`${score}/${questions.length}`)}</div>
             <div className="mt-1 text-xs font-bold text-slate-400">الدرجة</div>
           </div>
           <div className="rounded-xl bg-teal-50 p-4 text-center">
-            <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(20)}</div>
+            <div className="text-2xl font-black text-brand">{toEnglishDigits(20)}</div>
             <div className="mt-1 text-xs font-bold text-slate-400">النقاط المكتسبة</div>
           </div>
           <div className="rounded-xl bg-amber-50 p-4 text-center">
-            <div className="text-sm font-black text-[#BA7517]">{skillName}</div>
+            <div className="text-sm font-black text-warning">{skillName}</div>
             <div className="mt-1 text-xs font-bold text-slate-400">المهارة</div>
           </div>
         </div>
         {interestMessage && (
-          <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm font-bold text-[#159f91]">
+          <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm font-bold text-brand">
             {interestMessage}
           </div>
         )}
         {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
         {showContactForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0b2447]/40 px-4 text-right" dir="rtl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-navy/40 px-4 text-right" dir="rtl">
           <div className="w-full max-w-lg rounded-[1.25rem] border border-slate-100 bg-white p-5 shadow-[0_22px_70px_rgba(15,35,55,0.14)]">
-            <h3 className="text-lg font-black text-[#0b2447]">تم تسجيل اهتمامك ✅</h3>
+            <h3 className="text-lg font-black text-brand-navy">تم تسجيل اهتمامك ✅</h3>
             <p className="mt-2 text-sm font-bold leading-7 text-slate-500">
               هل ترغب أن نبلغك عند تفعيل خطة التدريب الشهرية؟ يمكنك ترك رقم الجوال اختياريًا.
             </p>
@@ -199,7 +199,7 @@ export function MissionCompletionCard({
                   value={whatsappPhone}
                   onChange={(event) => setWhatsappPhone(event.target.value)}
                   placeholder="05xxxxxxxx"
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-brand-navy outline-none transition focus:border-brand"
                 />
               </label>
               <label className="text-sm font-bold text-slate-500">
@@ -207,7 +207,7 @@ export function MissionCompletionCard({
                 <select
                   value={relation}
                   onChange={(event) => setRelation(event.target.value)}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-[#0b2447] outline-none transition focus:border-[#159f91]"
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-brand-navy outline-none transition focus:border-brand"
                 >
                   <option>أب</option>
                   <option>أم</option>
@@ -220,7 +220,7 @@ export function MissionCompletionCard({
                 type="checkbox"
                 checked={consentAccepted}
                 onChange={(event) => setConsentAccepted(event.target.checked)}
-                className="mt-1 h-4 w-4 accent-[#159f91]"
+                className="mt-1 h-4 w-4 accent-brand"
               />
               <span>أوافق على استخدام رقم الجوال للتواصل معي بخصوص خطة التدريب الإضافية في مِقياس لهذا الطالب فقط.</span>
             </label>
@@ -231,7 +231,7 @@ export function MissionCompletionCard({
               <button
                 onClick={saveContact}
                 disabled={contactSaving}
-                className="flex-1 rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
+                className="flex-1 rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white transition hover:bg-brand-dark disabled:opacity-50"
               >
                 {contactSaving ? "جارٍ الحفظ..." : "حفظ بيانات التواصل"}
               </button>
@@ -241,7 +241,7 @@ export function MissionCompletionCard({
                   setInterestMessage("شكرًا لكم، سيتم تفعيل خطة التدريب الشهرية قريبًا.");
                 }}
                 disabled={contactSaving}
-                className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-brand/40 hover:text-brand disabled:opacity-50"
               >
                 ليس الآن
               </button>
@@ -252,7 +252,7 @@ export function MissionCompletionCard({
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <a
             href={`/parent/report/${token}`}
-            className={`${contactSaved ? "w-full" : "flex-1"} rounded-xl bg-[#159f91] px-5 py-3 text-center text-sm font-extrabold text-white transition hover:bg-[#10877b]`}
+            className={`${contactSaved ? "w-full" : "flex-1"} rounded-xl bg-brand px-5 py-3 text-center text-sm font-extrabold text-white transition hover:bg-brand-dark`}
           >
             العودة للتقرير
           </a>
@@ -260,7 +260,7 @@ export function MissionCompletionCard({
             <button
               onClick={() => interestSent ? setShowContactForm(true) : registerInterest()}
               disabled={saving}
-              className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-[#159f91]/40 hover:text-[#159f91] disabled:opacity-50"
+              className="flex-1 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-600 transition hover:border-brand/40 hover:text-brand disabled:opacity-50"
             >
               {interestSent ? "تم تسجيل الاهتمام" : "أريد تدريبات أكثر لطفلي"}
             </button>
@@ -269,7 +269,7 @@ export function MissionCompletionCard({
         {interestSent && !contactSaved && !showContactForm && (
           <button
             onClick={() => setShowContactForm(true)}
-            className="mt-3 text-xs font-extrabold text-[#159f91] underline underline-offset-4"
+            className="mt-3 text-xs font-extrabold text-brand underline underline-offset-4"
           >
             أضف رقم الجوال للتحديثات
           </button>
@@ -286,12 +286,12 @@ export function MissionCompletionCard({
           <span>{toEnglishDigits(progress)}٪</span>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full rounded-full bg-[#159f91] transition-all" style={{ width: `${progress}%` }} />
+          <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${progress}%` }} />
         </div>
       </div>
 
       <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-5">
-        <p className="text-lg font-black leading-8 text-[#0b2447]">{currentQuestion.prompt}</p>
+        <p className="text-lg font-black leading-8 text-brand-navy">{currentQuestion.prompt}</p>
         <div className="mt-4 grid gap-2">
           {currentQuestion.options.map((option, optionIndex) => {
             const selected = selectedAnswer === optionIndex;
@@ -303,10 +303,10 @@ export function MissionCompletionCard({
                 disabled={hasAnsweredCurrent}
                 className={`rounded-xl border px-4 py-3 text-right text-sm font-bold transition ${
                   selected && correct
-                    ? "border-[#159f91] bg-teal-50 text-[#159f91]"
+                    ? "border-brand bg-teal-50 text-brand"
                     : selected && !correct
                       ? "border-amber-200 bg-amber-50 text-amber-700"
-                      : "border-slate-100 bg-white text-slate-600 hover:border-[#159f91]/40"
+                      : "border-slate-100 bg-white text-slate-600 hover:border-brand/40"
                 } disabled:cursor-default`}
               >
                 {option}
@@ -317,14 +317,14 @@ export function MissionCompletionCard({
       </div>
 
       {hasAnsweredCurrent && (
-        <div className={`mt-4 rounded-xl p-3 text-sm font-bold ${selectedAnswer === currentQuestion.correctIndex ? "bg-teal-50 text-[#159f91]" : "bg-amber-50 text-amber-700"}`}>
+        <div className={`mt-4 rounded-xl p-3 text-sm font-bold ${selectedAnswer === currentQuestion.correctIndex ? "bg-teal-50 text-brand" : "bg-amber-50 text-amber-700"}`}>
           {selectedAnswer === currentQuestion.correctIndex ? "إجابة موفقة. تابع للسؤال التالي." : "محاولة جيدة. ركّز على المطلوب من السؤال ثم تابع."}
         </div>
       )}
 
       {error && <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
       {completed && (
-        <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm font-bold text-[#159f91]">
+        <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm font-bold text-brand">
           تم إكمال التدريب. نتيجتك: {toEnglishDigits(`${score}/${questions.length}`)}
         </div>
       )}
@@ -338,7 +338,7 @@ export function MissionCompletionCard({
           }
         }}
         disabled={!hasAnsweredCurrent || saving || completed}
-        className="mt-5 w-full rounded-xl bg-[#159f91] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#10877b] disabled:opacity-50"
+        className="mt-5 w-full rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white transition hover:bg-brand-dark disabled:opacity-50"
       >
         {saving ? "جارٍ الحفظ..." : currentIndex === questions.length - 1 ? "إكمال التدريب" : "السؤال التالي"}
       </button>

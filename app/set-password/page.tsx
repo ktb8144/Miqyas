@@ -105,7 +105,7 @@ export default function SetPasswordPage() {
 
   return (
     <div
-      className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-[#0b2447]"
+      className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-brand-navy"
       dir="rtl"
     >
       <div className="absolute left-10 top-24 h-96 w-96 rounded-full bg-teal-50/80 blur-3xl" />
@@ -118,7 +118,7 @@ export default function SetPasswordPage() {
           </div>
 
           <div className="rounded-[2rem] border border-slate-100 bg-white/95 p-8 shadow-[0_22px_70px_rgba(15,35,55,0.07)]">
-            <h1 className="mb-2 text-center text-2xl font-black tracking-normal text-[#0b2447]">
+            <h1 className="mb-2 text-center text-2xl font-black tracking-normal text-brand-navy">
               تعيين كلمة المرور
             </h1>
             <p className="mb-7 text-center text-sm leading-7 text-slate-400">
@@ -126,7 +126,7 @@ export default function SetPasswordPage() {
             </p>
 
             {checkingSession ? (
-              <div className="rounded-xl border border-teal-100 bg-teal-50 px-4 py-4 text-center text-sm font-bold text-[#159f91]">
+              <div className="rounded-xl border border-teal-100 bg-teal-50 px-4 py-4 text-center text-sm font-bold text-brand">
                 جاري التحقق من رابط الدعوة...
               </div>
             ) : (
@@ -141,7 +141,7 @@ export default function SetPasswordPage() {
                     onChange={(event) => setPassword(event.target.value)}
                     minLength={8}
                     required
-                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-right text-sm font-semibold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-right text-sm font-semibold text-brand-navy outline-none transition focus:border-brand/40 focus:bg-white"
                   />
                 </div>
 
@@ -155,7 +155,7 @@ export default function SetPasswordPage() {
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     minLength={8}
                     required
-                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-right text-sm font-semibold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-right text-sm font-semibold text-brand-navy outline-none transition focus:border-brand/40 focus:bg-white"
                   />
                 </div>
 
@@ -168,7 +168,7 @@ export default function SetPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full rounded-xl bg-[#159f91] py-3.5 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-[#10877b] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-xl bg-brand py-3.5 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? "جاري حفظ كلمة المرور..." : "حفظ ومتابعة"}
                 </button>

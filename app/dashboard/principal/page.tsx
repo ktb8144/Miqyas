@@ -16,6 +16,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { COLORS } from "@/lib/theme";
+import { LEVEL_THRESHOLDS, MASTERY_THRESHOLD } from "@/lib/levels";
 
 const TABS = ["لوحة القيادة", "أثر مقياس", "أداء المعلمين", "التنبيهات", "التحسن", "التقارير الدورية"];
 
@@ -133,7 +135,7 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   );
 }
 
-function KpiCard({ label, value, sub, icon, color = "#159f91" }: { label: string; value: string; sub: string; icon: string; color?: string }) {
+function KpiCard({ label, value, sub, icon, color = COLORS.brand }: { label: string; value: string; sub: string; icon: string; color?: string }) {
   return (
     <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
       <div className="mb-2 flex items-center justify-between">
@@ -159,17 +161,17 @@ function difficultyLabel(value: string) {
 function TeacherCard({ teacher }: { teacher: PrincipalReport["teachers"][number] }) {
   const badge = teacher.average === null
     ? { label: "لا توجد نتائج", color: "#64748b", bg: "#f8fafc" }
-    : teacher.average >= 85
-      ? { label: "ممتاز", color: "#1D9E75", bg: "#f0fdf8" }
-      : teacher.average >= 70
-        ? { label: "جيد", color: "#BA7517", bg: "#fffbeb" }
-        : { label: "يحتاج دعم", color: "#E24B4A", bg: "#fff5f5" };
+    : teacher.average >= LEVEL_THRESHOLDS.advanced
+      ? { label: "ممتاز", color: COLORS.success, bg: "#f0fdf8" }
+      : teacher.average >= LEVEL_THRESHOLDS.proficient
+        ? { label: "جيد", color: COLORS.warning, bg: "#fffbeb" }
+        : { label: "يحتاج دعم", color: COLORS.danger, bg: "#fff5f5" };
 
   const kpis = [
     { label: "الحالة", value: teacher.status === "invited" ? "دعوة" : "نشط", good: teacher.status !== "disabled" },
     { label: "الفصول", value: formatNumber(teacher.classesCount), good: teacher.classesCount > 0 },
     { label: "الطلاب", value: formatNumber(teacher.studentsCount), good: teacher.studentsCount > 0 },
-    { label: "المتوسط", value: formatPct(teacher.average), good: (teacher.average ?? 0) >= 70 },
+    { label: "المتوسط", value: formatPct(teacher.average), good: (teacher.average ?? 0) >= MASTERY_THRESHOLD },
     { label: "النشاط", value: teacher.active ? "نشط" : "بحاجة تفعيل", good: teacher.active },
   ];
 
@@ -177,7 +179,7 @@ function TeacherCard({ teacher }: { teacher: PrincipalReport["teachers"][number]
     <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
       <div className="mb-4 flex items-center justify-between">
           <div>
-            <div className="font-black text-[#0b2447]">{teacher.name}</div>
+            <div className="font-black text-brand-navy">{teacher.name}</div>
           <div className="text-sm font-bold text-slate-400">{teacher.subject} · {teacher.phone ?? "لا يوجد جوال"}</div>
           {teacher.classNames?.length ? (
             <div className="mt-1 text-xs font-bold text-slate-400">{teacher.classNames.join("، ")}</div>
@@ -459,7 +461,7 @@ export default function PrincipalDashboard() {
   const criticalSkillsCount = report?.weakSkills.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-[#f7fafc] text-[#0b2447]" dir="rtl">
+    <div className="min-h-screen bg-[#f7fafc] text-brand-navy" dir="rtl">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
           <BrandLogo
@@ -470,13 +472,13 @@ export default function PrincipalDashboard() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setInviteOpen(true)}
-              className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white transition hover:bg-[#10877b]"
+              className="rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark"
             >
               إضافة معلم
             </button>
             <button
               onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-[#159f91]/40 hover:text-[#159f91]"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
             >
               خروج
             </button>
@@ -490,8 +492,8 @@ export default function PrincipalDashboard() {
               onClick={() => setActiveTab(i)}
               className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-extrabold transition-all ${
                 activeTab === i
-                  ? "bg-[#159f91] text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)]"
-                  : "bg-slate-50 text-slate-500 hover:text-[#0b2447]"
+                  ? "bg-brand text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)]"
+                  : "bg-slate-50 text-slate-500 hover:text-brand-navy"
               }`}
             >
               {tab}
@@ -504,11 +506,11 @@ export default function PrincipalDashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <form onSubmit={inviteTeacher} className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-[1.5rem] bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-black text-[#0b2447]">إضافة معلم</h2>
+              <h2 className="text-lg font-black text-brand-navy">إضافة معلم</h2>
               <button type="button" onClick={() => setInviteOpen(false)} className="text-2xl text-slate-300">×</button>
             </div>
             {inviteMessage && (
-              <div className="mb-4 rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-[#159f91]">
+              <div className="mb-4 rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-brand">
                 {inviteMessage}
               </div>
             )}
@@ -531,7 +533,7 @@ export default function PrincipalDashboard() {
                         type="checkbox"
                         checked={inviteGrades.includes(grade)}
                         onChange={() => setInviteGrades((prev) => prev.includes(grade) ? prev.filter((item) => item !== grade) : [...prev, grade])}
-                        className="accent-[#159f91]"
+                        className="accent-brand"
                       />
                       {grade}
                     </label>
@@ -548,7 +550,7 @@ export default function PrincipalDashboard() {
                           type="checkbox"
                           checked={inviteClassIds.includes(classItem.id)}
                           onChange={() => setInviteClassIds((prev) => prev.includes(classItem.id) ? prev.filter((item) => item !== classItem.id) : [...prev, classItem.id])}
-                          className="accent-[#159f91]"
+                          className="accent-brand"
                         />
                         {classItem.name} · {classItem.subject}
                       </label>
@@ -560,7 +562,7 @@ export default function PrincipalDashboard() {
               <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold leading-6 text-amber-700">
                 البريد مطلوب مؤقتًا لإنشاء حساب الدخول عبر Supabase Auth، والجوال هو المعلومة الأساسية للمدرسة.
               </p>
-              <button disabled={inviteLoading} className="w-full rounded-xl bg-[#159f91] py-3 text-sm font-extrabold text-white disabled:opacity-60">
+              <button disabled={inviteLoading} className="w-full rounded-xl bg-brand py-3 text-sm font-extrabold text-white disabled:opacity-60">
                 {inviteLoading ? "جارٍ إرسال الدعوة..." : "إرسال دعوة"}
               </button>
             </div>
@@ -579,7 +581,7 @@ export default function PrincipalDashboard() {
           <div className="rounded-[1.5rem] border border-red-100 bg-red-50 p-5 text-red-700">
             <p className="font-black">تعذر تحميل البيانات</p>
             <p className="mt-1 text-sm font-bold">{loadError}</p>
-            <button onClick={loadReport} className="mt-4 rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white">إعادة المحاولة</button>
+            <button onClick={loadReport} className="mt-4 rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white">إعادة المحاولة</button>
           </div>
         )}
 
@@ -589,15 +591,15 @@ export default function PrincipalDashboard() {
               <KpiCard label="جاهزية مقياس" value={report.readinessIndex.value === null ? "—" : `${toEnglishDigits(report.readinessIndex.value)}%`} sub="مؤشر عام" icon="📊" />
               <KpiCard label="الفصول المنفذة" value={formatNumber(executedClassesCount)} sub="اختبارات مصححة" icon="✅" />
               <KpiCard label="الطلاب المقاسون" value={formatNumber(measuredStudentsCount)} sub="نتائج محفوظة" icon="👥" />
-              <KpiCard label="المهارات الحرجة" value={formatNumber(criticalSkillsCount)} sub="تحتاج متابعة" icon="⚠️" color="#E24B4A" />
+              <KpiCard label="المهارات الحرجة" value={formatNumber(criticalSkillsCount)} sub="تحتاج متابعة" icon="⚠️" color={COLORS.danger} />
               <KpiCard label="تفاعل أولياء الأمور" value={parentStats ? formatNumber(parentStats.openedReports) : "—"} sub="تقارير مفتوحة" icon="💬" />
             </div>
 
             <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-extrabold text-[#159f91]">خطة مقياس</p>
-                  <h3 className="mt-1 text-xl font-black text-[#0b2447]">
+                  <p className="text-sm font-extrabold text-brand">خطة مقياس</p>
+                  <h3 className="mt-1 text-xl font-black text-brand-navy">
                     {report.weeklyPlanSummary.source === "current_week" ? "خطة هذا الأسبوع" : report.weeklyPlanSummary.source === "upcoming" ? "أقرب خطة قادمة" : "لا توجد خطة مفعّلة"}
                   </h3>
                   {report.weeklyPlanSummary.weekNumber ? (
@@ -614,7 +616,7 @@ export default function PrincipalDashboard() {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-[#159f91]">
+                  <span className="rounded-full bg-teal-50 px-3 py-1 text-sm font-bold text-brand">
                     الصفوف {report.weeklyPlanSummary.targetGrades.map((grade) => toEnglishDigits(grade)).join("، ")}
                   </span>
                   <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
@@ -625,15 +627,15 @@ export default function PrincipalDashboard() {
 
               <div className="mt-5 grid gap-3 md:grid-cols-4">
                 <div className="rounded-xl bg-slate-50 p-4">
-                  <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(report.weeklyPlanSummary.activePlansCount)}</div>
+                  <div className="text-2xl font-black text-brand-navy">{toEnglishDigits(report.weeklyPlanSummary.activePlansCount)}</div>
                   <div className="mt-1 text-xs font-bold text-slate-400">خطط نشطة</div>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-4">
-                  <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(report.weeklyPlanSummary.matchingClassesCount)}</div>
+                  <div className="text-2xl font-black text-brand">{toEnglishDigits(report.weeklyPlanSummary.matchingClassesCount)}</div>
                   <div className="mt-1 text-xs font-bold text-slate-400">فصول مطابقة</div>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-4">
-                  <div className="text-2xl font-black text-[#BA7517]">{toEnglishDigits(report.weeklyPlanSummary.classesWithoutPlans)}</div>
+                  <div className="text-2xl font-black text-warning">{toEnglishDigits(report.weeklyPlanSummary.classesWithoutPlans)}</div>
                   <div className="mt-1 text-xs font-bold text-slate-400">فصول بلا خطة</div>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-4">
@@ -647,8 +649,8 @@ export default function PrincipalDashboard() {
                   {report.weeklyPlanSummary.plans.slice(0, 8).map((plan) => (
                     <div key={plan.id} className="rounded-xl border border-slate-100 bg-white p-4">
                       <div className="mb-2 flex items-center justify-between gap-2">
-                        <span className="text-sm font-black text-[#0b2447]">{plan.gradeLabel}</span>
-                        <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-bold text-[#159f91]">{plan.subject}</span>
+                        <span className="text-sm font-black text-brand-navy">{plan.gradeLabel}</span>
+                        <span className="rounded-full bg-teal-50 px-2 py-1 text-xs font-bold text-brand">{plan.subject}</span>
                       </div>
                       <p className="text-sm font-bold leading-6 text-slate-500">{plan.skill}</p>
                       <p className="mt-2 text-xs font-bold text-slate-400">{difficultyLabel(plan.difficultyLevel)}</p>
@@ -661,8 +663,8 @@ export default function PrincipalDashboard() {
             <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-extrabold text-[#159f91]">اختبارات مقياس</p>
-                  <h3 className="mt-1 text-xl font-black text-[#0b2447]">تنفيذ الحزم ونتائجها</h3>
+                  <p className="text-sm font-extrabold text-brand">اختبارات مقياس</p>
+                  <h3 className="mt-1 text-xl font-black text-brand-navy">تنفيذ الحزم ونتائجها</h3>
                 </div>
                 <button onClick={loadPackageSummaries} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500">
                   تحديث
@@ -678,10 +680,10 @@ export default function PrincipalDashboard() {
                     <div key={item.packageId} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/50 p-5">
                       <div className="mb-4 flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-xs font-extrabold text-[#159f91]">
+                          <div className="text-xs font-extrabold text-brand">
                             {item.subject} | الصف {toEnglishDigits(item.grade ?? "—")} | الأسبوع {toEnglishDigits(item.weekNumber ?? "—")}
                           </div>
-                          <h4 className="mt-1 text-lg font-black text-[#0b2447]">{item.title}</h4>
+                          <h4 className="mt-1 text-lg font-black text-brand-navy">{item.title}</h4>
                         </div>
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
                           {formatPct(item.averagePercentage)}
@@ -689,15 +691,15 @@ export default function PrincipalDashboard() {
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="rounded-xl bg-white p-3">
-                          <div className="text-xl font-black text-[#0b2447]">{toEnglishDigits(item.classesAssigned)}</div>
+                          <div className="text-xl font-black text-brand-navy">{toEnglishDigits(item.classesAssigned)}</div>
                           <div className="text-xs font-bold text-slate-400">فصول مطبقة</div>
                         </div>
                         <div className="rounded-xl bg-white p-3">
-                          <div className="text-xl font-black text-[#159f91]">{toEnglishDigits(item.classesScanned)}</div>
+                          <div className="text-xl font-black text-brand">{toEnglishDigits(item.classesScanned)}</div>
                           <div className="text-xs font-bold text-slate-400">فصول مصححة</div>
                         </div>
                         <div className="rounded-xl bg-white p-3">
-                          <div className="text-xl font-black text-[#0b2447]">{toEnglishDigits(item.studentsTested)}</div>
+                          <div className="text-xl font-black text-brand-navy">{toEnglishDigits(item.studentsTested)}</div>
                           <div className="text-xs font-bold text-slate-400">طلاب مختبرون</div>
                         </div>
                       </div>
@@ -730,8 +732,8 @@ export default function PrincipalDashboard() {
             <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-extrabold text-[#159f91]">تفاعل أولياء الأمور</p>
-                  <h3 className="mt-1 text-xl font-black text-[#0b2447]">مؤشرات عامة على مستوى المدرسة</h3>
+                  <p className="text-sm font-extrabold text-brand">تفاعل أولياء الأمور</p>
+                  <h3 className="mt-1 text-xl font-black text-brand-navy">مؤشرات عامة على مستوى المدرسة</h3>
                   <p className="mt-1 text-sm font-bold text-slate-400">لا تعرض هذه البطاقة أسماء الطلاب أو بيانات التواصل.</p>
                 </div>
                 <button onClick={loadParentStats} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500">
@@ -746,19 +748,19 @@ export default function PrincipalDashboard() {
                 <div className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
                     <div className="rounded-xl bg-slate-50 p-4 text-center">
-                      <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(parentStats.totalLinks)}</div>
+                      <div className="text-2xl font-black text-brand-navy">{toEnglishDigits(parentStats.totalLinks)}</div>
                       <div className="mt-1 text-xs font-bold text-slate-400">روابط ولي الأمر</div>
                     </div>
                     <div className="rounded-xl bg-teal-50 p-4 text-center">
-                      <div className="text-2xl font-black text-[#159f91]">{toEnglishDigits(parentStats.openedReports)}</div>
+                      <div className="text-2xl font-black text-brand">{toEnglishDigits(parentStats.openedReports)}</div>
                       <div className="mt-1 text-xs font-bold text-slate-400">تقارير مفتوحة</div>
                     </div>
                     <div className="rounded-xl bg-slate-50 p-4 text-center">
-                      <div className="text-2xl font-black text-[#0b2447]">{formatPct(parentStats.openRate)}</div>
+                      <div className="text-2xl font-black text-brand-navy">{formatPct(parentStats.openRate)}</div>
                       <div className="mt-1 text-xs font-bold text-slate-400">نسبة الفتح</div>
                     </div>
                     <div className="rounded-xl bg-slate-50 p-4 text-center">
-                      <div className="text-2xl font-black text-[#0b2447]">{toEnglishDigits(parentStats.missionClicks)}</div>
+                      <div className="text-2xl font-black text-brand-navy">{toEnglishDigits(parentStats.missionClicks)}</div>
                       <div className="mt-1 text-xs font-bold text-slate-400">ضغطات التدريب</div>
                     </div>
                     <div className="rounded-xl bg-emerald-50 p-4 text-center">
@@ -766,7 +768,7 @@ export default function PrincipalDashboard() {
                       <div className="mt-1 text-xs font-bold text-slate-400">تدريبات مكتملة</div>
                     </div>
                     <div className="rounded-xl bg-amber-50 p-4 text-center">
-                      <div className="text-2xl font-black text-[#BA7517]">{toEnglishDigits(parentStats.subscriptionInterestCount)}</div>
+                      <div className="text-2xl font-black text-warning">{toEnglishDigits(parentStats.subscriptionInterestCount)}</div>
                       <div className="mt-1 text-xs font-bold text-slate-400">مهتمون بالتدريب</div>
                     </div>
                   </div>
@@ -789,7 +791,7 @@ export default function PrincipalDashboard() {
 
             <div className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                <h3 className="mb-5 font-black text-[#0b2447]">الفصول ومتوسط الأداء</h3>
+                <h3 className="mb-5 font-black text-brand-navy">الفصول ومتوسط الأداء</h3>
                 {chartData.length ? (
                   <ResponsiveContainer width="100%" height={280}>
                     <BarChart data={chartData}>
@@ -797,16 +799,16 @@ export default function PrincipalDashboard() {
                       <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                       <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
                       <Tooltip />
-                      <Bar dataKey="avg" fill="#159f91" name="متوسط الأداء" radius={[8, 8, 0, 0]} />
+                      <Bar dataKey="avg" fill={COLORS.brand} name="متوسط الأداء" radius={[8, 8, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : <EmptyState>لا توجد فصول كافية للرسم بعد</EmptyState>}
               </div>
 
               <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                <h3 className="font-black text-[#0b2447]">جاهزية نافس</h3>
+                <h3 className="font-black text-brand-navy">جاهزية نافس</h3>
                 <p className="mt-1 text-sm font-bold text-slate-400">{report.readinessIndex.label}</p>
-                <div className="my-6 text-center text-6xl font-black text-[#159f91]">
+                <div className="my-6 text-center text-6xl font-black text-brand">
                   {report.readinessIndex.value === null ? "—" : `${toEnglishDigits(report.readinessIndex.value)}%`}
                 </div>
                 <p className="rounded-xl bg-slate-50 p-3 text-xs font-bold leading-6 text-slate-500">
@@ -822,7 +824,7 @@ export default function PrincipalDashboard() {
             <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-xl font-black text-[#0b2447]">أثر مقياس</h3>
+                  <h3 className="text-xl font-black text-brand-navy">أثر مقياس</h3>
                   <p className="mt-1 text-sm font-bold text-slate-400">تقرير مبدئي مبني على بيانات المدرسة الحالية</p>
                 </div>
                 <button onClick={() => window.print()} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500">طباعة التقرير</button>
@@ -841,23 +843,23 @@ export default function PrincipalDashboard() {
 
             <div className="grid gap-5 lg:grid-cols-2">
               <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                <h3 className="mb-4 font-black text-[#0b2447]">المهارات الأضعف</h3>
+                <h3 className="mb-4 font-black text-brand-navy">المهارات الأضعف</h3>
                 {report.weakSkills.length ? report.weakSkills.map((item) => (
                   <div key={item.skill} className="mb-4">
                     <div className="mb-1 flex justify-between text-sm font-bold">
                       <span>{item.skill}</span>
-                      <span className="text-[#BA7517]">{toEnglishDigits(item.average)}%</span>
+                      <span className="text-warning">{toEnglishDigits(item.average)}%</span>
                     </div>
-                    <div className="h-2.5 rounded-full bg-slate-100"><div className="h-2.5 rounded-full bg-[#BA7517]" style={{ width: `${item.average}%` }} /></div>
+                    <div className="h-2.5 rounded-full bg-slate-100"><div className="h-2.5 rounded-full bg-warning" style={{ width: `${item.average}%` }} /></div>
                   </div>
                 )) : <EmptyState>لا توجد نتائج كافية لاستخراج المهارات الأضعف</EmptyState>}
               </div>
 
               <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-                <h3 className="mb-4 font-black text-[#0b2447]">الطلاب الذين يحتاجون تدخلًا</h3>
+                <h3 className="mb-4 font-black text-brand-navy">الطلاب الذين يحتاجون تدخلًا</h3>
                 {report.atRiskStudents.length ? report.atRiskStudents.map((student) => (
                   <div key={student.id} className="mb-3 rounded-xl border border-red-100 bg-red-50/60 p-3">
-                    <div className="font-bold text-[#0b2447]">{student.name}</div>
+                    <div className="font-bold text-brand-navy">{student.name}</div>
                     <div className="mt-1 text-xs font-bold text-red-500">{student.className} — {toEnglishDigits(student.percentage)}%</div>
                   </div>
                 )) : <EmptyState>لا يوجد طلاب متعثرون حسب البيانات الحالية</EmptyState>}
@@ -880,7 +882,7 @@ export default function PrincipalDashboard() {
           <div className="space-y-4">
             {report.alerts.length ? report.alerts.map((alert) => (
               <div key={`${alert.type}-${alert.title}`} className="rounded-xl border p-5" style={{ background: alert.type === "risk" ? "#fff5f5" : "#f8fafc", borderColor: alert.type === "risk" ? "#fecaca" : "#e2e8f0" }}>
-                <h3 className="font-bold text-[#0b2447]">{alert.title}</h3>
+                <h3 className="font-bold text-brand-navy">{alert.title}</h3>
                 <p className="mt-1 text-sm font-bold text-slate-500">{toEnglishDigits(alert.detail)}</p>
               </div>
             )) : <EmptyState>لا توجد تنبيهات إدارية حالية</EmptyState>}
@@ -900,7 +902,7 @@ export default function PrincipalDashboard() {
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} />
                     <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
                     <Tooltip />
-                    <Line type="monotone" dataKey="avg" stroke="#1D9E75" strokeWidth={3} dot={{ fill: "#1D9E75", r: 5 }} name="المتوسط %" />
+                    <Line type="monotone" dataKey="avg" stroke={COLORS.brand} strokeWidth={3} dot={{ fill: COLORS.brand, r: 5 }} name="المتوسط %" />
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -913,14 +915,14 @@ export default function PrincipalDashboard() {
             <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
               <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-extrabold text-[#159f91]">التقارير الدورية</p>
-                  <h3 className="mt-1 text-xl font-black text-[#0b2447]">تقرير رسمي قابل للطباعة</h3>
+                  <p className="text-sm font-extrabold text-brand">التقارير الدورية</p>
+                  <h3 className="mt-1 text-xl font-black text-brand-navy">تقرير رسمي قابل للطباعة</h3>
                   <p className="mt-1 text-sm font-bold text-slate-400">تُسحب الأرقام من نتائج الاختبارات المحفوظة فقط.</p>
                 </div>
                 <button
                   onClick={exportPeriodicReport}
                   disabled={periodicLoading}
-                  className="rounded-xl bg-[#159f91] px-4 py-2 text-sm font-extrabold text-white disabled:opacity-60"
+                  className="rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white disabled:opacity-60"
                 >
                   فتح نسخة الطباعة
                 </button>
@@ -929,7 +931,7 @@ export default function PrincipalDashboard() {
               <div className="grid gap-3 md:grid-cols-3">
                 <label className="text-sm font-bold text-slate-500">
                   نوع التقرير
-                  <select value={periodicForm.reportType} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, reportType: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none">
+                  <select value={periodicForm.reportType} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, reportType: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-brand-navy outline-none">
                     <option value="learning_outcomes_followup">بطاقة متابعة نواتج التعلم</option>
                     <option value="nafs_readiness">تقرير الاستعداد لاختبارات نافس</option>
                     <option value="learning_outcomes_improvement">خطة تحسين نواتج التعلم</option>
@@ -942,7 +944,7 @@ export default function PrincipalDashboard() {
                     value={periodicForm.weekNumber}
                     onChange={(event) => setPeriodicForm((prev) => ({ ...prev, weekNumber: event.target.value }))}
                     disabled={periodicWeeksLoading || !periodicWeeks.length}
-                    className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none disabled:opacity-60"
+                    className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-brand-navy outline-none disabled:opacity-60"
                   >
                     {periodicWeeks.length ? periodicWeeks.map((week) => (
                       <option key={week.weekNumber} value={week.weekNumber}>
@@ -955,7 +957,7 @@ export default function PrincipalDashboard() {
                 </label>
                 <label className="text-sm font-bold text-slate-500">
                   المادة
-                  <select value={periodicForm.subject} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, subject: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none">
+                  <select value={periodicForm.subject} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, subject: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-brand-navy outline-none">
                     <option value="">جميع المواد</option>
                     <option value="رياضيات">رياضيات</option>
                     <option value="لغة عربية">لغة عربية</option>
@@ -964,23 +966,23 @@ export default function PrincipalDashboard() {
                 </label>
                 <label className="text-sm font-bold text-slate-500">
                   الصف
-                  <select value={periodicForm.grade} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, grade: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none">
+                  <select value={periodicForm.grade} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, grade: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-brand-navy outline-none">
                     <option value="">جميع الصفوف</option>
                     {[3, 4, 5, 6].map((grade) => <option key={grade} value={grade}>{toEnglishDigits(grade)}</option>)}
                   </select>
                 </label>
                 <label className="text-sm font-bold text-slate-500">
                   اسم قائد المدرسة
-                  <input value={periodicForm.principalName} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, principalName: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
+                  <input value={periodicForm.principalName} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, principalName: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-brand-navy outline-none" />
                 </label>
                 <label className="text-sm font-bold text-slate-500">
                   المنطقة التعليمية
-                  <input value={periodicForm.educationRegion} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, educationRegion: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-[#0b2447] outline-none" />
+                  <input value={periodicForm.educationRegion} onChange={(event) => setPeriodicForm((prev) => ({ ...prev, educationRegion: event.target.value }))} className="mt-1 w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 font-bold text-brand-navy outline-none" />
                 </label>
               </div>
 
               {!periodicWeeksLoading && !periodicWeeks.length && (
-                <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-[#BA7517]">
+                <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-warning">
                   لا توجد أسابيع متاحة بناءً على الاختبارات المنشورة.
                 </div>
               )}
@@ -1002,7 +1004,7 @@ export default function PrincipalDashboard() {
               </div>
 
               <div className="mt-5 flex flex-wrap gap-3">
-                <button onClick={previewPeriodicReport} disabled={periodicLoading} className="rounded-xl border border-[#159f91]/20 bg-teal-50 px-5 py-3 text-sm font-extrabold text-[#159f91] disabled:opacity-60">
+                <button onClick={previewPeriodicReport} disabled={periodicLoading} className="rounded-xl border border-brand/20 bg-teal-50 px-5 py-3 text-sm font-extrabold text-brand disabled:opacity-60">
                   {periodicLoading ? "جارٍ التحميل..." : "معاينة التقرير"}
                 </button>
                 <button onClick={loadPeriodicWeeks} disabled={periodicWeeksLoading} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-extrabold text-slate-500 disabled:opacity-60">
@@ -1016,11 +1018,11 @@ export default function PrincipalDashboard() {
               <div className="space-y-5 rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-xl font-black text-[#0b2447]">{periodicPreview.title}</h3>
+                    <h3 className="text-xl font-black text-brand-navy">{periodicPreview.title}</h3>
                     <p className="mt-1 text-sm font-bold text-slate-400">معاينة مختصرة قبل الطباعة</p>
                   </div>
                   {!periodicPreview.hasEnoughData && (
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-bold text-[#BA7517]">لا توجد نتائج كافية</span>
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-sm font-bold text-warning">لا توجد نتائج كافية</span>
                   )}
                 </div>
                 {!periodicPreview.hasEnoughData && <EmptyState>لا توجد نتائج كافية لإنشاء التقرير في الفترة المحددة.</EmptyState>}
@@ -1032,7 +1034,7 @@ export default function PrincipalDashboard() {
                 </div>
                 <div className="grid gap-5 lg:grid-cols-2">
                   <div className="rounded-2xl bg-slate-50 p-4">
-                    <h4 className="mb-3 font-black text-[#0b2447]">أضعف المهارات</h4>
+                    <h4 className="mb-3 font-black text-brand-navy">أضعف المهارات</h4>
                     {periodicPreview.skillAnalysis.length ? periodicPreview.skillAnalysis.slice(0, 6).map((item) => (
                       <div key={item.name} className="mb-2 rounded-xl bg-white px-3 py-2 text-sm font-bold text-slate-600">
                         {item.name} · {toEnglishDigits(item.masteryPercentage)}% · {item.needLevel}
@@ -1040,17 +1042,17 @@ export default function PrincipalDashboard() {
                     )) : <EmptyState>لا توجد مهارات كافية للتحليل</EmptyState>}
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-4">
-                    <h4 className="mb-3 font-black text-[#0b2447]">توزيع مستويات الأداء</h4>
+                    <h4 className="mb-3 font-black text-brand-navy">توزيع مستويات الأداء</h4>
                     <div className="grid grid-cols-4 gap-2 text-center">
-                      <div className="rounded-xl bg-white p-3"><div className="font-black text-[#159f91]">{toEnglishDigits(periodicPreview.levelDistribution.high)}</div><div className="text-xs font-bold text-slate-400">مرتفع</div></div>
-                      <div className="rounded-xl bg-white p-3"><div className="font-black text-[#0b2447]">{toEnglishDigits(periodicPreview.levelDistribution.medium)}</div><div className="text-xs font-bold text-slate-400">متوسط</div></div>
-                      <div className="rounded-xl bg-white p-3"><div className="font-black text-[#BA7517]">{toEnglishDigits(periodicPreview.levelDistribution.low)}</div><div className="text-xs font-bold text-slate-400">منخفض</div></div>
-                      <div className="rounded-xl bg-white p-3"><div className="font-black text-[#E24B4A]">{toEnglishDigits(periodicPreview.levelDistribution.veryLow)}</div><div className="text-xs font-bold text-slate-400">منخفض جدًا</div></div>
+                      <div className="rounded-xl bg-white p-3"><div className="font-black text-brand">{toEnglishDigits(periodicPreview.levelDistribution.high)}</div><div className="text-xs font-bold text-slate-400">مرتفع</div></div>
+                      <div className="rounded-xl bg-white p-3"><div className="font-black text-brand-navy">{toEnglishDigits(periodicPreview.levelDistribution.medium)}</div><div className="text-xs font-bold text-slate-400">متوسط</div></div>
+                      <div className="rounded-xl bg-white p-3"><div className="font-black text-warning">{toEnglishDigits(periodicPreview.levelDistribution.low)}</div><div className="text-xs font-bold text-slate-400">منخفض</div></div>
+                      <div className="rounded-xl bg-white p-3"><div className="font-black text-danger">{toEnglishDigits(periodicPreview.levelDistribution.veryLow)}</div><div className="text-xs font-bold text-slate-400">منخفض جدًا</div></div>
                     </div>
                   </div>
                 </div>
                 <div className="rounded-2xl bg-slate-50 p-4">
-                  <h4 className="mb-3 font-black text-[#0b2447]">مرئيات وتوصيات</h4>
+                  <h4 className="mb-3 font-black text-brand-navy">مرئيات وتوصيات</h4>
                   <div className="space-y-2 text-sm font-bold leading-7 text-slate-600">
                     {periodicPreview.recommendations.map((item) => <p key={item}>• {toEnglishDigits(item)}</p>)}
                   </div>

@@ -18,7 +18,12 @@ const config: Config = {
           DEFAULT: COLORS.brand,
           dark: COLORS.brandDark,
           navy: COLORS.navy,
+          "navy-light": COLORS.navyLight,
         },
+        accent: COLORS.accent,
+        success: COLORS.success,
+        warning: COLORS.warning,
+        danger: COLORS.danger,
         level: {
           advanced: COLORS.advanced,
           proficient: COLORS.proficient,

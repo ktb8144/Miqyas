@@ -77,7 +77,7 @@ function LoginContent() {
 
   return (
     <div
-      className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-[#0b2447]"
+      className="relative min-h-screen overflow-hidden bg-white px-4 py-10 text-brand-navy"
       dir="rtl"
     >
       <div className="absolute left-10 top-24 h-96 w-96 rounded-full bg-teal-50/80 blur-3xl" />
@@ -86,10 +86,10 @@ function LoginContent() {
       <div className="relative mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-6xl items-center justify-center">
         <div className="grid w-full items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <div className="hidden lg:block">
-            <div className="mb-7 inline-flex rounded-full border border-teal-100 bg-teal-50/80 px-4 py-2 text-xs font-extrabold text-[#159f91]">
+            <div className="mb-7 inline-flex rounded-full border border-teal-100 bg-teal-50/80 px-4 py-2 text-xs font-extrabold text-brand">
               دخول آمن لمنصة مقياس
             </div>
-            <h1 className="text-5xl font-black leading-tight tracking-normal text-[#0b2447]">
+            <h1 className="text-5xl font-black leading-tight tracking-normal text-brand-navy">
               تابع القياس والتحليل من لوحة واحدة.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-9 text-slate-500">
@@ -110,7 +110,7 @@ function LoginContent() {
             </div>
 
             <div className="rounded-[2rem] border border-slate-100 bg-white/95 p-8 shadow-[0_22px_70px_rgba(15,35,55,0.07)]">
-              <h2 className="mb-2 text-center text-2xl font-black tracking-normal text-[#0b2447]">
+              <h2 className="mb-2 text-center text-2xl font-black tracking-normal text-brand-navy">
                 تسجيل الدخول
               </h2>
               <p className="mb-7 text-center text-sm leading-7 text-slate-400">
@@ -128,7 +128,7 @@ function LoginContent() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     placeholder="example@school.sa"
-                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-right text-sm font-semibold text-[#0b2447] outline-none transition placeholder:text-slate-300 focus:border-[#159f91]/40 focus:bg-white"
+                    className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-right text-sm font-semibold text-brand-navy outline-none transition placeholder:text-slate-300 focus:border-brand/40 focus:bg-white"
                   />
                 </div>
 
@@ -142,12 +142,12 @@ function LoginContent() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 pl-16 text-right text-sm font-semibold text-[#0b2447] outline-none transition focus:border-[#159f91]/40 focus:bg-white"
+                      className="w-full rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 pl-16 text-right text-sm font-semibold text-brand-navy outline-none transition focus:border-brand/40 focus:bg-white"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPass(!showPass)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-bold text-slate-400 transition hover:bg-white hover:text-[#159f91]"
+                      className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-xs font-bold text-slate-400 transition hover:bg-white hover:text-brand"
                     >
                       {showPass ? "إخفاء" : "إظهار"}
                     </button>
@@ -167,7 +167,7 @@ function LoginContent() {
                 )}
 
                 {passwordUpdated && !error && (
-                  <div className="rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-[#159f91]">
+                  <div className="rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-brand">
                     تم تحديث كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.
                   </div>
                 )}
@@ -175,7 +175,7 @@ function LoginContent() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full rounded-xl bg-[#159f91] py-3.5 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-[#10877b] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="w-full rounded-xl bg-brand py-3.5 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {loading ? loadingMessage || "جارٍ الدخول..." : "دخول"}
                 </button>
