@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FileCheck2,
   FolderCheck,
+  Gift,
   LineChart,
   Printer,
   School,
@@ -15,6 +16,7 @@ import {
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { BRAND } from "@/lib/brand";
+import { FREE_TRIAL, TEACHER_PRICING } from "@/lib/pricing";
 import { TeacherInterestForm } from "./_components/interest-form";
 
 export const metadata: Metadata = {
@@ -55,8 +57,8 @@ const steps = [
 ];
 
 const plans = [
-  { name: "فصلي", price: "79", period: "ريال / الفصل الدراسي", note: "مناسب للتجربة" },
-  { name: "سنوي", price: "149", period: "ريال / السنة الدراسية", note: "شواهد عام دراسي كامل", highlighted: true },
+  { name: "فصلي", price: String(TEACHER_PRICING.term), period: "ريال / الفصل الدراسي", note: "مناسب للبداية" },
+  { name: "سنوي", price: String(TEACHER_PRICING.yearly), period: "ريال / السنة الدراسية", note: "شواهد عام دراسي كامل", highlighted: true },
 ];
 
 const included = [
@@ -228,8 +230,16 @@ export default function TeachersPage() {
           <div className="text-center">
             <div className="text-sm font-extrabold text-brand">السعر</div>
             <h2 className="mt-3 text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-4xl/[1.45]">
-              سعر الإطلاق للمعلمين الأوائل
+              سعر واضح، وشهر أول مجاني
             </h2>
+          </div>
+
+          <div className="mt-6 flex justify-center">
+            <div className="inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl border border-brand/20 bg-teal-50/70 px-6 py-4">
+              <Gift className="h-5 w-5 text-brand" />
+              <span className="text-lg font-black text-brand-navy">{FREE_TRIAL.headline}</span>
+              <span className="text-sm font-extrabold text-brand">{FREE_TRIAL.note}</span>
+            </div>
           </div>
 
           <div className="mt-12 grid gap-6 md:grid-cols-[1fr_1fr_1.1fr]">
@@ -285,7 +295,7 @@ export default function TeachersPage() {
             </div>
             <h2 className="text-3xl/[1.45] font-black tracking-normal text-brand-navy">سجّل اهتمامك</h2>
             <p className="mt-4 leading-8 text-slate-500">
-              نفعّل الحسابات الأولى بالترتيب وبسعر الإطلاق. اترك بياناتك ومادتك وصفك، وسنتواصل معك.
+              الشهر الأول مجانًا وبدون بطاقة ائتمانية. نفعّل الحسابات بالترتيب، فاترك بياناتك ومادتك وصفك وسنتواصل معك.
             </p>
           </div>
           <TeacherInterestForm />

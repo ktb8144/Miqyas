@@ -8,6 +8,7 @@ import {
   ClipboardList,
   FileText,
   FolderCheck,
+  Gift,
   LayoutDashboard,
   Lock,
   Sparkles,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
+import { FREE_TRIAL, PRICING_PLANS } from "@/lib/pricing";
 
 const initialTrialForm = {
   name: "",
@@ -72,37 +74,6 @@ const features = [
     icon: FolderCheck,
     title: "شواهد للمعلم",
     desc: "نتائج كل اختبار محفوظة في لوحة المعلم كشاهد موثّق على متابعته لطلابه طوال العام.",
-  },
-];
-
-const pricingPlans = [
-  {
-    name: "المعلم",
-    price: "149 ريال / سنة",
-    desc: "للمعلم الذي يريد الاشتراك بنفسه، مع ملف شواهد جاهز لتقييمه السنوي.",
-    features: ["حتى 3 فصول", "ملف شواهد قابل للطباعة", "أو 79 ريالًا للفصل الدراسي"],
-    href: "/teachers",
-    cta: "تفاصيل باقة المعلم",
-    badge: "جديد",
-  },
-  {
-    name: "البداية",
-    price: "مجانًا",
-    desc: "لتجربة دالة مع مدرسة واحدة وفريق محدود.",
-    features: ["مدرسة واحدة", "حتى 5 معلمين", "تقارير أساسية"],
-  },
-  {
-    name: "المدرسة",
-    price: "حسب الاحتياج",
-    desc: "للمدارس التي تحتاج تشغيلًا أسبوعيًا كاملًا.",
-    features: ["معلمون غير محدودين", "تقارير تفصيلية", "دعم في الإعداد"],
-    highlighted: true,
-  },
-  {
-    name: "المجموعة",
-    price: "تعاقد سنوي",
-    desc: "لإدارات التعليم أو المجموعات المدرسية.",
-    features: ["عدة مدارس", "لوحات مقارنة", "تقارير تنفيذية"],
   },
 ];
 
@@ -246,7 +217,7 @@ export default function LandingPage() {
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4 md:justify-start">
               <a href="#trial" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark">
-                اطلب تجربة مجانية لمدرستك
+                ابدأ شهرك المجاني
               </a>
               <a href="#features" className="rounded-xl border border-brand/30 bg-white/70 px-8 py-4 text-base font-extrabold text-brand-navy transition hover:border-brand hover:text-brand">
                 اعرف المزيد
@@ -343,21 +314,21 @@ export default function LandingPage() {
           <div className="text-center">
             <div className="text-sm font-extrabold text-brand">الأسعار</div>
             <h2 className="mt-3 text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-4xl/[1.45]">
-              باقات للمعلم والمدرسة
+              أسعار واضحة للمعلم والمدرسة
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl leading-8 text-slate-500">
-              ابدأ وحدك كمعلم، أو شغّل دالة لمدرستك كاملة.
-            </p>
+            <div className="mx-auto mt-6 inline-flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl border border-brand/20 bg-teal-50/70 px-6 py-4">
+              <Gift className="h-5 w-5 text-brand" />
+              <span className="text-lg font-black text-brand-navy">{FREE_TRIAL.headline}</span>
+              <span className="text-sm font-extrabold text-brand">{FREE_TRIAL.note}</span>
+            </div>
           </div>
 
-          <div className="mt-14 grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {pricingPlans.map((plan) => (
+          <div className="mt-14 grid gap-6 md:grid-cols-3">
+            {PRICING_PLANS.map((plan) => (
               <article
                 key={plan.name}
-                className={`rounded-[1.75rem] border p-7 shadow-[0_10px_34px_rgba(15,35,55,0.03)] ${
-                  plan.highlighted
-                    ? "border-brand/25 bg-teal-50/50"
-                    : "border-slate-100 bg-white"
+                className={`flex flex-col rounded-[1.75rem] border p-7 shadow-[0_10px_34px_rgba(15,35,55,0.03)] ${
+                  plan.highlighted ? "border-brand/30 bg-teal-50/50 md:-my-3 md:py-10" : "border-slate-100 bg-white"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
@@ -366,25 +337,29 @@ export default function LandingPage() {
                     <span className="rounded-full bg-brand px-3 py-1 text-xs font-extrabold text-white">{plan.badge}</span>
                   )}
                 </div>
-                <p className="mt-3 text-2xl font-black text-brand">{plan.price}</p>
-                <p className="mt-4 min-h-16 text-sm leading-7 text-slate-500">{plan.desc}</p>
-                <div className="mt-6 space-y-3">
+                <div className="mt-5 flex items-baseline gap-2">
+                  <span className="text-4xl font-black text-brand">{plan.price}</span>
+                  <span className="text-sm font-bold text-slate-400">{plan.period}</span>
+                </div>
+                <p className="mt-2 min-h-6 text-sm font-extrabold text-slate-500">{plan.alt}</p>
+                <p className="mt-4 text-sm leading-7 text-slate-500">{plan.desc}</p>
+                <div className="mt-6 flex-1 space-y-3">
                   {plan.features.map((feature) => (
-                    <div key={feature} className="flex items-center gap-3 text-sm font-bold text-slate-500">
-                      <CheckCircle2 className="h-4 w-4 text-brand" />
+                    <div key={feature} className="flex items-start gap-3 text-sm font-bold leading-6 text-slate-500">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
                       {feature}
                     </div>
                   ))}
                 </div>
                 <Link
-                  href={plan.href ?? "#trial"}
+                  href={plan.href}
                   className={`mt-8 inline-flex w-full justify-center rounded-xl px-5 py-3 text-sm font-extrabold transition ${
                     plan.highlighted
                       ? "bg-brand text-white hover:bg-brand-dark"
                       : "border border-slate-200 bg-white text-brand-navy hover:border-brand/40 hover:text-brand"
                   }`}
                 >
-                  {plan.cta ?? "اطلب تفاصيل الباقة"}
+                  {plan.cta}
                 </Link>
               </article>
             ))}
@@ -399,10 +374,10 @@ export default function LandingPage() {
               <Lock className="h-6 w-6" />
             </div>
             <h2 className="text-3xl/[1.45] font-black tracking-normal text-brand-navy">
-              طلب تجربة مجانية
+              ابدأ شهرك المجاني
             </h2>
             <p className="mt-4 leading-8 text-slate-500">
-              اترك بياناتك وسيتواصل معك فريق دالة لترتيب تجربة مناسبة لمدرستك.
+              الشهر الأول مجانًا وبدون بطاقة ائتمانية. اترك بياناتك وسيتواصل معك فريق دالة لتفعيل مدرستك.
             </p>
           </div>
 
