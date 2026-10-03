@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { toPercent } from "@/lib/math";
-import type { AssessmentPackageRow, ClassPackageAssignmentRow, StudentPackageResultRow } from "@/lib/db/rows";
+import type {
+  AssessmentPackageRow,
+  ClassPackageAssignmentRow,
+  StudentPackageResultRow,
+} from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 

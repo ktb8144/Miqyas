@@ -47,3 +47,17 @@ export function packageStatusLabel(value?: string | null) {
 export function assignmentStatusLabel(value?: string | null) {
   return value ? ASSIGNMENT_STATUS_LABELS[value] ?? value : "غير محدد";
 }
+
+const GRADE_LABELS: Record<number, string> = {
+  1: "الأول",
+  2: "الثاني",
+  3: "الثالث",
+  4: "الرابع",
+  5: "الخامس",
+  6: "السادس",
+};
+
+/** 3 → "الثالث". */
+export function gradeLabel(grade?: number | null) {
+  return grade ? GRADE_LABELS[grade] ?? String(grade) : "غير محدد";
+}

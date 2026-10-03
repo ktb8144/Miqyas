@@ -305,6 +305,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
         <div className="text-center py-10">
           {capturedImage && (
             <div className="mb-5 inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it */}
               <img
                 src={`data:image/jpeg;base64,${capturedImage}`}
                 alt="الصورة الملتقطة"

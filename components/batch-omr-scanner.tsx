@@ -373,6 +373,7 @@ function PaperReviewModal({
             </div>
             <div className="grid min-h-0 flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-[1fr_260px]">
               <div className="overflow-auto rounded-xl bg-slate-950 p-3">
+                {/* eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it */}
                 <img src={`data:image/jpeg;base64,${result.imageBase64}`} alt="صورة الورقة كاملة" className="mx-auto max-h-none w-full max-w-3xl rounded-lg object-contain" />
               </div>
               <div className="overflow-y-auto rounded-xl bg-slate-50 p-3">
@@ -789,6 +790,7 @@ export function BatchOMRScanner({
                 {capturedPreview && pendingCapture && (
                   <div className="absolute inset-0 z-10 flex flex-col bg-black">
                     <div className="min-h-0 flex-1 overflow-auto p-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it */}
                       <img src={`data:image/jpeg;base64,${capturedPreview}`} alt="معاينة الورقة" className="mx-auto h-full max-h-full rounded-2xl object-contain" />
                     </div>
                     <div className="border-t border-white/10 bg-slate-950 p-4">
@@ -935,6 +937,7 @@ export function BatchOMRScanner({
                 <div className="grid grid-cols-5 gap-2 mb-4">
                   {papers.map((p, i) => (
                     <div key={p.id} className="relative group rounded-lg overflow-hidden border-2 border-gray-200" style={{ aspectRatio: "3/4" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it */}
                       <img src={`data:image/jpeg;base64,${p.thumbBase64}`} alt={`ورقة ${formatCount(i + 1)}`} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button onClick={() => setPapers((prev) => prev.filter((pp) => pp.id !== p.id))} className="w-7 h-7 rounded-full bg-red-500 text-white text-lg leading-none flex items-center justify-center">
@@ -1037,6 +1040,7 @@ export function BatchOMRScanner({
                         <td className="px-3 py-3">
                           <div className="flex items-center gap-1.5">
                             {r.thumbBase64 && (
+                              // eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it
                               <img src={`data:image/jpeg;base64,${r.thumbBase64}`} alt="" className="w-7 h-9 object-cover rounded border border-gray-200" />
                             )}
                             <span className="text-gray-400 text-sm">{formatCount(i + 1)}</span>

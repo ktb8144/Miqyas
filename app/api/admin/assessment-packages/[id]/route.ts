@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireAdmin, authErrorResponse } from "@/lib/auth";
-import { AssessmentValidationError, parsePackageAnswerKey, syncPackageQuestionsFromAnswerKey } from "@/lib/assessment";
+import {
+  AssessmentValidationError,
+  parsePackageAnswerKey,
+  syncPackageQuestionsFromAnswerKey,
+} from "@/lib/assessment";
 import { emptyToNull } from "@/lib/api";
 
 export const dynamic = "force-dynamic";

@@ -5,7 +5,13 @@ import { COLORS } from "@/lib/theme";
 import { LEVEL_THRESHOLDS, MASTERY_THRESHOLD, getLevelFromPercentage } from "@/lib/levels";
 import { normalizeSubject } from "@/lib/subjects";
 import { toPercent, average } from "@/lib/math";
-import type { AssessmentPackageRow, ClassPackageAssignmentRow, ClassRow as DbClassRow, StudentPackageResultRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
+import type {
+  AssessmentPackageRow,
+  ClassPackageAssignmentRow,
+  ClassRow as DbClassRow,
+  StudentPackageResultRow,
+  StudentRow as DbStudentRow,
+} from "@/lib/db/rows";
 
 export type PeriodicReportType =
   | "learning_outcomes_followup"

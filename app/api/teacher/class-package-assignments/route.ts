@@ -4,7 +4,11 @@ import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { normalizeSubject } from "@/lib/subjects";
 import { countPackageQuestions } from "@/lib/packages";
-import type { AssessmentPackageRow, ClassPackageAssignmentRow, ClassRow as DbClassRow } from "@/lib/db/rows";
+import type {
+  AssessmentPackageRow,
+  ClassPackageAssignmentRow,
+  ClassRow as DbClassRow,
+} from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
 
