@@ -30,7 +30,7 @@ export function InviteTeacherModal({ d }: { d: PrincipalDashboardState }) {
           <button type="button" onClick={() => setInviteOpen(false)} className="text-2xl text-slate-300">×</button>
         </div>
         {inviteMessage && (
-          <div className="mb-4 rounded-xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm font-bold text-brand">
+          <div role="alert" className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-danger">
             {inviteMessage}
           </div>
         )}

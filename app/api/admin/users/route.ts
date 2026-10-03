@@ -3,7 +3,13 @@ import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireAdmin, authErrorResponse } from "@/lib/auth";
 import { normalizeUser } from "@/lib/admin/normalize";
-import { inviteOrCreateAuthUser } from "@/lib/invite";
+import {
+  deleteAuthUserQuietly,
+  describeProfileInsertError,
+  findProfileConflict,
+  inviteOrCreateAuthUser,
+} from "@/lib/invite";
+import { emptyToNull } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -68,18 +74,10 @@ export async function POST(req: NextRequest) {
 
     const db = getAdminClient();
 
-    const { data: existing, error: existingError } = await db
-      .from("users")
-      .select("id")
-      .ilike("email", email)
-      .maybeSingle();
-
-    if (existingError) throw existingError;
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: "يوجد مستخدم بهذا البريد مسبقًا" },
-        { status: 409 }
-      );
+    const phone = emptyToNull(parsed.data.phone);
+    const conflict = await findProfileConflict(email, phone);
+    if (conflict) {
+      return NextResponse.json({ success: false, error: conflict }, { status: 409 });
     }
 
     const authUser = await inviteOrCreateAuthUser(email, name, role);
@@ -93,13 +91,18 @@ export async function POST(req: NextRequest) {
         role,
         school_id: role === "admin" ? null : schoolId,
         subject: role === "teacher" ? parsed.data.subject ?? null : null,
-        phone: parsed.data.phone ?? null,
+        phone,
         status: "invited",
       })
       .select("id, auth_id, name, email, role, school_id, phone, schools(name)")
       .single();
 
-    if (error) throw error;
+    if (error) {
+      if (authUser.created) await deleteAuthUserQuietly(authUser.userId);
+      const message = describeProfileInsertError(error);
+      if (message) return NextResponse.json({ success: false, error: message }, { status: 409 });
+      throw error;
+    }
 
     return NextResponse.json(
       {

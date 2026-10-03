@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
-import { inviteOrCreateAuthUser } from "@/lib/invite";
+import {
+  deleteAuthUserQuietly,
+  describeProfileInsertError,
+  findProfileConflict,
+  inviteOrCreateAuthUser,
+} from "@/lib/invite";
+import { emptyToNull } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -72,18 +78,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: existing, error: existingError } = await db
-      .from("users")
-      .select("id, email")
-      .ilike("email", email)
-      .maybeSingle();
-
-    if (existingError) throw existingError;
-    if (existing) {
-      return NextResponse.json(
-        { success: false, error: "يوجد مستخدم بهذا البريد مسبقًا" },
-        { status: 409 }
-      );
+    const phone = emptyToNull(parsed.data.phone);
+    const conflict = await findProfileConflict(email, phone);
+    if (conflict) {
+      return NextResponse.json({ success: false, error: conflict }, { status: 409 });
     }
 
     if (targetSchoolId) {
@@ -113,13 +111,18 @@ export async function POST(req: NextRequest) {
         role: requestedRole,
         school_id: requestedRole === "admin" ? null : targetSchoolId,
         subject: requestedRole === "teacher" ? parsed.data.subject ?? null : null,
-        phone: parsed.data.phone ?? null,
+        phone,
         status: "invited",
       })
       .select("id, auth_id, name, email, role, school_id, subject, phone, status")
       .single();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      if (authUser.created) await deleteAuthUserQuietly(authUser.userId);
+      const message = describeProfileInsertError(insertError);
+      if (message) return NextResponse.json({ success: false, error: message }, { status: 409 });
+      throw insertError;
+    }
 
     return NextResponse.json(
       {

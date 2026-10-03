@@ -242,7 +242,7 @@ export function usePrincipalDashboard() {
           .in("id", inviteClassIds);
         if (assignError) throw assignError;
       }
-      setInviteMessage("تم إرسال الدعوة بنجاح");
+      setInviteMessage(null); // the modal closes on success; the new teacher appears in the list
       setInviteName("");
       setInvitePhone("");
       setInviteEmail("");
