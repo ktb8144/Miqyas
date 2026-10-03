@@ -3,24 +3,18 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import {
-  BarChart3,
-  Bot,
+  Camera,
   CheckCircle2,
   ClipboardList,
-  Download,
-  Gauge,
-  GraduationCap,
+  FileText,
+  FolderCheck,
   LayoutDashboard,
   Lock,
-  MessageCircle,
-  Printer,
-  ShieldCheck,
   Sparkles,
-  TrendingUp,
-  UsersRound,
+  Target,
 } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
-import { BRAND } from "@/lib/brand";
+import { SiteFooter } from "@/components/site/site-footer";
+import { SiteHeader } from "@/components/site/site-header";
 
 const initialTrialForm = {
   name: "",
@@ -30,80 +24,54 @@ const initialTrialForm = {
   message: "",
 };
 
-const navLinks = [
-  { label: "الرئيسية", href: "#home" },
-  { label: "المميزات", href: "#features" },
-  { label: "الأسعار", href: "#pricing" },
-  { label: "عن دالة", href: "#about" },
-  { label: "تواصل معنا", href: "#trial" },
-];
-
 const trustPoints = [
   {
-    icon: Gauge,
-    title: "قياس دقيق",
-    desc: "مؤشرات واضحة لمستوى كل طالب.",
+    icon: Target,
+    title: "مرتبط بنواتج التعلم",
+    desc: "كل سؤال مربوط بمهارة ومجال من نافس.",
   },
   {
-    icon: BarChart3,
-    title: "تحليلات ذكية",
-    desc: "قراءة سريعة للنتائج والمهارات.",
+    icon: Camera,
+    title: "تصحيح بكاميرا الجوال",
+    desc: "أوراق الفصل كاملة دون إدخال يدوي.",
   },
   {
-    icon: TrendingUp,
-    title: "تحسين مستمر",
-    desc: "متابعة أسبوعية تقود للتطور.",
+    icon: FileText,
+    title: "تقارير جاهزة للقائد",
+    desc: "وثائق نواتج التعلم جاهزة للطباعة.",
   },
 ];
 
 const features = [
   {
     icon: ClipboardList,
-    title: "اختبارات أسبوعية ذكية",
-    desc: "بناء اختبارات قصيرة ومنظمة تقيس المهارات الأساسية دون تعقيد.",
+    title: "اختبارات أسبوعية محاكية لنافس",
+    desc: "حزمة جاهزة كل أسبوع في الرياضيات ولغتي والعلوم للصفوف من الثالث إلى السادس، يطبعها المعلم ويطبّقها في حصة.",
   },
   {
-    icon: BarChart3,
-    title: "تحليل نتائج",
-    desc: "تقارير فورية تكشف نقاط القوة والضعف على مستوى الطالب والصف.",
+    icon: Camera,
+    title: "تصحيح فوري بالجوال",
+    desc: "يصوّر المعلم أوراق الفصل، ويتم التصحيح تلقائيًا بمفتاح الإجابة المعتمد، ثم يراجع النتائج ويحفظها.",
+  },
+  {
+    icon: Target,
+    title: "تشخيص المهارة والخطأ الشائع",
+    desc: "كل سؤال مرتبط بمهارة من نواتج التعلم، فتعرف المهارة غير المتقنة لكل طالب وفصل، والخطأ الذي تكرر.",
+  },
+  {
+    icon: FileText,
+    title: "تقارير نواتج التعلم جاهزة",
+    desc: "بطاقة متابعة نواتج التعلم، وخطة تحسين نواتج التعلم، وتقرير الاستعداد لاختبارات نافس، جاهزة للطباعة.",
   },
   {
     icon: LayoutDashboard,
-    title: "لوحة تحكم متكاملة",
-    desc: "نظرة واحدة لأداء المدرسة والمعلمين والطلاب عبر مؤشرات واضحة.",
+    title: "لوحة قائد المدرسة",
+    desc: "صورة واحدة لأداء الفصول والمعلمين والمهارات الأضعف، لتعرف أين يبدأ التدخل.",
   },
   {
-    icon: UsersRound,
-    title: "إدارة الطلاب والمعلمين",
-    desc: "تنظيم المدارس والفصول والمستخدمين وربطهم بالمهام التعليمية.",
-  },
-  {
-    icon: Bot,
-    title: "الذكاء الاصطناعي",
-    desc: "مساعدة في توليد الأسئلة والتقارير والخطط العلاجية بناء على البيانات.",
-  },
-  {
-    icon: Printer,
-    title: "تصدير وطباعة",
-    desc: "طباعة الأوراق والتقارير وتصدير النتائج بصيغ مناسبة للعمل اليومي.",
-  },
-];
-
-const trustItems = [
-  {
-    icon: GraduationCap,
-    title: "متوافق مع المناهج",
-    desc: "مصمم ليتماشى مع المهارات التعليمية.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "أمان وخصوصية",
-    desc: "حماية بيانات المدرسة والطلاب أولًا.",
-  },
-  {
-    icon: MessageCircle,
-    title: "دعم فني مميز",
-    desc: "فريق يساعدك في الإعداد والاستخدام.",
+    icon: FolderCheck,
+    title: "شواهد للمعلم",
+    desc: "نتائج كل اختبار محفوظة في لوحة المعلم كشاهد موثّق على متابعته لطلابه طوال العام.",
   },
 ];
 
@@ -248,35 +216,8 @@ export default function LandingPage() {
   }
 
   return (
-    <main id="home" className="min-h-screen bg-white text-brand-navy" dir="rtl">
-      <nav className="sticky top-0 z-50 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 lg:px-10">
-          <BrandLogo contextTitle={BRAND.nameAr} size="sm" />
-
-          <div className="hidden items-center gap-5 md:flex lg:gap-8">
-            {navLinks.map((link) => (
-              <a key={link.href} href={link.href} className="text-xs font-bold text-slate-500 transition hover:text-brand-navy lg:text-sm">
-                {link.label}
-              </a>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="inline-flex rounded-xl border border-slate-200 px-4 py-3 text-sm font-extrabold text-brand-navy transition hover:border-brand hover:text-brand sm:px-5"
-            >
-              تسجيل دخول
-            </Link>
-            <a
-              href="#trial"
-              className="rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(21,159,145,0.12)] transition hover:bg-brand-dark"
-            >
-              اطلب تجربة
-            </a>
-          </div>
-        </div>
-      </nav>
+    <main className="min-h-screen bg-white text-brand-navy" dir="rtl">
+      <SiteHeader />
 
       <section className="relative overflow-hidden px-5 py-20 md:py-28 lg:px-10 lg:py-32">
         <div className="absolute left-16 top-28 h-96 w-96 rounded-full bg-teal-50/80 blur-3xl" />
@@ -286,17 +227,17 @@ export default function LandingPage() {
           <div className="text-center md:text-right">
             <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-teal-100 bg-teal-50/80 px-4 py-2 text-xs font-extrabold text-brand">
               <Sparkles className="h-4 w-4" />
-              بيانات أوضح، قرار أسرع
+              اختبارات أسبوعية محاكية لنافس | الصفوف 3 إلى 6
             </div>
             <h1 className="text-5xl/[1.4] font-black tracking-normal text-brand-navy md:text-6xl/[1.4] lg:text-7xl/[1.4]">
-              نقيس لنرتقي
+              ارفع نتائج مدرستك في نافس
             </h1>
             <p className="mx-auto mt-8 max-w-xl text-lg leading-10 text-slate-500 md:mx-0">
-              دالة منصة ذكية لقياس أداء الطلاب وتحليل نتائجهم بدقة، تساعد المدارس على اتخاذ قرارات تعليمية مبنية على البيانات.
+              اختبار قصير كل أسبوع يكشف مهارات نواتج التعلم غير المتقنة لكل طالب، ويُخرج لقائد المدرسة تقارير متابعة نواتج التعلم وخطة التحسين جاهزة للطباعة.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4 md:justify-start">
               <a href="#trial" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark">
-                اطلب تجربة مجانية
+                اطلب تجربة مجانية لمدرستك
               </a>
               <a href="#features" className="rounded-xl border border-brand/30 bg-white/70 px-8 py-4 text-base font-extrabold text-brand-navy transition hover:border-brand hover:text-brand">
                 اعرف المزيد
@@ -330,7 +271,7 @@ export default function LandingPage() {
           <div className="text-center">
             <div className="text-sm font-extrabold text-brand">المميزات</div>
             <h2 className="mt-3 text-3xl/[1.45] font-black tracking-normal text-brand-navy md:text-4xl/[1.45]">
-              كل ما تحتاجه في منصة واحدة
+              من الورقة إلى خطة التحسين، في أسبوع واحد
             </h2>
           </div>
 
@@ -374,33 +315,16 @@ export default function LandingPage() {
               من نتيجة الاختبار إلى خطة التحسين
             </h2>
             <p className="mt-6 max-w-xl text-lg leading-9 text-slate-500 lg:mr-0">
-              تربط المنصة بين أداء الطلاب، عمل المعلمين، ومؤشرات المدرسة حتى تعرف أين يبدأ التدخل.
+              نتائج نافس تصلك آخر السنة أرقامًا مجمّعة. دالة تعطيك الصورة كل أسبوع، لكل طالب ولكل مهارة، حتى تعرف أين يبدأ التدخل قبل يوم الاختبار.
             </p>
-            <a href="#trial" className="mt-9 inline-flex rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-brand-dark">
-              تحدث مع الفريق
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section id="trust" className="px-5 py-24 lg:px-10">
-        <div className="mx-auto max-w-6xl text-center">
-          <h2 className="text-3xl/[1.45] font-black tracking-normal text-brand-navy">يثق بنا</h2>
-          <p className="mt-4 text-slate-500">المدارس تختار دالة لتحسين التعليم وقياس الأثر.</p>
-
-          <div className="mt-16 grid gap-10 md:grid-cols-3">
-            {trustItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <div key={item.title} className="rounded-3xl bg-white p-6">
-                  <div className="mx-auto mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-teal-50 text-brand">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <h3 className="font-extrabold text-brand-navy">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-500">{item.desc}</p>
-                </div>
-              );
-            })}
+            <div className="mt-9 flex flex-wrap justify-center gap-4 lg:justify-start">
+              <a href="#trial" className="inline-flex rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.12)] transition hover:bg-brand-dark">
+                تحدث مع الفريق
+              </a>
+              <Link href="/about" className="inline-flex rounded-xl border border-brand/30 bg-white/70 px-8 py-4 text-base font-extrabold text-brand-navy transition hover:border-brand hover:text-brand">
+                من نحن
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -538,47 +462,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-slate-100 px-5 py-14 lg:px-10">
-        <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-4">
-          <div>
-            <BrandLogo contextTitle={BRAND.nameAr} contextSubtitle="قياس تعليمي ذكي" size="sm" />
-          </div>
-
-          <div>
-            <h3 className="mb-4 font-extrabold text-brand-navy">المنتج</h3>
-            <div className="space-y-3 text-sm font-semibold text-slate-500">
-              <a href="#features" className="block hover:text-brand">المميزات</a>
-              <a href="#pricing" className="block hover:text-brand">الأسعار</a>
-              <a href="#home" className="block hover:text-brand">لوحة القياس</a>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-4 font-extrabold text-brand-navy">الشركة</h3>
-            <div className="space-y-3 text-sm font-semibold text-slate-500">
-              <a href="#about" className="block hover:text-brand">عن دالة</a>
-              <a href="#trial" className="block hover:text-brand">تواصل معنا</a>
-              <span className="block">الشروط والأحكام</span>
-            </div>
-          </div>
-
-          <div>
-            <h3 className="mb-4 font-extrabold text-brand-navy">الدعم</h3>
-            <div className="space-y-3 text-sm font-semibold text-slate-500">
-              <span className="block">مركز المساعدة</span>
-              <span className="block">سياسة الخصوصية</span>
-              <span className="flex items-center gap-2">
-                <Download className="h-4 w-4 text-brand" />
-                ملفات التقارير
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mx-auto mt-10 max-w-6xl border-t border-slate-100 pt-6 text-center text-sm font-semibold text-slate-400">
-          © دالة. جميع الحقوق محفوظة.
-        </div>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }

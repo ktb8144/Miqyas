@@ -3,8 +3,8 @@
 export const BRAND = {
   nameAr: "دالة",
   nameEn: "Dala",
-  tagline: "نقيس لنحسن",
-  description: "منصة تقييم مدارس المرحلة الابتدائية السعودية",
+  tagline: "تدلّك على الفجوة",
+  description: "اختبارات أسبوعية محاكية لنافس تكشف مهارات نواتج التعلم غير المتقنة لكل طالب، وتُخرج لقائد المدرسة تقارير نواتج التعلم جاهزة.",
   // TODO(brand): replace public/miqyas-logo.png with the new Dala logo and
   // update the path + aspect ratio (width / height of the image file) below.
   logoSrc: "/miqyas-logo.png",
