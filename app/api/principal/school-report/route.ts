@@ -219,7 +219,7 @@ export async function GET(req: NextRequest) {
     const improvement = {
       value: null as number | null,
       label: "لا توجد بيانات كافية لحساب التحسن",
-      note: "يحتاج دالا إلى نتائج أسبوعين أو أكثر لحساب التحسن الحقيقي.",
+      note: "يحتاج دالة إلى نتائج أسبوعين أو أكثر لحساب التحسن الحقيقي.",
     };
 
     const readinessInputs = [performanceAverage, implementationRate, teacherEngagement].filter(
@@ -281,7 +281,7 @@ export async function GET(req: NextRequest) {
         alerts: [
           ...(atRiskStudents.length ? [{ type: "risk", title: "طلاب يحتاجون تدخل", detail: `${atRiskStudents.length} طالب دون ${AT_RISK_THRESHOLD}%` }] : []),
           ...(weeklyPlanSummary.classesWithoutPlans ? [{ type: "plan", title: "فصول بلا خطة مطابقة", detail: `${weeklyPlanSummary.classesWithoutPlans} فصل يحتاج ضبط الصف أو المادة` }] : []),
-          ...(weeklyPlanSummary.unsupportedClassesCount ? [{ type: "plan", title: "مواد أو صفوف خارج المرحلة الأولى", detail: `${weeklyPlanSummary.unsupportedClassesCount} فصل خارج نطاق الصفوف 3-6 أو مواد دالا الحالية` }] : []),
+          ...(weeklyPlanSummary.unsupportedClassesCount ? [{ type: "plan", title: "مواد أو صفوف خارج المرحلة الأولى", detail: `${weeklyPlanSummary.unsupportedClassesCount} فصل خارج نطاق الصفوف 3-6 أو مواد دالة الحالية` }] : []),
           ...(!students.length ? [{ type: "empty", title: "لا توجد بيانات طلاب", detail: "ابدأ بإضافة الفصول والطلاب من لوحة المعلم." }] : []),
           ...(!scoredStudents.length ? [{ type: "empty", title: "لا توجد نتائج بعد", detail: "ستظهر مؤشرات الأداء بعد إدخال نتائج الطلاب." }] : []),
         ],

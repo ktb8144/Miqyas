@@ -18,7 +18,7 @@ export function PackageScanModal({ d }: { d: TeacherDashboardState }) {
       <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
           <div>
-            <p className="text-sm font-extrabold text-brand">تصحيح اختبار دالا</p>
+            <p className="text-sm font-extrabold text-brand">تصحيح اختبار دالة</p>
             <h2 className="mt-1 text-xl font-black text-brand-navy">{activePackageAssignment.packageTitle}</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">
               {activePackageAssignment.className} | {toEnglishDigits(activePackageStudents.length)} طالب

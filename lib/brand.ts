@@ -1,7 +1,7 @@
 // Product identity — change the name or logo here, not in components.
 
 export const BRAND = {
-  nameAr: "دالا",
+  nameAr: "دالة",
   nameEn: "Dala",
   tagline: "نقيس لنحسن",
   description: "منصة تقييم مدارس المرحلة الابتدائية السعودية",

@@ -28,7 +28,7 @@ export function PackagesView({ d }: { d: TeacherDashboardState }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-extrabold text-brand">التصحيح والنتائج</p>
-          <h2 className="mt-1 text-2xl font-black tracking-normal text-brand-navy">مسار واحد لاعتماد نتائج دالا</h2>
+          <h2 className="mt-1 text-2xl font-black tracking-normal text-brand-navy">مسار واحد لاعتماد نتائج دالة</h2>
           <p className="mt-2 text-sm font-bold text-slate-400">طبّق الحزمة على الفصل، ثم صحّح بالكاميرا أو اعرض تقرير الفصل.</p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -64,7 +64,7 @@ export function PackagesView({ d }: { d: TeacherDashboardState }) {
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-xl font-black text-brand-navy">الاختبارات المتاحة</h3>
-            <p className="mt-1 text-sm font-bold text-slate-400">اختبارات منشورة من إدارة دالا ومفعّلة لمدرستك.</p>
+            <p className="mt-1 text-sm font-bold text-slate-400">اختبارات منشورة ومفعّلة لمدرستك.</p>
           </div>
           <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
             {toEnglishDigits(packages.length)} اختبار
@@ -73,7 +73,7 @@ export function PackagesView({ d }: { d: TeacherDashboardState }) {
 
         {packagesLoading ? (
           <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
-            جارٍ تحميل حزم دالا...
+            جارٍ تحميل حزم دالة...
           </div>
         ) : packages.length ? (
           <div className="grid gap-4 lg:grid-cols-2">
@@ -154,7 +154,7 @@ export function PackagesView({ d }: { d: TeacherDashboardState }) {
           </div>
         ) : (
           <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
-            <h3 className="text-xl font-black text-brand-navy">لا توجد اختبارات منشورة حاليًا من إدارة دالا.</h3>
+            <h3 className="text-xl font-black text-brand-navy">لا توجد اختبارات منشورة حاليًا.</h3>
             <p className="mt-2 text-sm font-bold text-slate-400">ستظهر هنا الحزم الأسبوعية عند نشرها وتفعيلها لمدرستك.</p>
           </div>
         )}

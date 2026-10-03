@@ -83,7 +83,7 @@ export default function SetPasswordPage() {
           code: profileError?.code,
           message: profileError?.message,
         });
-        setError("تم تعيين كلمة المرور، لكن لم نجد صلاحيات الحساب. تواصل مع مدير النظام.");
+        setError("تم تعيين كلمة المرور، لكن لم نجد صلاحيات الحساب. تواصل مع الدعم الفني.");
         setLoading(false);
         return;
       }
@@ -122,7 +122,7 @@ export default function SetPasswordPage() {
               تعيين كلمة المرور
             </h1>
             <p className="mb-7 text-center text-sm leading-7 text-slate-400">
-              اختر كلمة مرور جديدة لإكمال تفعيل حسابك في دالا.
+              اختر كلمة مرور جديدة لإكمال تفعيل حسابك في دالة.
             </p>
 
             {checkingSession ? (

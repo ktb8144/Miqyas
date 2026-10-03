@@ -50,7 +50,7 @@ export function PackagesTab({
     <div className="space-y-8">
       <PageHeader
         title="حزم الاختبارات"
-        description="إنشاء حزم دالا الأسبوعية، ربط ملفات PDF، استيراد مفتاح الإجابة وخريطة المهارات، ثم نشرها للمدارس."
+        description="إنشاء حزم دالة الأسبوعية، ربط ملفات PDF، استيراد مفتاح الإجابة وخريطة المهارات، ثم نشرها للمدارس."
         action={<PrimaryButton onClick={onCreate}>إنشاء حزمة</PrimaryButton>}
       />
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

@@ -108,7 +108,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error("teacher assessment packages failed", err);
     return NextResponse.json(
-      { success: false, error: "تعذر تحميل اختبارات دالا المنشورة" },
+      { success: false, error: "تعذر تحميل اختبارات دالة المنشورة" },
       { status: 500 }
     );
   }

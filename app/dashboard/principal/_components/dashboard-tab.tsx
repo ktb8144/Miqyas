@@ -28,7 +28,7 @@ export function DashboardTab({ d }: { d: PrincipalDashboardState }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-5">
-        <KpiCard label="جاهزية دالا" value={report.readinessIndex.value === null ? "—" : `${toEnglishDigits(report.readinessIndex.value)}%`} sub="مؤشر عام" icon="📊" />
+        <KpiCard label="جاهزية دالة" value={report.readinessIndex.value === null ? "—" : `${toEnglishDigits(report.readinessIndex.value)}%`} sub="مؤشر عام" icon="📊" />
         <KpiCard label="الفصول المنفذة" value={formatNumber(executedClassesCount)} sub="اختبارات مصححة" icon="✅" />
         <KpiCard label="الطلاب المقاسون" value={formatNumber(measuredStudentsCount)} sub="نتائج محفوظة" icon="👥" />
         <KpiCard label="المهارات الحرجة" value={formatNumber(criticalSkillsCount)} sub="تحتاج متابعة" icon="⚠️" color={COLORS.danger} />
@@ -38,7 +38,7 @@ export function DashboardTab({ d }: { d: PrincipalDashboardState }) {
       <div className="rounded-[1.5rem] border border-teal-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="text-sm font-extrabold text-brand">خطة دالا</p>
+            <p className="text-sm font-extrabold text-brand">خطة دالة</p>
             <h3 className="mt-1 text-xl font-black text-brand-navy">
               {report.weeklyPlanSummary.source === "current_week" ? "خطة هذا الأسبوع" : report.weeklyPlanSummary.source === "upcoming" ? "أقرب خطة قادمة" : "لا توجد خطة مفعّلة"}
             </h3>
@@ -103,7 +103,7 @@ export function DashboardTab({ d }: { d: PrincipalDashboardState }) {
       <div className="rounded-[1.5rem] border border-slate-100 bg-white p-6 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-extrabold text-brand">اختبارات دالا</p>
+            <p className="text-sm font-extrabold text-brand">اختبارات دالة</p>
             <h3 className="mt-1 text-xl font-black text-brand-navy">تنفيذ الحزم ونتائجها</h3>
           </div>
           <button onClick={loadPackageSummaries} className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500">
@@ -111,7 +111,7 @@ export function DashboardTab({ d }: { d: PrincipalDashboardState }) {
           </button>
         </div>
         {packagesLoading ? (
-          <EmptyState>جارٍ تحميل اختبارات دالا...</EmptyState>
+          <EmptyState>جارٍ تحميل اختبارات دالة...</EmptyState>
         ) : packagesError ? (
           <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">{packagesError}</div>
         ) : packageSummaries.length ? (
@@ -165,7 +165,7 @@ export function DashboardTab({ d }: { d: PrincipalDashboardState }) {
             ))}
           </div>
         ) : (
-          <EmptyState>لا توجد اختبارات دالا مطبقة على فصول المدرسة بعد.</EmptyState>
+          <EmptyState>لا توجد اختبارات دالة مطبقة على فصول المدرسة بعد.</EmptyState>
         )}
       </div>
 

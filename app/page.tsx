@@ -34,7 +34,7 @@ const navLinks = [
   { label: "الرئيسية", href: "#home" },
   { label: "المميزات", href: "#features" },
   { label: "الأسعار", href: "#pricing" },
-  { label: "عن دالا", href: "#about" },
+  { label: "عن دالة", href: "#about" },
   { label: "تواصل معنا", href: "#trial" },
 ];
 
@@ -111,7 +111,7 @@ const pricingPlans = [
   {
     name: "البداية",
     price: "مجانًا",
-    desc: "لتجربة دالا مع مدرسة واحدة وفريق محدود.",
+    desc: "لتجربة دالة مع مدرسة واحدة وفريق محدود.",
     features: ["مدرسة واحدة", "حتى 5 معلمين", "تقارير أساسية"],
   },
   {
@@ -145,7 +145,7 @@ function DashboardMockup() {
             <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />
             <span className="h-2.5 w-2.5 rounded-full bg-slate-200" />
           </div>
-          <div className="text-xs font-bold text-slate-400">لوحة دالا</div>
+          <div className="text-xs font-bold text-slate-400">لوحة دالة</div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -238,7 +238,7 @@ export default function LandingPage() {
 
       setTrialForm(initialTrialForm);
       setTrialState("success");
-      setTrialMessage("تم إرسال طلبك بنجاح، سيتواصل معك فريق دالا قريبًا");
+      setTrialMessage("تم إرسال طلبك بنجاح، سيتواصل معك فريق دالة قريبًا");
     } catch (error) {
       const message = error instanceof Error ? error.message : "تعذر إرسال الطلب";
       console.error("trial request submit failed", error);
@@ -292,7 +292,7 @@ export default function LandingPage() {
               نقيس لنرتقي
             </h1>
             <p className="mx-auto mt-8 max-w-xl text-lg leading-10 text-slate-500 md:mx-0">
-              دالا منصة ذكية لقياس أداء الطلاب وتحليل نتائجهم بدقة، تساعد المدارس على اتخاذ قرارات تعليمية مبنية على البيانات.
+              دالة منصة ذكية لقياس أداء الطلاب وتحليل نتائجهم بدقة، تساعد المدارس على اتخاذ قرارات تعليمية مبنية على البيانات.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4 md:justify-start">
               <a href="#trial" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark">
@@ -386,7 +386,7 @@ export default function LandingPage() {
       <section id="trust" className="px-5 py-24 lg:px-10">
         <div className="mx-auto max-w-6xl text-center">
           <h2 className="text-3xl font-black tracking-normal text-brand-navy">يثق بنا</h2>
-          <p className="mt-4 text-slate-500">المدارس تختار دالا لتحسين التعليم وقياس الأثر.</p>
+          <p className="mt-4 text-slate-500">المدارس تختار دالة لتحسين التعليم وقياس الأثر.</p>
 
           <div className="mt-16 grid gap-10 md:grid-cols-3">
             {trustItems.map((item) => {
@@ -464,7 +464,7 @@ export default function LandingPage() {
               طلب تجربة مجانية
             </h2>
             <p className="mt-4 leading-8 text-slate-500">
-              اترك بياناتك وسيتواصل معك فريق دالا لترتيب تجربة مناسبة لمدرستك.
+              اترك بياناتك وسيتواصل معك فريق دالة لترتيب تجربة مناسبة لمدرستك.
             </p>
           </div>
 
@@ -556,7 +556,7 @@ export default function LandingPage() {
           <div>
             <h3 className="mb-4 font-extrabold text-brand-navy">الشركة</h3>
             <div className="space-y-3 text-sm font-semibold text-slate-500">
-              <a href="#about" className="block hover:text-brand">عن دالا</a>
+              <a href="#about" className="block hover:text-brand">عن دالة</a>
               <a href="#trial" className="block hover:text-brand">تواصل معنا</a>
               <span className="block">الشروط والأحكام</span>
             </div>
@@ -576,7 +576,7 @@ export default function LandingPage() {
         </div>
 
         <div className="mx-auto mt-10 max-w-6xl border-t border-slate-100 pt-6 text-center text-sm font-semibold text-slate-400">
-          © دالا. جميع الحقوق محفوظة.
+          © دالة. جميع الحقوق محفوظة.
         </div>
       </footer>
     </main>

@@ -68,7 +68,7 @@ export function ClassesView({ d }: { d: TeacherDashboardState }) {
                 {classes.length ? "لا توجد خطة مفعّلة لهذا الأسبوع." : "أضف فصلًا للبدء في تنفيذ التقييمات."}
               </h3>
               <p className="mt-2 text-sm font-bold text-slate-400">
-                {classes.length ? "يمكنك عرض الخطة القادمة أو التواصل مع مدير النظام." : "بعد إضافة الفصل والطلاب ستظهر هنا مهام التقييم والتقارير."}
+                {classes.length ? "يمكنك عرض الخطة القادمة أو التواصل مع قائد المدرسة." : "بعد إضافة الفصل والطلاب ستظهر هنا مهام التقييم والتقارير."}
               </p>
             </div>
           )}
@@ -146,7 +146,7 @@ export function ClassesView({ d }: { d: TeacherDashboardState }) {
                 </button>
                 {classAssignments.length ? (
                   <div className="space-y-2 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
-                    <div className="text-xs font-extrabold text-brand">حزمة دالا مطبقة</div>
+                    <div className="text-xs font-extrabold text-brand">حزمة دالة مطبقة</div>
                     {classAssignments.length > 1 && (
                       <select
                         value={selectedAssignmentId}
@@ -162,12 +162,12 @@ export function ClassesView({ d }: { d: TeacherDashboardState }) {
                       onClick={() => selectedAssignment && setActivePackageAssignment(selectedAssignment)}
                       className="w-full rounded-xl bg-brand-navy py-2.5 text-sm font-extrabold text-white transition hover:bg-brand-navy-light"
                     >
-                      بدء تصحيح حزمة دالا
+                      بدء تصحيح حزمة دالة
                     </button>
                   </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 p-3 text-xs font-bold leading-6 text-slate-400">
-                    لا توجد حزمة دالا مطبقة على هذا الفصل. انتقل إلى التصحيح والنتائج لتطبيق حزمة.
+                    لا توجد حزمة دالة مطبقة على هذا الفصل. انتقل إلى التصحيح والنتائج لتطبيق حزمة.
                   </div>
                 )}
               </div>

@@ -36,7 +36,7 @@ function shapeAssignment(row: AssignmentRow, assessmentPackage?: PackageRow, cla
   return {
     id: row.id,
     packageId: row.package_id,
-    packageTitle: assessmentPackage?.title ?? "اختبار دالا",
+    packageTitle: assessmentPackage?.title ?? "اختبار دالة",
     subject: assessmentPackage?.subject ?? "",
     grade: assessmentPackage?.grade ?? null,
     weekNumber: assessmentPackage?.week_number ?? null,

@@ -226,7 +226,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       message: err instanceof Error ? err.message : String(err),
     });
     return NextResponse.json(
-      { success: false, error: "تعذر تحميل نتائج اختبار دالا", errorCode: "RESULTS_LOAD_FAILED" },
+      { success: false, error: "تعذر تحميل نتائج اختبار دالة", errorCode: "RESULTS_LOAD_FAILED" },
       { status: 500 }
     );
   }

@@ -242,7 +242,7 @@ export function useTeacherDashboard() {
       ]);
 
       if (!packagesRes.ok || !packagesJson.success) {
-        throw new Error(packagesJson.error || "تعذر تحميل اختبارات دالا");
+        throw new Error(packagesJson.error || "تعذر تحميل اختبارات دالة");
       }
 
       if (!assignmentsRes.ok || !assignmentsJson.success) {
@@ -288,7 +288,7 @@ export function useTeacherDashboard() {
         return next;
       });
     } catch (err) {
-      setPackagesError(err instanceof Error ? err.message : "تعذر تحميل اختبارات دالا");
+      setPackagesError(err instanceof Error ? err.message : "تعذر تحميل اختبارات دالة");
     } finally {
       setPackagesLoading(false);
     }
@@ -444,7 +444,7 @@ export function useTeacherDashboard() {
     });
 
     if (!updates.length) {
-      throw new Error("لم يتم العثور على طلاب مطابقين لحفظ نتائج اختبار دالا");
+      throw new Error("لم يتم العثور على طلاب مطابقين لحفظ نتائج اختبار دالة");
     }
 
     const failures: string[] = [];
@@ -477,7 +477,7 @@ export function useTeacherDashboard() {
       return;
     }
 
-    setPackageSuccess("تم حفظ نتائج اختبار دالا بنجاح.");
+    setPackageSuccess("تم حفظ نتائج اختبار دالة بنجاح.");
     setActivePackageAssignment(null);
     await loadPackageWorkflow();
   };

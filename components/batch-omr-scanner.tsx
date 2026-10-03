@@ -857,7 +857,7 @@ export function BatchOMRScanner({
         <div>
           <h3 className="font-bold text-gray-900 text-lg">📷 مسح أوراق الفصل كاملاً</h3>
           <p className="text-gray-500 text-sm mt-0.5">
-            {step === "capture" && "صوّر أوراق الطلاب، وسيتم التصحيح بنموذج مركزي من مدير النظام"}
+            {step === "capture" && "صوّر أوراق الطلاب، وسيتم التصحيح تلقائيًا بمفتاح الإجابة المعتمد"}
             {step === "processing" && "جارٍ معالجة الأوراق بالتوازي..."}
             {step === "review" && "مراجعة النتائج وحفظها"}
             {step === "done" && "✅ تم حفظ نتائج الفصل"}
@@ -884,7 +884,7 @@ export function BatchOMRScanner({
             <div className="flex items-start justify-between mb-5 p-3 rounded-xl gap-3" style={{ background: "#f0fdfa", border: "1px solid #99f6e4" }}>
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="text-teal-700 font-bold text-sm">نموذج التصحيح مُدار من مدير النظام</span>
+                  <span className="text-teal-700 font-bold text-sm">مفتاح الإجابة معتمد ومحمي</span>
                 </div>
                 <p className="text-xs text-slate-500">المعلم يصوّر أوراق الطلاب فقط، ولا تظهر الإجابات الصحيحة في هذه الواجهة.</p>
               </div>
