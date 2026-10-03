@@ -30,7 +30,7 @@ export function BrandLogo({
     <Link
       href="/"
       className={`flex rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/30 ${
-        centered ? "flex-col items-center text-center" : "items-center gap-3"
+        centered ? "flex-col items-center text-center" : "min-w-0 items-center gap-2 sm:gap-3"
       }`}
     >
       <Image
@@ -39,15 +39,15 @@ export function BrandLogo({
         width={imageSize}
         height={imageHeight}
         priority={size === "lg"}
-        className="shrink-0 object-contain"
+        className={`shrink-0 object-contain ${size === "sm" ? "h-auto w-11 sm:w-14" : ""}`}
       />
       {(contextTitle || contextSubtitle) && (
-        <span className={centered ? "mt-2 block" : "block"}>
+        <span className={centered ? "mt-2 block" : "block min-w-0"}>
           {contextTitle && (
-            <span className="block font-bold text-gray-900">{contextTitle}</span>
+            <span className="block truncate text-sm font-bold text-gray-900 sm:text-base">{contextTitle}</span>
           )}
           {contextSubtitle && (
-            <span className="mt-0.5 block text-xs text-gray-500">{contextSubtitle}</span>
+            <span className="mt-0.5 block truncate text-xs text-gray-500">{contextSubtitle}</span>
           )}
         </span>
       )}

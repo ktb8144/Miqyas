@@ -227,12 +227,12 @@ export function usePrincipalDashboard() {
     setInviteLoading(true);
     setInviteMessage(null);
     try {
-      const normalizedPhone = normalizeSaudiMobile(invitePhone);
-      if (!/^05\d{8}$/.test(normalizedPhone)) {
-        throw new Error("يرجى إدخال رقم الجوال بصيغة 05xxxxxxxx");
-      }
       if (!inviteEmail.trim()) {
-        throw new Error("البريد مطلوب مؤقتًا لإنشاء حساب الدخول عبر Supabase Auth.");
+        throw new Error("اكتب بريد المعلم، فإليه تُرسل الدعوة.");
+      }
+      const normalizedPhone = invitePhone.trim() ? normalizeSaudiMobile(invitePhone) : null;
+      if (normalizedPhone && !/^05\d{8}$/.test(normalizedPhone)) {
+        throw new Error("اكتب رقم الجوال بصيغة 05xxxxxxxx أو اتركه فارغًا");
       }
       const res = await fetch("/api/users/invite", {
         method: "POST",

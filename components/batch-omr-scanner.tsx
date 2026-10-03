@@ -232,7 +232,7 @@ function RetakeModal({
           <span className="font-bold text-gray-900">إعادة تصوير الورقة</span>
           <button onClick={close} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
         </div>
-        <div className="relative bg-black" style={{ aspectRatio: "1 / 1.414" }}>
+        <div className="relative mx-auto bg-black" style={{ aspectRatio: "1 / 1.414", width: "min(100%, calc((100dvh - 11rem) / 1.414))" }}>
           <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="relative" style={{ width: "88%", height: "90%" }}>
@@ -410,150 +410,38 @@ export function BatchOMRScanner({
 }) {
   const [step, setStep] = useState<Step>("capture");
   const [papers, setPapers] = useState<CapturedPaper[]>([]);
+  // Each paper is sent for analysis the moment it is captured; results land here.
+  const [scanned, setScanned] = useState<Record<string, ScanResult>>({});
   const [results, setResults] = useState<ScanResult[]>([]);
-  const [processingCount, setProcessingCount] = useState(0);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [captureBusy, setCaptureBusy] = useState(false);
   const [captureFlash, setCaptureFlash] = useState(false);
-  const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
-  const [pendingCapture, setPendingCapture] = useState<{ raw: string; preview: string } | null>(null);
   const [captureMessage, setCaptureMessage] = useState<string | null>(null);
   const [retakingPaperId, setRetakingPaperId] = useState<string | null>(null);
   const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingScans = useRef(new Map<string, Promise<ScanResult>>());
+  const messageTimer = useRef<number | null>(null);
 
-  // ── Camera helpers ──────────────────────────────────────────────────────────
+  const target = Math.min(totalStudents || MAX_PAPERS, MAX_PAPERS);
+  const analyzedCount = papers.filter((paper) => scanned[paper.id]).length;
 
-  const openCamera = useCallback(async () => {
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1240 }, height: { ideal: 1754 }, aspectRatio: { ideal: 0.7071 } },
-      });
-      streamRef.current = s;
-      setCameraOpen(true);
-      setCaptureMessage("تم فتح الكاميرا، ضع الورقة داخل الإطار");
-      if ("vibrate" in navigator) navigator.vibrate?.(50);
-      setTimeout(() => {
-        if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); }
-      }, 80);
-    } catch {
-      alert("تعذّر فتح الكاميرا — تحقق من صلاحيات الكاميرا في المتصفح");
-    }
-  }, []);
-
-  const closeCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
-    setCameraOpen(false);
-    setPendingCapture(null);
-    setCapturedPreview(null);
-  }, []);
-
-  const captureOne = useCallback(async () => {
-    if (papers.length >= MAX_PAPERS || captureBusy) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-    setCaptureBusy(true);
-    setCaptureFlash(true);
-    setCaptureMessage("تم التقاط الصورة");
-    if ("vibrate" in navigator) navigator.vibrate?.(35);
-
-    try {
-      drawVideoCoverToPortraitCanvas(video, canvas);
-      const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
-      const preview = await compressImage(raw, 1100, 0.9);
-      setPendingCapture({ raw, preview });
-      setCapturedPreview(preview);
-      setCaptureMessage("راجع الصورة قبل استخدامها");
-      setCaptureBusy(false);
-      window.setTimeout(() => setCaptureFlash(false), 180);
-    } catch {
-      setCaptureMessage("تعذّر التقاط الصورة، حاول مرة أخرى");
-      setCaptureFlash(false);
-      setCaptureBusy(false);
-    }
-  }, [captureBusy, papers.length]);
-
-  const acceptCapture = useCallback(async () => {
-    if (!pendingCapture) return;
-    setCaptureBusy(true);
-    const maxWidth = SCAN_MAX_WIDTH;
-    const quality = SCAN_QUALITY;
-    const [compressed, thumb, review] = await Promise.all([
-      compressImage(pendingCapture.raw, maxWidth, quality),
-      compressImage(pendingCapture.raw, 360, 0.75),
-      compressImage(pendingCapture.raw, 1100, 0.9),
-    ]);
-    setPapers((prev) => [...prev, { id: `p${Date.now()}`, imageBase64: compressed, thumbBase64: thumb, reviewBase64: review }]);
-    setPendingCapture(null);
-    setCapturedPreview(null);
-    setCaptureMessage("تم حفظ الصورة، صوّر الورقة التالية");
-    setCaptureBusy(false);
-    if ("vibrate" in navigator) navigator.vibrate?.(35);
-  }, [pendingCapture]);
-
-  const retakePendingCapture = useCallback(() => {
-    setPendingCapture(null);
-    setCapturedPreview(null);
-    setCaptureMessage("ضع ورقة الاختبار داخل الإطار.");
-  }, []);
-
-  const addManualPaper = useCallback(() => {
-    const paperId = `manual-${Date.now()}`;
-    const blankAnswers = Object.fromEntries(Array.from({ length: Q_COUNT }, (_, index) => [`q${index + 1}`, ""]));
-    setResults((prev) => [
-      ...prev,
-      {
-        paperId,
-        studentName: "",
-        studentCode: "",
-        editedName: "",
-        matchedStudentId: null,
-        matchConfidence: "needs_review",
-        answers: blankAnswers,
-        score: 0,
-        total: Q_COUNT,
-        percentage: 0,
-        level: "دون الأساسي",
-        weakSkills: [],
-        error: false,
-        thumbBase64: "",
-      },
-    ]);
-    closeCamera();
-    setStep("review");
-    setReviewingPaperId(paperId);
-  }, [closeCamera]);
-
-  const handleGalleryUpload = useCallback(async (file: File | undefined) => {
-    if (!file) return;
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result));
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-    const raw = dataUrl.split(",")[1] ?? "";
-    if (!raw) return;
-    const [compressed, thumb, review] = await Promise.all([
-      compressImage(raw, SCAN_MAX_WIDTH, SCAN_QUALITY),
-      compressImage(raw, 360, 0.75),
-      compressImage(raw, 1100, 0.9),
-    ]);
-    setPapers((prev) => [...prev, { id: `p${Date.now()}`, imageBase64: compressed, thumbBase64: thumb, reviewBase64: review }]);
-    setCaptureMessage("تم رفع الصورة من المعرض");
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const flashMessage = useCallback((text: string) => {
+    setCaptureMessage(text);
+    if (messageTimer.current) window.clearTimeout(messageTimer.current);
+    messageTimer.current = window.setTimeout(() => setCaptureMessage(null), 1800);
   }, []);
 
   // ── Scan a single image against the API ────────────────────────────────────
 
-  const scanImage = async (imageBase64: string, paperId: string, thumbBase64: string): Promise<ScanResult> => {
+  const scanImage = useCallback(async (imageBase64: string, paperId: string, thumbBase64: string): Promise<ScanResult> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
     try {
@@ -607,9 +495,141 @@ export function BatchOMRScanner({
         thumbBase64, imageBase64,
       };
     }
-  };
+  }, [classPackageAssignmentId, students]);
 
-  // ── Batch processing ────────────────────────────────────────────────────────
+  /** Adds a paper and starts analysing it straight away, so results are ready by the time the teacher finishes. */
+  const addPaper = useCallback((paper: CapturedPaper) => {
+    setPapers((prev) => [...prev, paper]);
+    const promise = scanImage(paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64);
+    pendingScans.current.set(paper.id, promise);
+    void promise.then((result) => {
+      if (pendingScans.current.get(paper.id) === promise) {
+        setScanned((prev) => ({ ...prev, [paper.id]: result }));
+      }
+    });
+  }, [scanImage]);
+
+  const removePaper = useCallback((paperId: string) => {
+    pendingScans.current.delete(paperId);
+    setPapers((prev) => prev.filter((paper) => paper.id !== paperId));
+    setScanned((prev) => {
+      const next = { ...prev };
+      delete next[paperId];
+      return next;
+    });
+  }, []);
+
+  const preparePaper = useCallback(async (raw: string, id: string): Promise<CapturedPaper> => {
+    const [compressed, thumb, review] = await Promise.all([
+      compressImage(raw, SCAN_MAX_WIDTH, SCAN_QUALITY),
+      compressImage(raw, 360, 0.75),
+      compressImage(raw, 1100, 0.9),
+    ]);
+    return { id, imageBase64: compressed, thumbBase64: thumb, reviewBase64: review };
+  }, []);
+
+  // ── Camera helpers ──────────────────────────────────────────────────────────
+
+  const openCamera = useCallback(async () => {
+    setCameraError(null);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1240 }, height: { ideal: 1754 }, aspectRatio: { ideal: 0.7071 } },
+      });
+      streamRef.current = s;
+      setCameraOpen(true);
+      setTimeout(() => {
+        if (videoRef.current) { videoRef.current.srcObject = s; void videoRef.current.play(); }
+      }, 80);
+    } catch {
+      setCameraError("تعذّر فتح الكاميرا. اسمح للمتصفح باستخدام الكاميرا، أو ارفع صورة من المعرض.");
+    }
+  }, []);
+
+  const closeCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    setCameraOpen(false);
+  }, []);
+
+  useEffect(() => () => streamRef.current?.getTracks().forEach((t) => t.stop()), []);
+
+  // On phones, open the camera straight away — that is what the teacher came here to do.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (autoOpened.current || !classPackageAssignmentId) return;
+    autoOpened.current = true;
+    if (window.matchMedia?.("(pointer: coarse)").matches) void openCamera();
+  }, [classPackageAssignmentId, openCamera]);
+
+  /** One tap: capture, keep, and start analysing. A bad photo shows up in review with "أعد التصوير". */
+  const captureOne = useCallback(async () => {
+    if (papers.length >= MAX_PAPERS || captureBusy) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    setCaptureBusy(true);
+    setCaptureFlash(true);
+    if ("vibrate" in navigator) navigator.vibrate?.(35);
+
+    try {
+      drawVideoCoverToPortraitCanvas(video, canvas);
+      const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
+      const paper = await preparePaper(raw, `p${Date.now()}`);
+      addPaper(paper);
+      flashMessage(`✓ تم حفظ الورقة ${formatCount(papers.length + 1)} — صوّر التالية`);
+    } catch {
+      flashMessage("تعذّر التقاط الصورة، حاول مرة أخرى");
+    } finally {
+      setCaptureBusy(false);
+      window.setTimeout(() => setCaptureFlash(false), 160);
+    }
+  }, [addPaper, captureBusy, flashMessage, papers.length, preparePaper]);
+
+  const addManualPaper = useCallback(() => {
+    const paperId = `manual-${Date.now()}`;
+    const blankAnswers = Object.fromEntries(Array.from({ length: Q_COUNT }, (_, index) => [`q${index + 1}`, ""]));
+    setResults((prev) => [
+      ...prev,
+      {
+        paperId,
+        studentName: "",
+        studentCode: "",
+        editedName: "",
+        matchedStudentId: null,
+        matchConfidence: "needs_review",
+        answers: blankAnswers,
+        score: 0,
+        total: Q_COUNT,
+        percentage: 0,
+        level: "دون الأساسي",
+        weakSkills: [],
+        error: false,
+        thumbBase64: "",
+      },
+    ]);
+    closeCamera();
+    setStep("review");
+    setReviewingPaperId(paperId);
+  }, [closeCamera]);
+
+  const handleGalleryUpload = useCallback(async (files: FileList | null) => {
+    if (!files?.length) return;
+    for (const file of Array.from(files).slice(0, MAX_PAPERS - papers.length)) {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const raw = dataUrl.split(",")[1] ?? "";
+      if (raw) addPaper(await preparePaper(raw, `p${Date.now()}-${file.name}`));
+    }
+    flashMessage("تم رفع الصور");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [addPaper, flashMessage, papers.length, preparePaper]);
+
+  // ── Finish: wait only for papers still being analysed ───────────────────────
 
   const processAll = async () => {
     if (!papers.length) return;
@@ -619,20 +639,16 @@ export function BatchOMRScanner({
     }
     closeCamera();
     setStep("processing");
-    setProcessingCount(0);
-    let done = 0;
     const allResults = await Promise.all(
-      papers.map(async (paper) => {
-        const result = await scanImage(paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64);
-        done++;
-        setProcessingCount(done);
-        return result;
-      })
+      papers.map((paper) => pendingScans.current.get(paper.id) ?? scanImage(paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64))
     );
-
-    setResults(allResults);
+    // Keep anything the teacher already reviewed (student choice, corrected answers, retakes).
+    setResults((prev) => {
+      const existing = new Map(prev.map((r) => [r.paperId, r]));
+      return [...prev.filter((r) => r.paperId.startsWith("manual-")), ...allResults.map((r) => existing.get(r.paperId) ?? r)];
+    });
     const successCount = allResults.filter((r) => !r.error).length;
-    sendBrowserNotification(`تمت معالجة ${successCount} ورقة بنجاح ✓`);
+    sendBrowserNotification(`تمت قراءة ${successCount} ورقة ✓`);
     setStep("review");
   };
 
@@ -640,18 +656,18 @@ export function BatchOMRScanner({
 
   const handleRetakeCapture = async (newBase64: string) => {
     if (!retakingPaperId) return;
+    const paperId = retakingPaperId;
     const thumb = await compressImage(newBase64, 1100, 0.9);
     setRetakingPaperId(null);
-    // Show scanning indicator for this row
-      setResults((prev) =>
-        prev.map((r) =>
-          r.paperId === retakingPaperId
+    setResults((prev) =>
+      prev.map((r) =>
+        r.paperId === paperId
           ? { ...r, error: false, errorMsg: undefined, editedName: "جارٍ التحليل...", matchConfidence: undefined, matchedStudentId: null }
           : r
       )
     );
-    const newResult = await scanImage(newBase64, retakingPaperId!, thumb);
-    setResults((prev) => prev.map((r) => (r.paperId === retakingPaperId ? { ...newResult, editedName: newResult.studentName } : r)));
+    const newResult = await scanImage(newBase64, paperId, thumb);
+    setResults((prev) => prev.map((r) => (r.paperId === paperId ? { ...newResult, editedName: newResult.studentName } : r)));
   };
 
   // ── Per-question review save ────────────────────────────────────────────────
@@ -685,13 +701,6 @@ export function BatchOMRScanner({
 
   // ── Review actions ──────────────────────────────────────────────────────────
 
-  const updateName = (paperId: string, name: string) =>
-    setResults((prev) => prev.map((r) => {
-      if (r.paperId !== paperId) return r;
-      const match = resolveStudentMatch({ studentName: r.studentName, studentCode: r.studentCode, editedName: name }, students);
-      return { ...r, editedName: name, matchedStudentId: match.matchedStudentId, matchConfidence: match.matchConfidence };
-    }));
-
   const updateMatchedStudent = (paperId: string, studentId: string) =>
     setResults((prev) => prev.map((r) => (
       r.paperId === paperId
@@ -699,20 +708,33 @@ export function BatchOMRScanner({
         : r
     )));
 
+  const removeResult = (paperId: string) => {
+    pendingScans.current.delete(paperId);
+    setResults((prev) => prev.filter((r) => r.paperId !== paperId));
+    setPapers((prev) => prev.filter((p) => p.id !== paperId));
+  };
+
   const saveAll = async () => {
     const valid = results.filter((r) => !r.error);
     if (!valid.length) return;
     if (valid.some((r) => !r.matchedStudentId)) {
-      setSaveError("راجع المطابقة واختر الطالب لكل ورقة قبل الحفظ");
+      setSaveError("اختر الطالب لكل ورقة معلّمة باللون الأصفر قبل الحفظ");
+      return;
+    }
+    if (duplicateIds.size) {
+      setSaveError("يوجد أكثر من ورقة لنفس الطالب. احذف المكررة أو غيّر اختيار الطالب.");
       return;
     }
 
     setSaveError(null);
+    setSaving(true);
     try {
       await onComplete(valid);
       setStep("done");
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : "تعذر حفظ نتائج التصحيح");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -720,12 +742,31 @@ export function BatchOMRScanner({
 
   const validResults = results.filter((r) => !r.error);
   const errorResults = results.filter((r) => r.error);
+  const unmatchedCount = validResults.filter((r) => !r.matchedStudentId).length;
+  const duplicateIds = new Set(
+    validResults
+      .map((r) => r.matchedStudentId)
+      .filter((id, index, all): id is string => Boolean(id) && all.indexOf(id) !== index)
+  );
+  const usedStudentIds = new Set(validResults.map((r) => r.matchedStudentId).filter(Boolean));
+  const missingStudents = students.filter((s) => !usedStudentIds.has(s.id));
+  const lastPaper = papers[papers.length - 1];
+
+  const galleryInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept="image/*"
+      multiple
+      className="hidden"
+      onChange={(event) => void handleGalleryUpload(event.target.files)}
+    />
+  );
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm" dir="rtl">
-      {/* Retake modal (camera) */}
+    <div dir="rtl">
       {retakingPaperId && (
         <RetakeModal
           onCapture={handleRetakeCapture}
@@ -735,430 +776,303 @@ export function BatchOMRScanner({
         />
       )}
 
-      {/* Per-question review modal */}
       {reviewingPaperId && (() => {
         const r = results.find((x) => x.paperId === reviewingPaperId);
         return r ? (
-          <PaperReviewModal
-            result={r}
-            onSave={handleReviewSave}
-            onClose={() => setReviewingPaperId(null)}
-          />
+          <PaperReviewModal result={r} onSave={handleReviewSave} onClose={() => setReviewingPaperId(null)} />
         ) : null;
       })()}
 
+      {/* ── Full-screen camera ── */}
       {cameraOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-slate-950 text-white" dir="rtl">
-          <div className="flex items-center justify-between border-b border-white/10 bg-slate-950/95 px-4 py-3">
-            <button onClick={closeCamera} className="rounded-xl border border-white/15 px-4 py-2 text-sm font-bold text-white/90">
-              إغلاق
+        <div className="fixed inset-0 z-[55] flex flex-col bg-black text-white" style={{ height: "100dvh" }} dir="rtl">
+          <div className="flex items-center justify-between gap-2 px-3 pb-2" style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}>
+            <button onClick={closeCamera} aria-label="إغلاق الكاميرا" className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-2xl">
+              ×
             </button>
-            <div className="text-center">
-              <h3 className="text-base font-black">تصحيح ورقة الاختبار</h3>
-              <p className="text-xs font-bold text-white/55">
-                تم تصوير {formatCount(papers.length)} من {formatCount(Math.min(totalStudents || MAX_PAPERS, MAX_PAPERS))}
+            <div className="min-w-0 text-center">
+              <p className="text-base font-black">
+                {formatCount(papers.length)} / {formatCount(target)} ورقة
+              </p>
+              <p className="text-xs font-bold text-white/60">
+                {papers.length === 0
+                  ? "ضع الورقة داخل الإطار واضغط الزر"
+                  : analyzedCount < papers.length
+                    ? `جارٍ قراءة ${formatCount(papers.length - analyzedCount)} في الخلفية`
+                    : "تمت قراءة كل الأوراق"}
               </p>
             </div>
             <button
-              onClick={papers.length ? processAll : undefined}
+              onClick={processAll}
               disabled={!papers.length}
-              className="rounded-xl bg-white/10 px-4 py-2 text-sm font-bold text-white/90 disabled:opacity-40"
+              className="h-11 rounded-full bg-brand px-5 text-sm font-black text-white disabled:opacity-40"
             >
               إنهاء
             </button>
           </div>
 
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4">
-            <div className="mx-auto w-full max-w-sm">
-              <div
-                className={`relative overflow-hidden rounded-3xl border-2 border-white/30 bg-black shadow-2xl transition-all duration-150 ${captureFlash ? "scale-[0.99] ring-4 ring-teal-300/50" : ""}`}
-                style={{ aspectRatio: "1 / 1.414" }}
-              >
-                <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted />
-                {captureFlash && <div className="absolute inset-0 bg-white/45 pointer-events-none" />}
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="relative h-[90%] w-[88%]">
-                    <div className="absolute right-0 top-0 h-9 w-9 border-r-4 border-t-4 border-white" />
-                    <div className="absolute left-0 top-0 h-9 w-9 border-l-4 border-t-4 border-white" />
-                    <div className="absolute bottom-0 right-0 h-9 w-9 border-b-4 border-r-4 border-white" />
-                    <div className="absolute bottom-0 left-0 h-9 w-9 border-b-4 border-l-4 border-white" />
-                  </div>
-                </div>
-                <div className="pointer-events-none absolute left-4 right-4 top-4 rounded-full bg-black/45 px-3 py-2 text-center text-sm font-bold">
-                  ضع ورقة الاختبار داخل الإطار.
-                </div>
-
-                {capturedPreview && pendingCapture && (
-                  <div className="absolute inset-0 z-10 flex flex-col bg-black">
-                    <div className="min-h-0 flex-1 overflow-auto p-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it */}
-                      <img src={`data:image/jpeg;base64,${capturedPreview}`} alt="معاينة الورقة" className="mx-auto h-full max-h-full rounded-2xl object-contain" />
-                    </div>
-                    <div className="border-t border-white/10 bg-slate-950 p-4">
-                      <p className="mb-3 text-center text-sm font-bold text-white/80">راجع وضوح رقم الطالب وجميع الاختيارات.</p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button onClick={acceptCapture} disabled={captureBusy} className="rounded-2xl bg-brand py-3 text-sm font-black text-white disabled:opacity-60">
-                          استخدام الصورة
-                        </button>
-                        <button onClick={retakePendingCapture} disabled={captureBusy} className="rounded-2xl border border-white/20 py-3 text-sm font-black text-white disabled:opacity-60">
-                          إعادة التصوير
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+          {/* The frame keeps the paper's A4 shape and matches exactly what gets captured. */}
+          <div className="relative flex min-h-0 flex-1 items-center justify-center px-3" style={{ containerType: "size" }}>
+            <div
+              className={`relative overflow-hidden rounded-2xl bg-slate-900 transition-transform duration-150 ${captureFlash ? "scale-[0.985]" : ""}`}
+              style={{ width: "min(100cqw, calc(100cqh / 1.414))", aspectRatio: "1 / 1.414" }}
+            >
+              <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted />
+              {captureFlash && <div className="pointer-events-none absolute inset-0 bg-white/50" />}
+              <div className="pointer-events-none absolute inset-3">
+                <div className="absolute right-0 top-0 h-8 w-8 border-r-4 border-t-4 border-white" />
+                <div className="absolute left-0 top-0 h-8 w-8 border-l-4 border-t-4 border-white" />
+                <div className="absolute bottom-0 right-0 h-8 w-8 border-b-4 border-r-4 border-white" />
+                <div className="absolute bottom-0 left-0 h-8 w-8 border-b-4 border-l-4 border-white" />
               </div>
-
-              <div className="mt-4 rounded-2xl bg-white/8 p-3 text-center text-sm font-bold leading-7 text-white/75">
-                <p>ضع ورقة الاختبار داخل الإطار.</p>
-                <p>تأكد من وضوح رقم الطالب وجميع الاختيارات.</p>
-                {captureMessage && <p className="mt-1 text-[#5eead4]">{captureMessage}</p>}
-              </div>
+              {captureMessage && (
+                <div role="status" className="pointer-events-none absolute inset-x-4 bottom-4 rounded-full bg-black/65 px-3 py-2 text-center text-sm font-bold">
+                  {captureMessage}
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="border-t border-white/10 bg-slate-950/95 p-4">
-            <canvas ref={canvasRef} className="hidden" />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) => void handleGalleryUpload(event.target.files?.[0])}
-            />
-            <div className="mx-auto max-w-md space-y-3">
+          <canvas ref={canvasRef} className="hidden" />
+          {galleryInput}
+
+          <div className="grid grid-cols-3 items-center px-6 pt-3" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 1rem)" }}>
+            <button onClick={() => fileInputRef.current?.click()} className="justify-self-start text-xs font-bold text-white/80">
+              <span className="mb-1 block text-2xl">🖼️</span>
+              المعرض
+            </button>
+            <button
+              onClick={captureOne}
+              disabled={papers.length >= MAX_PAPERS || captureBusy}
+              aria-label="تصوير الورقة"
+              className="flex h-20 w-20 items-center justify-center justify-self-center rounded-full border-4 border-white disabled:opacity-40"
+            >
+              <span className={`block h-16 w-16 rounded-full ${captureBusy ? "bg-white/50" : "bg-white"}`} />
+            </button>
+            {lastPaper ? (
               <button
-                onClick={captureOne}
-                disabled={papers.length >= MAX_PAPERS || captureBusy || !!pendingCapture}
-                className="w-full rounded-2xl bg-brand py-4 text-base font-black text-white shadow-lg disabled:opacity-50"
+                onClick={() => removePaper(lastPaper.id)}
+                className="relative justify-self-end"
+                aria-label="حذف آخر صورة"
+                title="حذف آخر صورة"
               >
-                {captureBusy ? "جارٍ تجهيز الصورة..." : "تصوير الورقة"}
+                {/* eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it */}
+                <img src={`data:image/jpeg;base64,${lastPaper.thumbBase64}`} alt="" className="h-14 w-10 rounded-md border-2 border-white object-cover" />
+                <span className="absolute -left-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-black">×</span>
               </button>
-              <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => fileInputRef.current?.click()} className="rounded-2xl border border-white/15 py-3 text-sm font-bold text-white/90">
-                  رفع صورة من المعرض
-                </button>
-                <button onClick={addManualPaper} className="rounded-2xl border border-white/15 py-3 text-sm font-bold text-white/90">
-                  إدخال الإجابات يدويًا
-                </button>
-              </div>
-              {papers.length > 0 && (
-                <button onClick={processAll} className="w-full rounded-2xl bg-white py-3 text-sm font-black text-slate-950">
-                  إنهاء وبدء التصحيح
-                </button>
-              )}
-            </div>
+            ) : (
+              <button onClick={addManualPaper} className="justify-self-end text-xs font-bold text-white/80">
+                <span className="mb-1 block text-2xl">✍️</span>
+                يدويًا
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="p-5 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h3 className="font-bold text-gray-900 text-lg">📷 مسح أوراق الفصل كاملاً</h3>
-          <p className="text-gray-500 text-sm mt-0.5">
-            {step === "capture" && "صوّر أوراق الطلاب، وسيتم التصحيح تلقائيًا بمفتاح الإجابة المعتمد"}
-            {step === "processing" && "جارٍ معالجة الأوراق بالتوازي..."}
-            {step === "review" && "مراجعة النتائج وحفظها"}
-            {step === "done" && "✅ تم حفظ نتائج الفصل"}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs px-2.5 py-1 rounded-full font-bold" style={{ background: "#e6f7f1", color: COLORS.brand }}>
-            وضع التصحيح: حزمة
-          </span>
-          <span className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: "#e6f7f1", color: COLORS.brand }}>
-            الذكاء الاصطناعي
-          </span>
-        </div>
-      </div>
-
-      <div className="p-5">
-        <div className="mb-4 rounded-xl border border-teal-100 bg-teal-50/70 p-3 text-sm font-bold text-teal-800">
-          يتم قراءة اختيارات الطالب من ورقة الأسئلة وتصحيحها بمفتاح الإجابة المحمي.
-        </div>
-
-        {/* ── Capture ── */}
-        {step === "capture" && (
-          <div>
-            <div className="flex items-start justify-between mb-5 p-3 rounded-xl gap-3" style={{ background: "#f0fdfa", border: "1px solid #99f6e4" }}>
-              <div>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="text-teal-700 font-bold text-sm">مفتاح الإجابة معتمد ومحمي</span>
-                </div>
-                <p className="text-xs text-slate-500">المعلم يصوّر أوراق الطلاب فقط، ولا تظهر الإجابات الصحيحة في هذه الواجهة.</p>
-              </div>
-            </div>
-
-            {papers.length >= MAX_PAPERS ? (
-              <div className="text-center py-5 mb-5 rounded-xl border border-amber-200" style={{ background: "#fffbeb" }}>
-                <p className="text-amber-700 font-bold mb-1">وصلت للحد الأقصى {formatCount(MAX_PAPERS)} ورقة</p>
-                <p className="text-amber-600 text-sm">اضغط بدء التصحيح لمعالجة الأوراق</p>
-              </div>
-            ) : (
-              <div className="text-center py-6 mb-5 border-2 border-dashed border-gray-200 rounded-xl">
-                <div className="text-4xl mb-2">📷</div>
-                <button onClick={openCamera} className="px-8 py-3 rounded-xl text-white font-bold shadow-md hover:opacity-90 mb-2" style={{ background: COLORS.brand }}>
-                  التصحيح بالكاميرا
-                </button>
-                <div className="mt-2 flex justify-center gap-2 text-xs font-bold text-gray-500">
-                  <button onClick={() => fileInputRef.current?.click()} className="rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50">
-                    رفع صورة من المعرض
-                  </button>
-                  <button onClick={addManualPaper} className="rounded-lg border border-gray-200 px-3 py-2 hover:bg-gray-50">
-                    إدخال الإجابات يدويًا
-                  </button>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(event) => void handleGalleryUpload(event.target.files?.[0])}
-                />
-                <p className="text-gray-400 text-sm">
-                  {papers.length === 0 ? `صوّر أوراق الـ ${formatCount(totalStudents)} طالب` : `تم تصوير ${formatCount(papers.length)} / ${formatCount(MAX_PAPERS)} ورقة — يمكنك إضافة المزيد`}
-                </p>
-              </div>
-            )}
-
-            {/* Thumbnails */}
-            {papers.length > 0 && (
-              <div className="mb-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    تم تصوير <span className="font-bold" style={{ color: COLORS.brand }}>{formatCount(papers.length)}</span> / <span className="font-bold">{formatCount(MAX_PAPERS)}</span> ورقة
-                  </span>
-                  {totalStudents > 0 && papers.length < totalStudents && papers.length < MAX_PAPERS && (
-                    <span className="text-xs text-amber-600 font-medium">
-                      ⚠️ {formatCount(totalStudents - papers.length)} ورقة متبقية
-                    </span>
-                  )}
-                </div>
-                <div className="grid grid-cols-5 gap-2 mb-4">
-                  {papers.map((p, i) => (
-                    <div key={p.id} className="relative group rounded-lg overflow-hidden border-2 border-gray-200" style={{ aspectRatio: "3/4" }}>
-                      {/* eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it */}
-                      <img src={`data:image/jpeg;base64,${p.thumbBase64}`} alt={`ورقة ${formatCount(i + 1)}`} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <button onClick={() => setPapers((prev) => prev.filter((pp) => pp.id !== p.id))} className="w-7 h-7 rounded-full bg-red-500 text-white text-lg leading-none flex items-center justify-center">
-                          ×
-                        </button>
-                      </div>
-                      <div className="absolute bottom-0.5 right-0.5 bg-black/60 text-white text-xs rounded px-1 leading-4">
-                        {formatCount(i + 1)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                {/* Start grading button — always visible once papers exist and camera is closed */}
-                {!cameraOpen && (
-                  <button onClick={processAll} className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-lg hover:opacity-90" style={{ background: COLORS.brand }}>
-                    بدء تصحيح {formatCount(papers.length)} ورقة
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Processing ── */}
-        {step === "processing" && (
-          <div className="py-10 text-center">
-            <div className="relative w-20 h-20 mx-auto mb-5">
-              <div className="w-20 h-20 rounded-full border-4 border-gray-200" />
-              <div className="absolute top-0 left-0 w-20 h-20 rounded-full border-4 border-t-transparent animate-spin" style={{ borderColor: COLORS.accent, borderTopColor: "transparent" }} />
-            </div>
-            <p className="font-bold text-gray-900 text-lg mb-1">
-              جارٍ تحليل الأوراق... {toEnglishDigits(`${processingCount}/${papers.length}`)}
-            </p>
-            <p className="text-gray-500 text-sm mb-5">
-              {processingCount < papers.length
-                ? "جارٍ تحليل الصورة... (قد يستغرق 10-15 ثانية لكل ورقة)"
-                : "اكتملت المعالجة — جارٍ تجميع النتائج..."}
-            </p>
-            <div className="w-full max-w-xs mx-auto bg-gray-100 rounded-full h-3 mb-2">
-              <div
-                className="h-3 rounded-full transition-all duration-500"
-                style={{ width: `${papers.length ? (processingCount / papers.length) * 100 : 0}%`, background: COLORS.accent }}
-              />
-            </div>
-            <p className="text-xs text-gray-400">يعالج جميع الأوراق في نفس الوقت بالتوازي</p>
-          </div>
-        )}
-
-        {/* ── Review ── */}
-        {step === "review" && (
-          <div>
-            {/* Level summary cards */}
-            <div className="grid grid-cols-4 gap-2 mb-5">
-              {(["متقدم", "متمكن", "أساسي", "دون الأساسي"] as const).map((lvl) => {
-                const cfg = ETEC_LEVELS[lvl];
-                const count = validResults.filter((r) => r.level === lvl).length;
-                return (
-                  <div key={lvl} className="rounded-xl p-3 text-center border" style={{ borderColor: cfg.color + "40", background: cfg.color + "12" }}>
-                    <div className="text-2xl font-bold" style={{ color: cfg.color }}>{formatCount(count)}</div>
-                    <div className="text-xs font-medium text-gray-600 mt-0.5">{lvl}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Error banner */}
-            {errorResults.length > 0 && (
-              <div className="mb-4 p-3 rounded-xl text-sm flex items-start gap-2" style={{ background: "#fff5f5", border: "1px solid #fecaca", color: "#b91c1c" }}>
-                <span>⚠️</span>
-                <span>{formatCount(errorResults.length)} ورقة لم تتم قراءتها — اضغط أعد التصوير لكل ورقة فاشلة</span>
-              </div>
-            )}
-
-            {saveError && (
-              <div className="mb-4 p-3 rounded-xl text-sm font-bold" style={{ background: "#fff5f5", border: "1px solid #fecaca", color: "#b91c1c" }}>
-                {saveError}
-              </div>
-            )}
-
-            {/* Results table */}
-            <div className="rounded-xl border border-gray-200 overflow-hidden mb-5">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">#</th>
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">رقم الطالب المقروء</th>
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الاسم المقروء</th>
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الطالب المطابق</th>
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">حالة المطابقة</th>
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">الدرجة</th>
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">المستوى</th>
-                    <th className="text-right px-3 py-3 text-xs font-medium text-gray-500">إجراء</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {results.map((r, i) => {
-                    const cfg = !r.error && r.level ? ETEC_LEVELS[r.level as keyof typeof ETEC_LEVELS] : null;
-                    return (
-                      <tr key={r.paperId} className={r.error ? "bg-red-50/40" : "hover:bg-gray-50"}>
-                        <td className="px-3 py-3">
-                          <div className="flex items-center gap-1.5">
-                            {r.thumbBase64 && (
-                              // eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it
-                              <img src={`data:image/jpeg;base64,${r.thumbBase64}`} alt="" className="w-7 h-9 object-cover rounded border border-gray-200" />
-                            )}
-                            <span className="text-gray-400 text-sm">{formatCount(i + 1)}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 py-3 text-sm font-bold text-gray-700">
-                          {r.error ? "—" : r.studentCode ? toEnglishDigits(r.studentCode) : <span className="text-gray-300">غير مقروء</span>}
-                        </td>
-                        <td className="px-3 py-3">
-                          {r.error ? (
-                            <span className="text-red-400 text-sm italic">{r.errorMsg ?? "تعذّرت القراءة"}</span>
-                          ) : (
-                            <div>
-                              <input
-                                className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-right w-full focus:outline-none focus:ring-1 max-w-[180px]"
-                                style={{ "--tw-ring-color": COLORS.brand } as React.CSSProperties}
-                                value={r.editedName}
-                                onChange={(e) => updateName(r.paperId, e.target.value)}
-                                placeholder="أدخل اسم الطالب"
-                              />
-                              {r.studentName && r.studentName !== r.editedName && (
-                                <p className="text-xs text-gray-400 mt-0.5">
-                                  الذكاء الاصطناعي: {r.studentName}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-3 py-3">
-                          {r.error ? "—" : (
-                            <select
-                              value={r.matchedStudentId ?? ""}
-                              onChange={(e) => updateMatchedStudent(r.paperId, e.target.value)}
-                              className="w-full min-w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 outline-none focus:border-brand"
-                            >
-                              <option value="">اختر الطالب يدويًا</option>
-                              {students.map((student) => (
-                                <option key={student.id} value={student.id}>
-                                  {toEnglishDigits(normalizeStudentCode(student.studentCode) || "—")} - {student.name}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                        </td>
-                        <td className="px-3 py-3">
-                          {r.error ? "—" : (
-                            <span className={`rounded-full px-2 py-1 text-xs font-bold ${
-                              r.matchConfidence === "conflict"
-                                ? "bg-rose-50 text-rose-700"
-                                : r.matchConfidence === "needs_review"
-                                  ? "bg-amber-50 text-amber-700"
-                                  : "bg-teal-50 text-teal-700"
-                            }`}>
-                              {confidenceLabel(r.matchConfidence)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-sm font-bold text-gray-900">
-                          {r.error ? "—" : toEnglishDigits(`${r.score}/${r.total}`)}
-                        </td>
-                        <td className="px-3 py-3">
-                          {cfg && !r.error ? (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold" style={{ background: cfg.color + "22", color: cfg.color }}>
-                              {r.level}
-                            </span>
-                          ) : "—"}
-                        </td>
-                        <td className="px-3 py-3">
-                          {r.error ? (
-                            <button
-                              onClick={() => setRetakingPaperId(r.paperId)}
-                              className="text-xs border rounded-lg px-2 py-1.5 hover:bg-red-50 transition-all"
-                              style={{ borderColor: "#fca5a5", color: "#b91c1c" }}
-                            >
-                              ⟳ أعد التصوير
-                            </button>
-                          ) : (
-                            <div className="flex gap-1.5">
-                              <button
-                                onClick={() => setReviewingPaperId(r.paperId)}
-                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 hover:bg-gray-50 transition-all"
-                                style={{ color: COLORS.accent }}
-                              >
-                                ✏️ مراجعة
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <button
-              onClick={saveAll}
-              disabled={validResults.length === 0}
-              className="w-full py-4 rounded-xl text-white font-bold text-lg shadow-md hover:opacity-90"
-              style={{ background: COLORS.brand }}
-            >
-              💾 حفظ نتائج {formatCount(validResults.length)} طالب في الفصل
+      {/* ── Capture (camera closed) ── */}
+      {step === "capture" && (
+        <div className="space-y-4">
+          {galleryInput}
+          <button
+            onClick={openCamera}
+            disabled={papers.length >= MAX_PAPERS}
+            className="w-full rounded-2xl bg-brand py-4 text-lg font-black text-white shadow-md transition hover:bg-brand-dark disabled:opacity-50"
+          >
+            📷 {papers.length ? "متابعة التصوير" : "ابدأ التصوير بالكاميرا"}
+          </button>
+          {cameraError && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm font-bold text-danger">{cameraError}</p>}
+          <div className="grid grid-cols-2 gap-2 text-sm font-bold text-slate-500">
+            <button onClick={() => fileInputRef.current?.click()} className="rounded-xl border border-slate-200 py-2.5 hover:bg-slate-50">
+              رفع صور من المعرض
+            </button>
+            <button onClick={addManualPaper} className="rounded-xl border border-slate-200 py-2.5 hover:bg-slate-50">
+              إدخال الإجابات يدويًا
             </button>
           </div>
-        )}
+          <p className="text-center text-xs font-bold text-slate-400">
+            صوّر كل ورقة بضغطة واحدة؛ تُقرأ الأوراق تلقائيًا أثناء التصوير ويُصحَّح بمفتاح الإجابة المحمي.
+          </p>
 
-        {/* ── Done ── */}
-        {step === "done" && (
-          <div className="text-center py-10">
-            <div className="text-6xl mb-4">🎉</div>
-            <p className="text-2xl font-bold text-gray-900 mb-2">
-              تم حفظ نتائج {formatCount(validResults.length)} طالب بنجاح
-            </p>
-            <p className="text-gray-500 text-sm">يمكنك الآن مراجعة النتائج في جدول الطلاب</p>
+          {papers.length > 0 && (
+            <div>
+              <p className="mb-2 text-sm font-bold text-slate-600">
+                تم تصوير <span className="text-brand">{formatCount(papers.length)}</span> من {formatCount(target)}
+              </p>
+              <div className="mb-4 grid grid-cols-5 gap-2 sm:grid-cols-8">
+                {papers.map((p, i) => (
+                  <div key={p.id} className="relative overflow-hidden rounded-lg border border-slate-200" style={{ aspectRatio: "3/4" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it */}
+                    <img src={`data:image/jpeg;base64,${p.thumbBase64}`} alt={`ورقة ${formatCount(i + 1)}`} className="h-full w-full object-cover" />
+                    <button
+                      onClick={() => removePaper(p.id)}
+                      aria-label={`حذف الورقة ${formatCount(i + 1)}`}
+                      className="absolute left-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-xs text-white"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button onClick={processAll} className="w-full rounded-2xl bg-brand-navy py-4 text-base font-black text-white">
+                عرض النتائج ({formatCount(papers.length)} ورقة)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Processing (only papers still being read) ── */}
+      {step === "processing" && (
+        <div className="py-10 text-center">
+          <div className="mx-auto mb-5 h-14 w-14 animate-spin rounded-full border-4 border-teal-100 border-t-brand" />
+          <p className="mb-1 text-lg font-black text-brand-navy">
+            جارٍ قراءة الأوراق... {toEnglishDigits(`${analyzedCount}/${papers.length}`)}
+          </p>
+          <p className="text-sm font-bold text-slate-400">لحظات وتظهر النتائج</p>
+        </div>
+      )}
+
+      {/* ── Review ── */}
+      {step === "review" && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-4 gap-2">
+            {(["متقدم", "متمكن", "أساسي", "دون الأساسي"] as const).map((lvl) => {
+              const cfg = ETEC_LEVELS[lvl];
+              const count = validResults.filter((r) => r.level === lvl).length;
+              return (
+                <div key={lvl} className="rounded-xl border p-2 text-center" style={{ borderColor: cfg.color + "40", background: cfg.color + "12" }}>
+                  <div className="text-xl font-black" style={{ color: cfg.color }}>{formatCount(count)}</div>
+                  <div className="text-[11px] font-bold text-slate-600">{lvl}</div>
+                </div>
+              );
+            })}
           </div>
-        )}
-      </div>
+
+          {(errorResults.length > 0 || unmatchedCount > 0 || duplicateIds.size > 0) && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">
+              {errorResults.length > 0 && <p>{formatCount(errorResults.length)} ورقة لم تُقرأ — اضغط «أعد التصوير».</p>}
+              {unmatchedCount > 0 && <p>{formatCount(unmatchedCount)} ورقة تحتاج اختيار الطالب.</p>}
+              {duplicateIds.size > 0 && <p>توجد أوراق مكررة لنفس الطالب.</p>}
+            </div>
+          )}
+          {missingStudents.length > 0 && students.length > 0 && (
+            <p className="text-xs font-bold text-slate-400">
+              لم تُصحَّح بعد أوراق: {missingStudents.slice(0, 6).map((s) => s.name).join("، ")}
+              {missingStudents.length > 6 ? ` و${formatCount(missingStudents.length - 6)} آخرين` : ""}
+            </p>
+          )}
+
+          <ul className="space-y-2">
+            {results.map((r, i) => {
+              const cfg = !r.error && r.level ? ETEC_LEVELS[r.level as keyof typeof ETEC_LEVELS] : null;
+              const isDuplicate = !r.error && !!r.matchedStudentId && duplicateIds.has(r.matchedStudentId);
+              const needsChoice = !r.error && (!r.matchedStudentId || isDuplicate);
+              return (
+                <li
+                  key={r.paperId}
+                  className={`rounded-xl border p-3 ${r.error ? "border-red-200 bg-red-50/50" : needsChoice ? "border-amber-200 bg-amber-50/40" : "border-slate-100 bg-white"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    {r.thumbBase64 ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- local camera/base64 preview, next/image can't optimise it
+                      <img src={`data:image/jpeg;base64,${r.thumbBase64}`} alt="" className="h-12 w-9 flex-shrink-0 rounded border border-slate-200 object-cover" />
+                    ) : (
+                      <span className="flex h-12 w-9 flex-shrink-0 items-center justify-center rounded border border-slate-200 text-xs text-slate-400">{formatCount(i + 1)}</span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      {r.error ? (
+                        <p className="text-sm font-bold text-red-600">{r.errorMsg ?? "تعذّرت القراءة"}</p>
+                      ) : (
+                        <>
+                          <select
+                            value={r.matchedStudentId ?? ""}
+                            onChange={(e) => updateMatchedStudent(r.paperId, e.target.value)}
+                            aria-label="الطالب"
+                            className={`w-full rounded-lg border px-2 py-1.5 text-sm font-bold outline-none focus:border-brand ${needsChoice ? "border-amber-300 bg-white text-amber-800" : "border-slate-200 text-brand-navy"}`}
+                          >
+                            <option value="">اختر الطالب</option>
+                            {students.map((student) => (
+                              <option key={student.id} value={student.id}>
+                                {student.name}
+                                {student.studentCode ? ` (${toEnglishDigits(normalizeStudentCode(student.studentCode))})` : ""}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-1 truncate text-[11px] font-bold text-slate-400">
+                            {r.studentName || r.studentCode
+                              ? `المقروء: ${r.studentName || "—"}${r.studentCode ? ` · ${toEnglishDigits(r.studentCode)}` : ""}`
+                              : "لم يُقرأ الاسم أو الرقم"}
+                            {isDuplicate ? " · مكررة" : r.matchConfidence && r.matchConfidence !== "strong" ? ` · ${confidenceLabel(r.matchConfidence)}` : ""}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex-shrink-0 text-center">
+                      {r.error ? (
+                        <button
+                          onClick={() => setRetakingPaperId(r.paperId)}
+                          className="rounded-lg border border-red-300 px-2 py-1.5 text-xs font-bold text-red-700"
+                        >
+                          ⟳ أعد التصوير
+                        </button>
+                      ) : (
+                        <button onClick={() => setReviewingPaperId(r.paperId)} className="block" aria-label="مراجعة الإجابات">
+                          <span className="block text-base font-black text-brand-navy">{toEnglishDigits(`${r.score}/${r.total}`)}</span>
+                          {cfg && (
+                            <span className="block rounded-full px-2 text-[11px] font-bold" style={{ background: cfg.color + "22", color: cfg.color }}>
+                              {r.level}
+                            </span>
+                          )}
+                          <span className="block text-[10px] font-bold text-slate-400">مراجعة</span>
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeResult(r.paperId)}
+                      aria-label="حذف الورقة"
+                      className="flex-shrink-0 self-start text-lg leading-none text-slate-300 hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {saveError && (
+            <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{saveError}</p>
+          )}
+
+          <div className="sticky bottom-0 -mx-4 space-y-2 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:-mx-5 sm:px-5">
+            <button
+              onClick={saveAll}
+              disabled={validResults.length === 0 || saving}
+              className="w-full rounded-2xl bg-brand py-4 text-base font-black text-white shadow-md transition hover:bg-brand-dark disabled:opacity-50"
+            >
+              {saving ? "جارٍ الحفظ..." : `حفظ نتائج ${formatCount(validResults.length)} طالب`}
+            </button>
+            <button
+              onClick={() => { setStep("capture"); void openCamera(); }}
+              className="w-full text-sm font-bold text-slate-500"
+            >
+              + تصوير أوراق إضافية
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Done ── */}
+      {step === "done" && (
+        <div className="py-10 text-center">
+          <div className="mb-4 text-5xl">🎉</div>
+          <p className="mb-2 text-xl font-black text-brand-navy">
+            تم حفظ نتائج {formatCount(validResults.length)} طالب
+          </p>
+          <p className="text-sm font-bold text-slate-400">النتائج الآن في جدول الطلاب وتقارير الفصل</p>
+        </div>
+      )}
     </div>
   );
 }

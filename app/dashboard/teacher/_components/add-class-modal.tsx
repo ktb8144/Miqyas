@@ -41,7 +41,7 @@ export function AddClassModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div className="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="sticky top-0 bg-white border-b border-gray-100 p-5 flex items-center justify-between rounded-t-2xl">
           <h2 className="font-bold text-gray-900 text-lg">إضافة فصل جديد</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>

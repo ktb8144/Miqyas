@@ -55,23 +55,23 @@ export default function TeacherDashboard() {
 
       {/* ── Header ─────────────────────────────────────────────────────────────── */}
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 lg:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4 lg:px-8">
           <BrandLogo
             size="sm"
             contextTitle="لوحة المعلم"
             contextSubtitle={teacherSubtitle}
           />
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
           <Link
             href="/dashboard/teacher/evidence"
-            className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-extrabold sm:px-4 sm:text-sm text-white transition hover:bg-brand-dark"
           >
             <FolderCheck className="h-4 w-4" />
             ملف الشواهد
           </Link>
           <button
             onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold sm:px-4 sm:text-sm text-slate-500 transition hover:border-brand/40 hover:text-brand"
           >
             خروج
           </button>
@@ -92,7 +92,7 @@ export default function TeacherDashboard() {
             <p className="mt-1 text-sm font-bold">{pageError}</p>
             <button
               onClick={loadTeacherData}
-              className="mt-4 rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white"
+              className="mt-4 rounded-xl bg-brand px-3 py-2 text-xs font-extrabold sm:px-4 sm:text-sm text-white"
             >
               إعادة المحاولة
             </button>

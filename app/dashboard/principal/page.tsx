@@ -29,29 +29,29 @@ export default function PrincipalDashboard() {
   return (
     <div className="min-h-screen bg-[#f7fafc] text-brand-navy" dir="rtl">
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4 lg:px-8">
           <BrandLogo
             size="sm"
             contextTitle="لوحة مدير المدرسة"
             contextSubtitle={report?.school?.name ?? "جارٍ تحميل المدرسة"}
           />
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             <button
               onClick={() => setInviteOpen(true)}
-              className="rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark"
+              className="rounded-xl bg-brand px-3 py-2 text-xs font-extrabold sm:px-4 sm:text-sm text-white transition hover:bg-brand-dark"
             >
               إضافة معلم
             </button>
             <button
               onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold sm:px-4 sm:text-sm text-slate-500 transition hover:border-brand/40 hover:text-brand"
             >
               خروج
             </button>
           </div>
         </div>
 
-        <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-5 pb-3 lg:px-8">
+        <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 pb-3 sm:px-5 lg:px-8">
           {TABS.map((tab, i) => (
             <button
               key={tab}
@@ -81,7 +81,7 @@ export default function PrincipalDashboard() {
           <div className="rounded-[1.5rem] border border-red-100 bg-red-50 p-5 text-red-700">
             <p className="font-black">تعذر تحميل البيانات</p>
             <p className="mt-1 text-sm font-bold">{loadError}</p>
-            <button onClick={loadReport} className="mt-4 rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white">إعادة المحاولة</button>
+            <button onClick={loadReport} className="mt-4 rounded-xl bg-brand px-3 py-2 text-xs font-extrabold sm:px-4 sm:text-sm text-white">إعادة المحاولة</button>
           </div>
         )}
 

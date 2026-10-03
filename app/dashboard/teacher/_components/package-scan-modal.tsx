@@ -14,24 +14,24 @@ export function PackageScanModal({ d }: { d: TeacherDashboardState }) {
   if (!activePackageAssignment) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" dir="rtl">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
-          <div>
-            <p className="text-sm font-extrabold text-brand">تصحيح اختبار دالة</p>
-            <h2 className="mt-1 text-xl font-black text-brand-navy">{activePackageAssignment.packageTitle}</h2>
-            <p className="mt-1 text-sm font-bold text-slate-400">
-              {activePackageAssignment.className} | {toEnglishDigits(activePackageStudents.length)} طالب
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 sm:items-center sm:p-4" dir="rtl">
+      <div className="h-full w-full overflow-y-auto bg-white shadow-2xl sm:h-auto sm:max-h-[92vh] sm:max-w-2xl sm:rounded-[1.5rem]">
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <h2 className="truncate text-base font-black text-brand-navy sm:text-lg">{activePackageAssignment.packageTitle}</h2>
+            <p className="truncate text-xs font-bold text-slate-400">
+              تصحيح · {activePackageAssignment.className} · {toEnglishDigits(activePackageStudents.length)} طالب
             </p>
           </div>
           <button
             onClick={() => setActivePackageAssignment(null)}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
+            aria-label="إغلاق"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-slate-200 text-xl text-slate-500 transition hover:border-brand/40 hover:text-brand"
           >
-            إغلاق
+            ×
           </button>
         </div>
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           {activePackageStudents.length ? (
             <BatchOMRScanner
               classPackageAssignmentId={activePackageAssignment.id}

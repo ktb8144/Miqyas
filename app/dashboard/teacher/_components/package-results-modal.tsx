@@ -17,8 +17,8 @@ export function PackageResultsModal({ d }: { d: TeacherDashboardState }) {
   if (!packageResultsAssignment) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" dir="rtl">
-      <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-[1.5rem] bg-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/50 sm:items-center sm:p-4" dir="rtl">
+      <div className="h-full w-full overflow-y-auto bg-white shadow-2xl sm:h-auto sm:max-h-[92vh] sm:max-w-5xl sm:rounded-[1.5rem]">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white p-5">
           <div>
             <p className="text-sm font-extrabold text-brand">نتائج اختبار دالة</p>
