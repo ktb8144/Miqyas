@@ -30,7 +30,7 @@ const evidenceItems = [
   { icon: ClipboardCheck, text: "الاختبار المطبّق: المادة والصف والفصل والتاريخ" },
   { icon: BarChart3, text: "نتائج الفصل ومستوى كل طالب" },
   { icon: Target, text: "المهارات غير المتقنة والخطأ الأكثر تكرارًا" },
-  { icon: LineChart, text: "تحسّن الفصل عبر الأسابيع" },
+  { icon: LineChart, text: "نتائج الفصل عبر الأسابيع، وتطور المهارة عند إعادة قياسها" },
 ];
 
 // Evaluation areas the evidence speaks to. Wording should match the current
@@ -46,7 +46,7 @@ const evaluationAreas = [
   },
   {
     title: "تحسين نتائج المتعلمين",
-    desc: "منحنى يبيّن تقدّم فصلك من أسبوع إلى أسبوع، دليلًا على أثر عملك.",
+    desc: "نتائج فصلك أسبوعًا بعد أسبوع، وتطور كل مهارة عند إعادة قياسها، دليلًا على أثر عملك.",
   },
 ];
 

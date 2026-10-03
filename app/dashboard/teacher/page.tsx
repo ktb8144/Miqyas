@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { FolderCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
 import { AddClassModal } from "./_components/add-class-modal";
@@ -59,12 +61,21 @@ export default function TeacherDashboard() {
             contextTitle="لوحة المعلم"
             contextSubtitle={teacherSubtitle}
           />
+          <div className="flex items-center gap-2">
+          <Link
+            href="/dashboard/teacher/evidence"
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark"
+          >
+            <FolderCheck className="h-4 w-4" />
+            ملف الشواهد
+          </Link>
           <button
             onClick={async () => { await supabase.auth.signOut(); router.push("/login"); }}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
           >
             خروج
           </button>
+          </div>
         </div>
       </header>
 
