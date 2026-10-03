@@ -4,7 +4,7 @@ import { EmptyState, TeacherCard } from "./ui";
 import type { PrincipalDashboardState } from "../_lib/use-principal-dashboard";
 
 export function TeachersTab({ d }: { d: PrincipalDashboardState }) {
-  const { report } = d;
+  const { report, resendInvite } = d;
   if (!report) return null;
 
   return (
@@ -13,7 +13,7 @@ export function TeachersTab({ d }: { d: PrincipalDashboardState }) {
         <h3 className="font-bold text-gray-900">تقرير أداء المعلمين</h3>
         <p className="text-sm text-gray-500">مبني على الفصول والطلاب والنتائج المحفوظة</p>
       </div>
-      {report.teachers.length ? report.teachers.map((teacher) => <TeacherCard key={teacher.id} teacher={teacher} />) : <EmptyState>لم تتم إضافة معلمين بعد</EmptyState>}
+      {report.teachers.length ? report.teachers.map((teacher) => <TeacherCard key={teacher.id} teacher={teacher} onResendInvite={resendInvite} />) : <EmptyState>لم تتم إضافة معلمين بعد</EmptyState>}
     </div>
   );
 }

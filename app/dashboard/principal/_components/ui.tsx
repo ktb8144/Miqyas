@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { toEnglishDigits, formatNumber } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 import { LEVEL_THRESHOLDS, MASTERY_THRESHOLD } from "@/lib/levels";
@@ -30,7 +31,44 @@ export function KpiCard({ label, value, sub, icon, color = COLORS.brand }: { lab
   );
 }
 
-export function TeacherCard({ teacher }: { teacher: PrincipalReport["teachers"][number] }) {
+function ResendInviteButton({ onResend }: { onResend: () => Promise<string> }) {
+  const [state, setState] = useState<{ status: "idle" | "sending" | "done" | "error"; message?: string }>({ status: "idle" });
+
+  const send = async () => {
+    setState({ status: "sending" });
+    try {
+      setState({ status: "done", message: await onResend() });
+    } catch (err) {
+      setState({ status: "error", message: err instanceof Error ? err.message : "تعذر إرسال الرابط" });
+    }
+  };
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        onClick={send}
+        disabled={state.status === "sending"}
+        className="rounded-xl border border-brand/30 px-3 py-1.5 text-xs font-extrabold text-brand transition hover:bg-teal-50 disabled:opacity-60"
+      >
+        {state.status === "sending" ? "جاري الإرسال..." : "إعادة إرسال الدعوة"}
+      </button>
+      {state.message && (
+        <span role="status" className={`text-xs font-bold ${state.status === "error" ? "text-danger" : "text-success"}`}>
+          {state.message}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function TeacherCard({
+  teacher,
+  onResendInvite,
+}: {
+  teacher: PrincipalReport["teachers"][number];
+  onResendInvite?: (teacherId: string) => Promise<string>;
+}) {
   const badge = teacher.average === null
     ? { label: "لا توجد نتائج", color: "#64748b", bg: "#f8fafc" }
     : teacher.average >= LEVEL_THRESHOLDS.advanced
@@ -69,6 +107,9 @@ export function TeacherCard({ teacher }: { teacher: PrincipalReport["teachers"][
           </div>
         ))}
       </div>
+      {teacher.status === "invited" && onResendInvite && (
+        <ResendInviteButton onResend={() => onResendInvite(teacher.id)} />
+      )}
     </div>
   );
 }

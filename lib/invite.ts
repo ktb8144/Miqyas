@@ -65,6 +65,35 @@ export function describeProfileInsertError(error: unknown) {
   return "هذا المستخدم مسجّل مسبقًا";
 }
 
+/** Arabic message for Supabase's per-email send throttle, or null. */
+export function describeEmailRateLimit(error: unknown) {
+  const e = error as { code?: string; status?: number; message?: string } | null;
+  if (e?.code === "over_email_send_rate_limit" || e?.status === 429 || /only request this after|rate limit/i.test(e?.message ?? "")) {
+    return "أُرسل رابط لهذا البريد قبل قليل. انتظر دقيقة ثم حاول مرة أخرى.";
+  }
+  return null;
+}
+
+/**
+ * Emails an existing user a fresh link: a new invitation while the account is still
+ * unconfirmed, otherwise a password-reset link.
+ */
+export async function resendAccessEmail(email: string, name: string, role: string) {
+  const db = getAdminClient();
+  const redirectTo = getInviteRedirectTo();
+
+  const { error: inviteError } = await db.auth.admin.inviteUserByEmail(email, {
+    data: { name, role },
+    redirectTo,
+  });
+  if (!inviteError) return "invite" as const;
+  if (!isEmailTaken(inviteError)) throw inviteError;
+
+  const { error: resetError } = await db.auth.resetPasswordForEmail(email, { redirectTo });
+  if (resetError) throw resetError;
+  return "recovery" as const;
+}
+
 /** Removes an auth account created moments ago when its profile could not be saved. */
 export async function deleteAuthUserQuietly(userId: string) {
   const { error } = await getAdminClient().auth.admin.deleteUser(userId);

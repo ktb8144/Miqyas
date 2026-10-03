@@ -210,6 +210,18 @@ export function usePrincipalDashboard() {
     }
   }, [activeTab, loadPeriodicWeeks, periodicWeeks.length]);
 
+  /** Sends a fresh invitation link; returns the confirmation text or throws with the reason. */
+  const resendInvite = useCallback(async (teacherId: string) => {
+    const res = await fetch("/api/users/resend-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: teacherId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || !json.success) throw new Error(json.error || "تعذر إرسال الرابط");
+    return "أُرسل رابط جديد إلى بريد المعلم";
+  }, []);
+
   const inviteTeacher = async (event: React.FormEvent) => {
     event.preventDefault();
     setInviteLoading(true);
@@ -290,6 +302,7 @@ export function usePrincipalDashboard() {
     setInviteLoading,
     inviteMessage,
     setInviteMessage,
+    resendInvite,
     packageSummaries,
     setPackageSummaries,
     packagesLoading,

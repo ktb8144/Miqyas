@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
@@ -133,9 +134,12 @@ function LoginContent() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-extrabold text-slate-500">
-                    كلمة المرور
-                  </label>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="block text-sm font-extrabold text-slate-500">كلمة المرور</label>
+                    <Link href="/forgot-password" className="text-xs font-bold text-brand hover:text-brand-dark">
+                      نسيت كلمة المرور؟
+                    </Link>
+                  </div>
                   <div className="relative">
                     <input
                       type={showPass ? "text" : "password"}
@@ -162,7 +166,11 @@ function LoginContent() {
 
                 {inviteError && !error && (
                   <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
-                    رابط الدعوة غير صالح أو منتهي. اطلب دعوة جديدة من مدير المدرسة.
+                    رابط الدعوة استُخدم من قبل أو انتهت صلاحيته.{" "}
+                    <Link href="/forgot-password" className="underline">
+                      اطلب رابطًا جديدًا
+                    </Link>{" "}
+                    أو اطلب من قائد مدرستك إعادة إرسال الدعوة.
                   </div>
                 )}
 

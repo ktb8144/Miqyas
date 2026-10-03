@@ -3,6 +3,10 @@
 المكان: Supabase ← Authentication ← Emails ← Templates.
 انسخ العنوان (Subject) والمحتوى (Message body) لكل قالب كما هو، واحفظ.
 
+الروابط في القالبين تفتح صفحة `/auth/confirm` في دالة. الرابط لا يُستهلك بمجرد فتحه (مثلًا من فاحص الروابط في البريد
+أو المعاينة)، بل عندما يضغط المستخدم زر «تفعيل الحساب»، ثم يعيّن كلمة المرور في نفس الصفحة.
+`{{ .SiteURL }}` هو Site URL في Supabase (يجب أن يكون `https://www.dalaedu.com`).
+
 ---
 
 ## 1. Invite user — دعوة مستخدم
@@ -28,7 +32,7 @@
     </p>
 
     <p style="text-align:center; margin:0 0 24px;">
-      <a href="{{ .ConfirmationURL }}"
+      <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite"
          style="display:inline-block; background:#159f91; color:#ffffff; text-decoration:none; font-size:16px; font-weight:bold; padding:12px 32px; border-radius:8px;">
         تفعيل الحساب
       </a>
@@ -36,6 +40,7 @@
 
     <p style="font-size:13px; line-height:1.8; color:#6b7280; margin:0;">
       إذا لم تكن تتوقع هذه الدعوة، تجاهل هذه الرسالة.
+      إذا انتهت صلاحية الرابط، اطلب رابطًا جديدًا من «نسيت كلمة المرور» في صفحة الدخول.
     </p>
   </div>
 </div>
@@ -66,7 +71,7 @@
     </p>
 
     <p style="text-align:center; margin:0 0 24px;">
-      <a href="{{ .ConfirmationURL }}"
+      <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery"
          style="display:inline-block; background:#159f91; color:#ffffff; text-decoration:none; font-size:16px; font-weight:bold; padding:12px 32px; border-radius:8px;">
         تعيين كلمة مرور جديدة
       </a>
