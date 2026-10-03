@@ -60,3 +60,15 @@ drop table if exists public.teacher_training_tracking;
 ```
 
 هذه خطوة لا رجعة فيها، لذلك لم تُضف تلقائياً.
+
+## سجل التطبيق على قاعدة البيانات الحية
+
+| التاريخ | الترحيل | ملاحظة |
+|---|---|---|
+| 2026-10-03 | `add_package_question_misconceptions` | ملف `20260601010000` كان في المستودع ولم يُطبَّق، فكان تشخيص المهارات يفشل |
+| 2026-10-03 | `revoke_public_execute_on_package_validation_functions` | إغلاق تحذير أمني من Supabase |
+
+## فروق مكتشفة بين المستودع وقاعدة البيانات الحية
+
+- **مشغّلا التحقق عند النشر غير موجودين في القاعدة:** `validate_assessment_package_publish` و `validate_package_question_mapping` مُعرّفان في `20260511010000` لكن لا يوجد أي trigger مرتبط بالدالتين حاليًا. التحقق يتم في كود مسار النشر فقط. إعادتهما قرار يحتاج اختبارًا لأنه قد يمنع حفظ أسئلة حالية.
+- **جداول غير مستخدمة في الكود:** `nafis_plans`، `notifications`، `otp_sessions`، `prizes`، `questions`، `users_password_backup_20260526` (فارغ).
