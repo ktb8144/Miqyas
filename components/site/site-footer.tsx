@@ -5,7 +5,7 @@ import { BRAND } from "@/lib/brand";
 export function SiteFooter() {
   return (
     <footer className="border-t border-slate-100 px-5 py-14 lg:px-10">
-      <div className="mx-auto grid max-w-6xl gap-10 md:grid-cols-3">
+      <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <BrandLogo contextTitle={BRAND.nameAr} contextSubtitle={BRAND.tagline} size="sm" />
         </div>
@@ -25,6 +25,15 @@ export function SiteFooter() {
           <div className="space-y-3 text-sm font-semibold text-slate-500">
             <Link href="/about" className="block hover:text-brand">من نحن</Link>
             <Link href="/#trial" className="block hover:text-brand">تواصل معنا</Link>
+          </div>
+        </div>
+
+        <div>
+          <h3 className="mb-4 font-extrabold text-brand-navy">أدلة مفيدة</h3>
+          <div className="space-y-3 text-sm font-semibold leading-7 text-slate-500">
+            <Link href="/guides/how-it-works" className="block hover:text-brand">الاختبار الورقي والتصحيح بالجوال</Link>
+            <Link href="/guides/learning-outcomes-reports" className="block hover:text-brand">قراءة تقارير نواتج التعلم</Link>
+            <Link href="/guides/grade-6-math-diagnostic" className="block hover:text-brand">أسئلة تشخيصية لرياضيات السادس</Link>
           </div>
         </div>
       </div>
