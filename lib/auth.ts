@@ -47,23 +47,24 @@ export async function requireUserRole(req: NextRequest, roles: AppRole[]) {
 
   const { data: profile, error: profileError } = await getAdminClient()
     .from("users")
-    .select("id, auth_id, name, email, role, school_id, grade, subject")
+    .select("id, auth_id, name, email, role, school_id, grade, subject, schools(active)")
     .eq("auth_id", user.id)
-    .single<AppProfile>();
+    .single<AppProfile & { schools: { active: boolean | null } | { active: boolean | null }[] | null }>();
 
   if (profileError || !profile || !roles.includes(profile.role)) {
     return { ok: false as const, status: 403, error: "ليست لديك صلاحية لتنفيذ هذا الإجراء" };
   }
 
   // A suspended school's staff keep their data but lose access until the school is re-activated.
-  if (profile.role !== "admin" && profile.school_id) {
-    const { data: school } = await getAdminClient().from("schools").select("active").eq("id", profile.school_id).maybeSingle();
-    if (school && school.active === false) {
-      return { ok: false as const, status: 403, error: "اشتراك مدرستك موقوف حاليًا. تواصل مع فريق دالة لإعادة التفعيل." };
-    }
+  // (school status comes with the profile in the same query — no extra round trip)
+  const school = Array.isArray(profile.schools) ? profile.schools[0] : profile.schools;
+  if (profile.role !== "admin" && school?.active === false) {
+    return { ok: false as const, status: 403, error: "اشتراك مدرستك موقوف حاليًا. تواصل مع فريق دالة لإعادة التفعيل." };
   }
 
-  return { ok: true as const, user, profile };
+  const { schools: _school, ...appProfile } = profile;
+  void _school;
+  return { ok: true as const, user, profile: appProfile as AppProfile };
 }
 
 /** Shortcut for admin-only routes. */
