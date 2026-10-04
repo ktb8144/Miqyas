@@ -16,14 +16,16 @@ import {
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { BRAND } from "@/lib/brand";
+import { publicMetadata } from "@/lib/seo";
 import { FREE_TRIAL_NOTE, TEACHER_PRICING } from "@/lib/pricing";
 import { TeacherInterestForm } from "./_components/interest-form";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicMetadata({
+  path: "/teachers",
   title: `باقة المعلم — شواهدك جاهزة طوال العام | ${BRAND.nameAr}`,
   description:
     "اشترك بنفسك: اختبارات أسبوعية محاكية لنافس لفصولك، تصحيح بالجوال، وملف شواهد يتجدد بعد كل اختبار، جاهز لتقييم الأداء الوظيفي.",
-};
+});
 
 // What every applied test turns into inside the teacher's evidence file.
 const evidenceItems = [

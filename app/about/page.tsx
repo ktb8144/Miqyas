@@ -13,11 +13,13 @@ import {
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { BRAND } from "@/lib/brand";
+import { publicMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicMetadata({
+  path: "/about",
   title: `من نحن — ${BRAND.nameAr}`,
   description: `${BRAND.nameAr} بُنيت من داخل الفصل السعودي، بخبرات تجمع التدريس، وبناء أسئلة الاختبارات، والبحث في الذكاء الاصطناعي في التعليم.`,
-};
+});
 
 // The expertise behind the product — keep every line factual and verifiable.
 const expertise = [
