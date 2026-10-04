@@ -17,7 +17,7 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { BRAND } from "@/lib/brand";
 import { publicMetadata } from "@/lib/seo";
-import { FREE_TRIAL_NOTE, TEACHER_PRICING } from "@/lib/pricing";
+import { FREE_TRIAL_NOTE, TEACHER_PRICING, TEACHER_YEARLY_SAVING_PCT } from "@/lib/pricing";
 import { TeacherInterestForm } from "./_components/interest-form";
 
 export const metadata: Metadata = publicMetadata({
@@ -60,7 +60,7 @@ const steps = [
 
 const plans = [
   { name: "فصلي", price: String(TEACHER_PRICING.term), period: "ريال / الفصل الدراسي", note: "مناسب للبداية" },
-  { name: "سنوي", price: String(TEACHER_PRICING.yearly), period: "ريال / السنة الدراسية", note: "شواهد عام دراسي كامل", highlighted: true },
+  { name: "سنوي", price: String(TEACHER_PRICING.yearly), period: "ريال / السنة الدراسية", note: TEACHER_YEARLY_SAVING_PCT > 0 ? `شواهد عام دراسي كامل · وفّر ${TEACHER_YEARLY_SAVING_PCT}%` : "شواهد عام دراسي كامل", highlighted: true },
 ];
 
 const included = [

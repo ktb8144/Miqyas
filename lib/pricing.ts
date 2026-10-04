@@ -18,11 +18,21 @@ export const SCHOOL_YEARLY_SAVING_PCT = Math.floor(
   (1 - SCHOOL_PRICING.yearly / (SCHOOL_PRICING.monthly * 12)) * 100
 );
 
+/** Saudi schools run two terms a year (from 1447/2025). */
+export const TERMS_PER_YEAR = 2;
+
+/** Teacher yearly saving vs paying per term for a full year, rounded down. */
+export const TEACHER_YEARLY_SAVING_PCT = Math.floor(
+  (1 - TEACHER_PRICING.yearly / (TEACHER_PRICING.term * TERMS_PER_YEAR)) * 100
+);
+
 export type PricingPlan = {
   name: string;
   price: string;
   period: string;
   alt?: string;
+  /** Small pill next to `alt`, e.g. "وفّر 46%". */
+  saving?: string;
   desc: string;
   features: string[];
   href: string;
@@ -35,9 +45,11 @@ export type PricingPlan = {
 export const PRICING_PLANS: PricingPlan[] = [
   {
     name: "المعلم",
-    price: String(TEACHER_PRICING.yearly),
-    period: "ريال / سنة",
-    alt: `أو ${TEACHER_PRICING.term} ريالًا للفصل الدراسي`,
+    // Lead with the smaller payment; the yearly option sits underneath.
+    price: String(TEACHER_PRICING.term),
+    period: "ريال / الفصل الدراسي",
+    alt: `أو ${TEACHER_PRICING.yearly} ريالًا للسنة كاملة`,
+    saving: TEACHER_YEARLY_SAVING_PCT > 0 ? `وفّر ${TEACHER_YEARLY_SAVING_PCT}%` : undefined,
     desc: "للمعلم الذي يريد الاشتراك بنفسه، مع ملف شواهد جاهز لتقييمه السنوي.",
     features: ["الاختبارات الأسبوعية لمادتك وصفك", "حتى 4 فصول", "ملف شواهد قابل للطباعة"],
     href: "/teachers",
@@ -46,9 +58,10 @@ export const PRICING_PLANS: PricingPlan[] = [
   },
   {
     name: "المدرسة",
-    price: String(SCHOOL_PRICING.yearly),
-    period: "ريال / سنة",
-    alt: `أو ${SCHOOL_PRICING.monthly} ريالًا شهريًا`,
+    price: String(SCHOOL_PRICING.monthly),
+    period: "ريال / شهريًا",
+    alt: `أو ${SCHOOL_PRICING.yearly} ريالًا للسنة كاملة`,
+    saving: `وفّر ${SCHOOL_YEARLY_SAVING_PCT}%`,
     desc: "تشغيل أسبوعي كامل لكل معلمي المدرسة، مع لوحة القائد وتقارير نواتج التعلم.",
     features: [
       "جميع معلمي المدرسة",
@@ -61,7 +74,7 @@ export const PRICING_PLANS: PricingPlan[] = [
     cta: "ابدأ شهرك المجاني",
     freeTrial: true,
     highlighted: true,
-    badge: `وفّر ${SCHOOL_YEARLY_SAVING_PCT}% سنويًا`,
+    badge: "موصى بها",
   },
   {
     name: "المجموعات",

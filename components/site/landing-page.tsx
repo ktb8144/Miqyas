@@ -333,10 +333,15 @@ export default function LandingPage() {
                   )}
                 </div>
                 <div className="mt-5 flex items-baseline gap-2">
-                  <span className="text-4xl font-black text-brand">{plan.price}</span>
-                  <span className="text-sm font-bold text-slate-400">{plan.period}</span>
+                  <span className={`font-black text-brand ${Number.isNaN(Number(plan.price)) ? "text-3xl" : "text-5xl"}`}>{plan.price}</span>
+                  <span className="text-base font-bold text-slate-500">{plan.period}</span>
                 </div>
-                <p className="mt-2 min-h-6 text-sm font-extrabold text-slate-500">{plan.alt}</p>
+                <p className="mt-2 flex min-h-6 flex-wrap items-center gap-2 text-sm font-bold text-slate-400">
+                  {plan.alt}
+                  {plan.saving && (
+                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-extrabold text-amber-700">{plan.saving}</span>
+                  )}
+                </p>
                 <p className="mt-4 text-sm leading-7 text-slate-500">{plan.desc}</p>
                 <div className="mt-6 flex-1 space-y-3">
                   {plan.features.map((feature) => (
