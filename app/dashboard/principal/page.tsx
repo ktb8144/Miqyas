@@ -2,10 +2,8 @@
 
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
-import { AlertsTab } from "./_components/alerts-tab";
 import { DashboardTab } from "./_components/dashboard-tab";
 import { ImpactTab } from "./_components/impact-tab";
-import { ImprovementTab } from "./_components/improvement-tab";
 import { InviteTeacherModal } from "./_components/invite-teacher-modal";
 import { PeriodicReportsTab } from "./_components/periodic-reports-tab";
 import { TABS } from "./_lib/tabs";
@@ -70,7 +68,7 @@ export default function PrincipalDashboard() {
 
       {inviteOpen && <InviteTeacherModal d={d} />}
 
-      <main className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
+      <main className="mx-auto max-w-7xl px-4 py-5 sm:px-5 sm:py-8 lg:px-8">
         {loading && (
           <div className="mb-6 rounded-[1.5rem] border border-slate-100 bg-white p-6 text-center text-sm font-extrabold text-slate-500 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
             جارٍ تحميل لوحة المدرسة...
@@ -87,15 +85,11 @@ export default function PrincipalDashboard() {
 
         {!loading && !loadError && report && activeTab === 0 && <DashboardTab d={d} />}
 
-        {!loading && !loadError && report && activeTab === 1 && <ImpactTab d={d} />}
+        {!loading && !loadError && report && activeTab === 1 && <TeachersTab d={d} />}
 
-        {!loading && !loadError && report && activeTab === 2 && <TeachersTab d={d} />}
+        {!loading && !loadError && report && activeTab === 2 && <ImpactTab d={d} />}
 
-        {!loading && !loadError && report && activeTab === 3 && <AlertsTab d={d} />}
-
-        {!loading && !loadError && report && activeTab === 4 && <ImprovementTab d={d} />}
-
-        {!loading && !loadError && report && activeTab === 5 && <PeriodicReportsTab d={d} />}
+        {!loading && !loadError && report && activeTab === 3 && <PeriodicReportsTab d={d} />}
       </main>
     </div>
   );

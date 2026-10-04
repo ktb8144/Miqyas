@@ -14,6 +14,14 @@ export type PrincipalReport = {
   readinessIndex: { value: number | null; label: string; formula: string };
   weakSkills: { skill: string; average: number; count: number }[];
   atRiskStudents: { id: string; name: string; className: string; percentage: number }[];
+  levelDistribution: Record<"متقدم" | "متمكن" | "أساسي" | "دون الأساسي", number>;
+  trend: { weekStart: string; average: number | null; tested: number }[];
+  thisWeek: {
+    classesTotal: number;
+    classesDone: number;
+    pending: { className: string; teacherName: string; title: string; studentsCount: number; tested: number }[];
+  };
+  testedStudents: number;
   teacherEngagement: { activeTeachers: number; totalTeachers: number; rate: number | null };
   weeklyPlanSummary: {
     source: "current_week" | "upcoming" | "none";

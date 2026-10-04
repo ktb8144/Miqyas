@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { toEnglishDigits, normalizeName } from "@/lib/format";
-import { normalizeSubject } from "@/lib/subjects";
 import { getLevel } from "@/lib/levels";
 import { gradeLabel } from "@/lib/labels";
 import type {
@@ -51,6 +50,7 @@ export function useTeacherDashboard() {
   const [packageSuccess, setPackageSuccess] = useState<string | null>(null);
   const [activePackageAssignment, setActivePackageAssignment] = useState<TeacherPackageAssignment | null>(null);
   const [packageResultsAssignment, setPackageResultsAssignment] = useState<TeacherPackageAssignment | null>(null);
+  const [historyClassFilter, setHistoryClassFilter] = useState("");
   const [packageResults, setPackageResults] = useState<PackageResultDetails | null>(null);
   const [skillDiagnosis, setSkillDiagnosis] = useState<SkillDiagnosisDetails | null>(null);
   const [assignmentStudentScores, setAssignmentStudentScores] = useState<AssignmentStudentScores>({});
@@ -565,21 +565,8 @@ export function useTeacherDashboard() {
 
     setClasses((prev) => [cls, ...prev]);
     setClassStudents((prev) => ({ ...prev, [cls.id]: [] }));
-    const matchingPackages = packages.filter(
-      (item) => item.grade === cls.grade && normalizeSubject(item.subject) === normalizeSubject(cls.subject) && item.question_count > 0
-    );
-    if (matchingPackages.length > 0) {
-      await Promise.allSettled(
-        matchingPackages.map((item) =>
-          fetch("/api/teacher/class-package-assignments", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ packageId: item.id, classId: cls.id }),
-          })
-        )
-      );
-      await loadPackageWorkflow();
-    }
+    // Reloading assigns this week's test to the new class (older tests are not back-filled).
+    await loadPackageWorkflow();
   };
 
   const handleViewStudents = (classId: string) => {
@@ -632,6 +619,8 @@ export function useTeacherDashboard() {
     setPackages,
     packageAssignments,
     setPackageAssignments,
+    historyClassFilter,
+    setHistoryClassFilter,
     packagesLoading,
     setPackagesLoading,
     packagesError,

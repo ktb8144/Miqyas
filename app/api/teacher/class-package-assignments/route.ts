@@ -4,6 +4,9 @@ import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { normalizeSubject } from "@/lib/subjects";
 import { countPackageQuestions } from "@/lib/packages";
+import { fetchAllRows } from "@/lib/db/paginate";
+import { average } from "@/lib/math";
+import { saudiToday, testPhase, testWindow } from "@/lib/test-schedule";
 import type {
   AssessmentPackageRow,
   ClassPackageAssignmentRow,
@@ -56,6 +59,54 @@ function shapeAssignment(row: AssignmentRow, assessmentPackage?: PackageRow, cla
   };
 }
 
+/**
+ * Creates class assignments for this week's (and next few days') tests that match the
+ * teacher's classes, so a teacher never has to pick a test or "apply" it to a class.
+ * Covers classes created after the test was published.
+ */
+async function ensureCurrentAssignments(db: ReturnType<typeof getAdminClient>, teacherId: string, schoolId: string) {
+  const [classesRes, schoolPkgRes, existingRes] = await Promise.all([
+    db.from("classes").select("id, name, grade, subject, school_id, teacher_id").eq("teacher_id", teacherId).eq("school_id", schoolId),
+    db.from("school_package_assignments").select("package_id").eq("school_id", schoolId).in("status", ["available", "active", "completed"]),
+    db.from("class_package_assignments").select("package_id, class_id").eq("teacher_id", teacherId).eq("school_id", schoolId),
+  ]);
+  if (classesRes.error) throw classesRes.error;
+  if (schoolPkgRes.error) throw schoolPkgRes.error;
+  if (existingRes.error) throw existingRes.error;
+
+  const classes = (classesRes.data ?? []) as ClassRow[];
+  const packageIds = Array.from(new Set((schoolPkgRes.data ?? []).map((row) => row.package_id as string)));
+  if (!classes.length || !packageIds.length) return;
+
+  const { data: packageRows, error: packagesError } = await db
+    .from("assessment_packages")
+    .select("id, title, subject, grade, week_number, duration_minutes, package_type, status, start_date, end_date, published_at, created_at, student_pdf_url, questions_pdf_url, answer_sheet_pdf_url")
+    .in("id", packageIds)
+    .eq("status", "published");
+  if (packagesError) throw packagesError;
+
+  const today = saudiToday();
+  const openPackages = ((packageRows ?? []) as (PackageRow & { published_at: string | null; created_at: string | null })[])
+    .filter((item) => ["upcoming", "current"].includes(testPhase(item, today)));
+  if (!openPackages.length) return;
+
+  const existing = new Set((existingRes.data ?? []).map((row) => `${row.package_id}:${row.class_id}`));
+  const questionCounts = await countPackageQuestions(openPackages.map((item) => item.id));
+
+  const rows = openPackages.flatMap((item) =>
+    (questionCounts.get(item.id) ?? 0) > 0
+      ? classes
+          .filter((classItem) => canMatchPackageToClass(item, classItem) && classItem.grade !== null && classItem.subject)
+          .filter((classItem) => !existing.has(`${item.id}:${classItem.id}`))
+          .map((classItem) => ({ package_id: item.id, school_id: schoolId, class_id: classItem.id, teacher_id: teacherId, status: "assigned" }))
+      : []
+  );
+  if (rows.length) {
+    const { error } = await db.from("class_package_assignments").insert(rows);
+    if (error) throw error;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireUserRole(req, ["teacher"]);
   if (!auth.ok) return authErrorResponse(auth);
@@ -67,27 +118,35 @@ export async function GET(req: NextRequest) {
     }
 
     const db = getAdminClient();
+    try {
+      await ensureCurrentAssignments(db, auth.profile.id, schoolId);
+    } catch (err) {
+      // Never block the list because of auto-assignment.
+      console.error("auto-assign current tests failed", err);
+    }
+
     const { data: assignmentRows, error: assignmentsError } = await db
       .from("class_package_assignments")
       .select("id, package_id, school_id, class_id, teacher_id, status, printed_at, scanned_at, completed_at, created_at")
       .eq("teacher_id", auth.profile.id)
       .eq("school_id", schoolId)
+      .neq("status", "withdrawn")
       .order("created_at", { ascending: false });
 
     if (assignmentsError) throw assignmentsError;
 
     const assignments = (assignmentRows ?? []) as AssignmentRow[];
     if (!assignments.length) {
-      return NextResponse.json({ success: true, assignments: [] });
+      return NextResponse.json({ success: true, today: saudiToday(), assignments: [] });
     }
 
     const packageIds = Array.from(new Set(assignments.map((item) => item.package_id)));
     const classIds = Array.from(new Set(assignments.map((item) => item.class_id)));
 
-    const [packagesResult, classesResult, questionCounts] = await Promise.all([
+    const [packagesResult, classesResult, questionCounts, results] = await Promise.all([
       db
         .from("assessment_packages")
-        .select("id, title, subject, grade, week_number, duration_minutes, package_type, status, start_date, end_date, student_pdf_url, questions_pdf_url, answer_sheet_pdf_url")
+        .select("id, title, subject, grade, week_number, duration_minutes, package_type, status, start_date, end_date, published_at, created_at, student_pdf_url, questions_pdf_url, answer_sheet_pdf_url")
         .in("id", packageIds),
       db
         .from("classes")
@@ -96,19 +155,48 @@ export async function GET(req: NextRequest) {
         .eq("school_id", schoolId)
         .eq("teacher_id", auth.profile.id),
       countPackageQuestions(packageIds),
+      fetchAllRows<{ class_package_assignment_id: string; percentage: number | string | null }>((from, to) =>
+        db
+          .from("student_package_results")
+          .select("class_package_assignment_id, percentage")
+          .eq("teacher_id", auth.profile.id)
+          .in("class_package_assignment_id", assignments.map((item) => item.id))
+          .order("id")
+          .range(from, to)
+      ),
     ]);
 
     if (packagesResult.error) throw packagesResult.error;
     if (classesResult.error) throw classesResult.error;
 
-    const packagesById = new Map(((packagesResult.data ?? []) as PackageRow[]).map((item) => [item.id, item]));
+    const packagesById = new Map(((packagesResult.data ?? []) as (PackageRow & { published_at: string | null; created_at: string | null })[]).map((item) => [item.id, item]));
     const classesById = new Map(((classesResult.data ?? []) as ClassRow[]).map((item) => [item.id, item]));
+    const percentagesByAssignment = new Map<string, number[]>();
+    for (const row of results) {
+      const pct = Number(row.percentage);
+      if (!Number.isFinite(pct)) continue;
+      percentagesByAssignment.set(row.class_package_assignment_id, [...(percentagesByAssignment.get(row.class_package_assignment_id) ?? []), pct]);
+    }
 
+    const today = saudiToday();
     return NextResponse.json({
       success: true,
-      assignments: assignments.map((item) =>
-        shapeAssignment(item, packagesById.get(item.package_id), classesById.get(item.class_id), questionCounts.get(item.package_id) ?? 0)
-      ),
+      today,
+      assignments: assignments
+        .filter((item) => classesById.has(item.class_id))
+        .map((item) => {
+          const assessmentPackage = packagesById.get(item.package_id);
+          const window = assessmentPackage ? testWindow(assessmentPackage) : { start: null, end: null };
+          const percentages = percentagesByAssignment.get(item.id) ?? [];
+          return {
+            ...shapeAssignment(item, assessmentPackage, classesById.get(item.class_id), questionCounts.get(item.package_id) ?? 0),
+            startDate: window.start,
+            endDate: window.end,
+            phase: assessmentPackage ? testPhase(assessmentPackage, today) : "past",
+            testedCount: percentages.length,
+            average: average(percentages),
+          };
+        }),
     });
   } catch (err) {
     console.error("teacher class package assignments failed", err);

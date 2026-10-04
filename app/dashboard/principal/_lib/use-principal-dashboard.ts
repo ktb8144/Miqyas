@@ -205,7 +205,7 @@ export function usePrincipalDashboard() {
   }, [loadPackageSummaries, loadParentStats]);
 
   useEffect(() => {
-    if (activeTab === 5 && !periodicWeeks.length) {
+    if (activeTab === 3 && !periodicWeeks.length) {
       void loadPeriodicWeeks();
     }
   }, [activeTab, loadPeriodicWeeks, periodicWeeks.length]);

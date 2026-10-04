@@ -1,271 +1,122 @@
 "use client";
 
 import { toEnglishDigits } from "@/lib/format";
-import { assignmentStatusLabel, packageTypeLabel } from "@/lib/labels";
+import { levelColor } from "@/lib/levels";
 import type { TeacherDashboardState } from "../_lib/use-teacher-dashboard";
+import { formatTestDay } from "./test-card";
 
+/**
+ * "الاختبارات السابقة": every test the teacher's classes took, newest first, with grades.
+ * The home screen only shows this week's test; this is where older grades live.
+ */
 export function PackagesView({ d }: { d: TeacherDashboardState }) {
   const {
     setView,
+    classes,
     classStudents,
-    packages,
     packageAssignments,
     packagesLoading,
     packagesError,
-    selectedPackageClasses,
-    setSelectedPackageClasses,
-    applyingPackageId,
-    packageSuccess,
     setActivePackageAssignment,
-    packageDateLabel,
-    loadPackageWorkflow,
-    handleApplyPackage,
     openPackageResults,
-    markPackagePrinted,
   } = d;
+
+  const [classFilter, setClassFilter] = [d.historyClassFilter, d.setHistoryClassFilter];
+  const items = packageAssignments
+    .filter((item) => item.phase === "past" || item.phase === "current")
+    .filter((item) => !classFilter || item.classId === classFilter)
+    .sort((a, b) => String(b.startDate ?? "").localeCompare(String(a.startDate ?? "")));
+
   return (
-    <section className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="space-y-5">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-extrabold text-brand">التصحيح والنتائج</p>
-          <h2 className="mt-1 text-2xl font-black tracking-normal text-brand-navy">مسار واحد لاعتماد نتائج دالة</h2>
-          <p className="mt-2 text-sm font-bold text-slate-400">طبّق الحزمة على الفصل، ثم صحّح بالكاميرا أو اعرض تقرير الفصل.</p>
+          <h2 className="text-2xl font-black tracking-normal text-brand-navy">الاختبارات السابقة</h2>
+          <p className="mt-1 text-sm font-bold text-slate-400">درجات كل اختبار طبّقته فصولك.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={loadPackageWorkflow}
-            disabled={packagesLoading}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand disabled:opacity-50"
-          >
-            {packagesLoading ? "جارٍ التحديث..." : "تحديث"}
-          </button>
-          <button
-            onClick={() => setView("classes")}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
-          >
-            ← العودة
-          </button>
-        </div>
+        <button
+          onClick={() => setView("classes")}
+          className="flex-shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
+        >
+          ← الرئيسية
+        </button>
       </div>
+
+      {classes.length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {[{ id: "", name: "كل الفصول" }, ...classes].map((cls) => (
+            <button
+              key={cls.id || "all"}
+              onClick={() => setClassFilter(cls.id)}
+              className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-bold transition ${
+                classFilter === cls.id ? "bg-brand text-white" : "bg-white text-slate-500 hover:text-brand-navy"
+              }`}
+            >
+              {cls.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {packagesError && (
-        <div className="rounded-[1.25rem] border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">
-          {packagesError}
-        </div>
+        <div className="rounded-[1.25rem] border border-red-100 bg-red-50 p-4 text-sm font-bold text-red-700">{packagesError}</div>
       )}
 
-      {packageSuccess && (
-        <div className="rounded-[1.25rem] border border-teal-100 bg-teal-50 p-4 text-sm font-bold text-brand">
-          {packageSuccess}
+      {packagesLoading ? (
+        <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
+          جارٍ التحميل...
         </div>
-      )}
-
-      <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-xl font-black text-brand-navy">الاختبارات المتاحة</h3>
-            <p className="mt-1 text-sm font-bold text-slate-400">اختبارات منشورة ومفعّلة لمدرستك.</p>
-          </div>
-          <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-            {toEnglishDigits(packages.length)} اختبار
-          </span>
-        </div>
-
-        {packagesLoading ? (
-          <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
-            جارٍ تحميل حزم دالة...
-          </div>
-        ) : packages.length ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {packages.map((item) => {
-              const selectedClassId = selectedPackageClasses[item.id] ?? item.matchingClasses[0]?.id ?? "";
-              const hasMatchingClass = item.matchingClasses.length > 0;
-              return (
-                <div key={item.id} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/40 p-5">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-extrabold text-brand">
-                        {packageTypeLabel(item.package_type)} | الأسبوع {toEnglishDigits(item.week_number ?? "—")}
-                      </div>
-                      <h4 className="mt-1 text-lg font-black text-brand-navy">{item.title}</h4>
-                      <p className="mt-1 text-sm font-bold text-slate-400">
-                        {item.subject} | الصف {toEnglishDigits(item.grade)} | {packageDateLabel(item)}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
-                      {toEnglishDigits(item.question_count)} سؤال
+      ) : items.length ? (
+        <ul className="divide-y divide-slate-100 overflow-hidden rounded-[1.25rem] border border-slate-100 bg-white">
+          {items.map((item) => {
+            const studentCount = classStudents[item.classId]?.length ?? 0;
+            const tested = item.testedCount ?? 0;
+            return (
+              <li key={item.id} className="p-4">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-black leading-snug text-brand-navy">{item.packageTitle}</p>
+                    <p className="mt-0.5 text-xs font-bold text-slate-400">
+                      {item.className} · {formatTestDay(item.startDate)} · {toEnglishDigits(tested)}/{toEnglishDigits(studentCount)} طالب
+                      {item.phase === "current" ? " · هذا الأسبوع" : ""}
+                    </p>
+                  </div>
+                  {tested > 0 && item.average !== null && item.average !== undefined ? (
+                    <span className="flex-shrink-0 text-xl font-black" style={{ color: levelColor(item.average) }}>
+                      {toEnglishDigits(item.average)}%
                     </span>
-                  </div>
-
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {[
-                      { label: "تحميل ملف الأسئلة PDF", url: item.questions_pdf_url ?? item.student_pdf_url },
-                      ...(item.answer_sheet_pdf_url ? [{ label: "تحميل ورقة الإجابة", url: item.answer_sheet_pdf_url }] : []),
-                    ].map((link) => (
-                      link.url ? (
-                        <a
-                          key={link.label}
-                          href={link.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
-                        >
-                          {link.label}
-                        </a>
-                      ) : (
-                        <button
-                          key={link.label}
-                          disabled
-                          className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs font-extrabold text-slate-300"
-                        >
-                          {link.label}
-                        </button>
-                      )
-                    ))}
-                  </div>
-
-                  {hasMatchingClass ? (
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <select
-                        value={selectedClassId}
-                        onChange={(event) => setSelectedPackageClasses((prev) => ({ ...prev, [item.id]: event.target.value }))}
-                        className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-brand-navy outline-none focus:border-brand"
-                      >
-                        {item.matchingClasses.map((classItem) => (
-                          <option key={classItem.id} value={classItem.id}>{classItem.name}</option>
-                        ))}
-                      </select>
+                  ) : null}
+                </div>
+                {(tested > 0 || (studentCount > 0 && tested < studentCount)) && (
+                  <div className="mt-3 flex gap-2">
+                    {tested > 0 ? (
                       <button
-                        onClick={() => handleApplyPackage(item)}
-                        disabled={!selectedClassId || applyingPackageId === item.id}
-                        className="rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark disabled:opacity-50"
+                        onClick={() => void openPackageResults(item)}
+                        className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-extrabold text-slate-600 transition hover:border-brand/40 hover:text-brand"
                       >
-                        {applyingPackageId === item.id ? "جارٍ التطبيق..." : "تطبيق على فصل"}
+                        الدرجات
                       </button>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
-                      أضف فصلًا مطابقًا للصف والمادة لتطبيق هذا الاختبار.
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
-            <h3 className="text-xl font-black text-brand-navy">لا توجد اختبارات منشورة حاليًا.</h3>
-            <p className="mt-2 text-sm font-bold text-slate-400">ستظهر هنا الحزم الأسبوعية عند نشرها وتفعيلها لمدرستك.</p>
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-[1.5rem] border border-slate-100 bg-white p-5 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-xl font-black text-brand-navy">اختبارات فصولي</h3>
-            <p className="mt-1 text-sm font-bold text-slate-400">الحزم التي تم تطبيقها على فصولك.</p>
-          </div>
-          <span className="rounded-full bg-slate-50 px-3 py-1 text-sm font-bold text-slate-500">
-            {toEnglishDigits(packageAssignments.length)} تعيين
-          </span>
+                    ) : null}
+                    {studentCount > 0 && tested < studentCount ? (
+                      <button
+                        onClick={() => setActivePackageAssignment(item)}
+                        className="rounded-xl px-3 py-2 text-xs font-extrabold text-brand hover:bg-teal-50"
+                      >
+                        {tested ? "أكمل التصحيح" : item.phase === "current" ? "تصحيح" : "تصحيح متأخر"}
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
+          <p className="font-black text-brand-navy">لا توجد اختبارات سابقة بعد.</p>
+          <p className="mt-1 text-sm font-bold text-slate-400">بعد انتهاء اختبار الأسبوع يظهر هنا مع درجاته.</p>
         </div>
-
-        {packagesLoading ? (
-          <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center font-bold text-slate-500">
-            جارٍ تحميل اختبارات الفصول...
-          </div>
-        ) : packageAssignments.length ? (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {packageAssignments.map((item) => {
-              const studentCount = classStudents[item.classId]?.length ?? 0;
-              return (
-                <div key={item.id} className="rounded-[1.25rem] border border-slate-100 bg-slate-50/40 p-5">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs font-extrabold text-brand">
-                        {item.className} | الأسبوع {toEnglishDigits(item.weekNumber ?? "—")}
-                      </div>
-                      <h4 className="mt-1 text-lg font-black text-brand-navy">{item.packageTitle}</h4>
-                      <p className="mt-1 text-sm font-bold text-slate-400">
-                        {item.subject} | الصف {toEnglishDigits(item.grade ?? "—")} | {packageDateLabel(item)}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-brand">
-                      {assignmentStatusLabel(item.status)}
-                    </span>
-                  </div>
-
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
-                      {toEnglishDigits(item.questionCount)} سؤال
-                    </span>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-500">
-                      {toEnglishDigits(studentCount)} طالب
-                    </span>
-                  </div>
-
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {[
-                      { label: "تحميل ملف الأسئلة PDF", url: item.studentPdfUrl },
-                      ...(item.answerSheetPdfUrl ? [{ label: "تحميل ورقة الإجابة", url: item.answerSheetPdfUrl }] : []),
-                    ].map((link) => (
-                      link.url ? (
-                        <a
-                          key={link.label}
-                          href={link.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={() => void markPackagePrinted(item.id)}
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
-                        >
-                          {link.label}
-                        </a>
-                      ) : (
-                        <button
-                          key={link.label}
-                          disabled
-                          className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-xs font-extrabold text-slate-300"
-                        >
-                          {link.label}
-                        </button>
-                      )
-                    ))}
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={() => setActivePackageAssignment(item)}
-                      disabled={!studentCount}
-                      className="rounded-xl bg-brand-navy px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-navy-light disabled:opacity-50"
-                    >
-                      تصحيح بالكاميرا
-                    </button>
-                    <button
-                      disabled
-                      title="سيتوفر الإدخال اليدوي المنظم داخل هذا المسار لاحقًا"
-                      className="rounded-xl border border-slate-100 bg-white px-4 py-2 text-sm font-extrabold text-slate-300"
-                    >
-                      إدخال يدوي
-                    </button>
-                    <button
-                      onClick={() => void openPackageResults(item)}
-                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-500 transition hover:border-brand/40 hover:text-brand"
-                    >
-                      عرض تقرير الفصل
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-[1.25rem] border border-dashed border-teal-100 bg-teal-50/40 p-8 text-center">
-            <h3 className="text-xl font-black text-brand-navy">لم يتم تطبيق أي اختبار على فصولك بعد.</h3>
-            <p className="mt-2 text-sm font-bold text-slate-400">اختر اختبارًا منشورًا ثم طبّقه على فصل مطابق للبدء.</p>
-          </div>
-        )}
-      </div>
+      )}
     </section>
   );
 }

@@ -105,6 +105,10 @@ export interface TeacherPackageAssignment {
   studentPdfUrl: string | null;
   answerSheetPdfUrl: string | null;
   questionCount: number;
+  /** See lib/test-schedule.ts. */
+  phase?: "later" | "upcoming" | "current" | "past";
+  testedCount?: number;
+  average?: number | null;
 }
 
 export type PackageResultDetails = {

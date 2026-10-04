@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
-import { LEVEL_THRESHOLDS } from "@/lib/levels";
+import { LEVEL_THRESHOLDS, getLevelFromPercentage, type LevelName } from "@/lib/levels";
+import { addDays, saudiToday, testPhase } from "@/lib/test-schedule";
 import { average } from "@/lib/math";
 import { chunk, fetchAllRows } from "@/lib/db/paginate";
 import type { ClassRow as DbClassRow, StudentPackageResultRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
@@ -120,7 +121,7 @@ export async function GET(req: NextRequest) {
     const results = await fetchAllRows<ResultRow>((from, to) =>
       db
         .from("student_package_results")
-        .select("id, student_id, class_id, teacher_id, percentage, created_at")
+        .select("id, student_id, class_id, teacher_id, class_package_assignment_id, percentage, created_at")
         .eq("school_id", schoolId)
         .order("id")
         .range(from, to)
@@ -135,8 +136,8 @@ export async function GET(req: NextRequest) {
       .filter((student): student is typeof student & { percentage: number } => student.percentage !== null);
 
     const performanceAverage = average(scoredStudents.map((student) => student.percentage));
-    const atRiskStudents = scoredStudents
-      .filter((student) => student.percentage < AT_RISK_THRESHOLD)
+    const atRiskAll = scoredStudents.filter((student) => student.percentage < AT_RISK_THRESHOLD);
+    const atRiskStudents = atRiskAll
       .sort((a, b) => a.percentage - b.percentage)
       .slice(0, 10)
       .map((student) => ({
@@ -186,6 +187,64 @@ export async function GET(req: NextRequest) {
       .filter((item) => item.count >= MIN_SKILL_ANSWERS)
       .sort((a, b) => a.average - b.average)
       .slice(0, 5);
+
+    // ── Level distribution: each tested student's average, by ETEC level ─────
+    const levelDistribution: Record<LevelName, number> = { متقدم: 0, متمكن: 0, أساسي: 0, "دون الأساسي": 0 };
+    for (const student of scoredStudents) levelDistribution[getLevelFromPercentage(student.percentage)] += 1;
+
+    // ── Trend: school average per week (Sunday–Saturday, Saudi time), last 8 weeks with results ─
+    const weekOf = (iso: string) => {
+      const day = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Riyadh" }).format(new Date(iso));
+      const weekday = new Date(`${day}T00:00:00Z`).getUTCDay(); // 0 = Sunday
+      return addDays(day, -weekday);
+    };
+    const byWeek = new Map<string, number[]>();
+    for (const row of results) {
+      const pct = toNumber(row.percentage);
+      if (pct === null || !row.created_at) continue;
+      const week = weekOf(row.created_at);
+      byWeek.set(week, [...(byWeek.get(week) ?? []), pct]);
+    }
+    const trend = Array.from(byWeek, ([weekStart, values]) => ({ weekStart, average: average(values), tested: values.length }))
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+      .slice(-8);
+
+    // ── This week's test: which classes have scanned it ──────────────────────
+    const { data: weekAssignments, error: weekAssignmentsError } = await db
+      .from("class_package_assignments")
+      .select("id, class_id, teacher_id, status, assessment_packages(title, start_date, end_date, published_at, created_at)")
+      .eq("school_id", schoolId)
+      .neq("status", "withdrawn");
+    if (weekAssignmentsError) throw weekAssignmentsError;
+    const saToday = saudiToday();
+    const testedByAssignment = new Map<string, number>();
+    for (const row of results as (ResultRow & { class_package_assignment_id?: string })[]) {
+      if (row.class_package_assignment_id) {
+        testedByAssignment.set(row.class_package_assignment_id, (testedByAssignment.get(row.class_package_assignment_id) ?? 0) + 1);
+      }
+    }
+    const teacherNames = new Map(teachers.map((teacher) => [teacher.id, teacher.name as string]));
+    const currentRows = (weekAssignments ?? [])
+      .map((row) => ({ row, pkg: Array.isArray(row.assessment_packages) ? row.assessment_packages[0] : row.assessment_packages }))
+      .filter(({ pkg }) => pkg && testPhase(pkg, saToday) === "current")
+      .map(({ row, pkg }) => {
+        const classRow = classes.find((item) => item.id === row.class_id);
+        const studentsCount = Array.isArray(classRow?.students) ? classRow!.students.length : 0;
+        const tested = testedByAssignment.get(row.id) ?? 0;
+        return {
+          className: classRow?.name ?? "—",
+          teacherName: teacherNames.get(row.teacher_id) ?? "—",
+          title: pkg?.title ?? "",
+          studentsCount,
+          tested,
+          done: tested > 0 && (studentsCount === 0 || tested >= Math.ceil(studentsCount * 0.8)),
+        };
+      });
+    const thisWeek = {
+      classesTotal: currentRows.length,
+      classesDone: currentRows.filter((item) => item.done).length,
+      pending: currentRows.filter((item) => !item.done).slice(0, 8),
+    };
 
     const teacherRows = teachers.map((teacher) => {
       const teacherClasses = classes.filter((classRow) => classRow.teacher_id === teacher.id);
@@ -312,7 +371,7 @@ export async function GET(req: NextRequest) {
           classesCount: classes.length,
           studentsCount: students.length,
           performanceAverage,
-          atRiskCount: atRiskStudents.length,
+          atRiskCount: atRiskAll.length,
           implementationRate,
         },
         improvement,
@@ -323,6 +382,10 @@ export async function GET(req: NextRequest) {
         },
         weakSkills,
         atRiskStudents,
+        levelDistribution,
+        trend,
+        thisWeek,
+        testedStudents: scoredStudents.length,
         teacherEngagement: {
           activeTeachers,
           totalTeachers: teachers.length,
