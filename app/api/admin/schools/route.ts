@@ -5,6 +5,7 @@ import { requireAdmin, authErrorResponse } from "@/lib/auth";
 import { normalizeSchool, schoolErrorResponse } from "@/lib/admin/normalize";
 import { logDbError } from "@/lib/api";
 import { fetchAllRows } from "@/lib/db/paginate";
+import { provisionSchool } from "@/lib/schools";
 import { average } from "@/lib/math";
 
 export const dynamic = "force-dynamic";
@@ -91,36 +92,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const {
-      name,
-      city,
-      region = null,
-      type,
-      subscription_type: subscriptionType,
-      active,
-      trial,
-    } = parsed.data;
-    const subscriptionStart = parsed.data.subscription_start ?? new Date().toISOString().slice(0, 10);
-    const subscriptionEnd =
-      parsed.data.subscription_end ?? new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-
-    const { data, error } = await getAdminClient()
-      .from("schools")
-      .insert({
-        name,
-        city,
-        region,
-        type,
-        subscription_type: subscriptionType,
-        subscription_start: subscriptionStart,
-        subscription_end: subscriptionEnd,
-        active,
-        trial,
-      })
-      .select("*")
-      .single();
-
-    if (error) throw error;
+    const { name, city, region = null, type } = parsed.data;
+    const db = getAdminClient();
+    // Same path as self-signup: trial, quota, join code and every published test enabled.
+    let data = await provisionSchool(db, { name, city, region, type, kind: "school" });
+    if (parsed.data.subscription_end) {
+      const { data: updated, error } = await db
+        .from("schools")
+        .update({ subscription_end: parsed.data.subscription_end })
+        .eq("id", data.id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      data = updated;
+    }
 
     return NextResponse.json(
       { success: true, data: normalizeSchool(data) },

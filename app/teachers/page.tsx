@@ -18,7 +18,6 @@ import { SiteHeader } from "@/components/site/site-header";
 import { BRAND } from "@/lib/brand";
 import { publicMetadata } from "@/lib/seo";
 import { FREE_TRIAL_NOTE, TEACHER_PRICING, TEACHER_YEARLY_SAVING_PCT } from "@/lib/pricing";
-import { TeacherInterestForm } from "./_components/interest-form";
 
 export const metadata: Metadata = publicMetadata({
   path: "/teachers",
@@ -113,9 +112,9 @@ export default function TeachersPage() {
               اشترك بنفسك دون انتظار مدرستك: اختبار أسبوعي محاكٍ لنافس لفصولك، وتصحيح بكاميرا الجوال، وملف شواهد يتجدد تلقائيًا بعد كل اختبار، جاهز للطباعة عند تقييم الأداء الوظيفي.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4 md:justify-start">
-              <a href="#interest" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark">
-                سجّل اهتمامك
-              </a>
+              <Link href="/signup?type=individual" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark">
+                ابدأ شهرك المجاني
+              </Link>
               <a href="#evidence" className="rounded-xl border border-brand/30 bg-white/70 px-8 py-4 text-base font-extrabold text-brand-navy transition hover:border-brand hover:text-brand">
                 ماذا يحتوي ملف الشواهد؟
               </a>
@@ -294,12 +293,20 @@ export default function TeachersPage() {
             <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-brand lg:mx-0">
               <FolderCheck className="h-6 w-6" />
             </div>
-            <h2 className="text-3xl/[1.45] font-black tracking-normal text-brand-navy">سجّل اهتمامك</h2>
+            <h2 className="text-3xl/[1.45] font-black tracking-normal text-brand-navy">ابدأ الآن</h2>
             <p className="mt-4 leading-8 text-slate-500">
-              جرّب الباقة شهرًا مجانًا بدون بطاقة ائتمانية. نفعّل الحسابات بالترتيب، فاترك بياناتك ومادتك وصفك وسنتواصل معك.
+              جرّب الباقة شهرًا مجانًا بدون بطاقة ائتمانية: سجّل، أضف فصولك، وصحّح أول اختبار هذا الأسبوع.
             </p>
           </div>
-          <TeacherInterestForm />
+          <div className="flex flex-col justify-center gap-4 rounded-[1.5rem] bg-white p-6 text-center">
+            <Link href="/signup?type=individual" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white transition hover:bg-brand-dark">
+              أنشئ حسابك المجاني
+            </Link>
+            <p className="text-sm font-bold text-slate-400">
+              مدرستك مشتركة في دالة؟{" "}
+              <Link href="/signup?type=join" className="text-brand underline">انضم برمز المدرسة</Link>
+            </p>
+          </div>
         </div>
       </section>
 

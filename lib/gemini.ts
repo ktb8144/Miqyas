@@ -6,13 +6,27 @@ import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
 // without any code change. Override per environment with GEMINI_MODEL.
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
+export function geminiModelName() {
+  return process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+}
+
+/** Token counts from a Gemini response, as hidden "_" fields (stripped before grading). */
+function usageFields(response: { usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number } }) {
+  const usage = response.usageMetadata;
+  return {
+    _promptTokens: String(usage?.promptTokenCount ?? ""),
+    _outputTokens: String(usage?.candidatesTokenCount ?? ""),
+    _thinkingTokens: String(usage?.thoughtsTokenCount ?? ""),
+  };
+}
+
 function getModel() {
   const key = process.env.GEMINI_API_KEY;
   if (!key) {
     throw new Error("GEMINI_API_KEY is not configured");
   }
   const genAI = new GoogleGenerativeAI(key);
-  return genAI.getGenerativeModel({ model: process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL });
+  return genAI.getGenerativeModel({ model: geminiModelName() });
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -144,10 +158,11 @@ Return the JSON object only — no markdown, no explanation.`;
   const text = result.response.text().trim();
   const jsonText = stripCodeFence(text);
 
+  const usage = usageFields(result.response);
   try {
-    return JSON.parse(jsonText) as OMRResult;
+    return { ...(JSON.parse(jsonText) as OMRResult), ...usage };
   } catch {
-    const partial: OMRResult = { studentName: "" };
+    const partial: OMRResult = { studentName: "", ...usage };
     for (let i = 1; i <= totalQuestions; i++) {
       partial[`q${i}`] = "unclear";
     }
@@ -220,13 +235,13 @@ Return this exact shape:
     normalized._parseableJson = "true";
     normalized._geminiReturnedText = text ? "true" : "false";
     normalized._rawTextPreview = text.slice(0, 300);
-    return normalized;
+    return { ...normalized, ...usageFields(result.response) };
   } catch {
     const normalized = normalizeScannedAnswers({}, totalQuestions);
     normalized._parseableJson = "false";
     normalized._geminiReturnedText = text ? "true" : "false";
     normalized._rawTextPreview = text.slice(0, 300);
-    return normalized;
+    return { ...normalized, ...usageFields(result.response) };
   }
 }
 

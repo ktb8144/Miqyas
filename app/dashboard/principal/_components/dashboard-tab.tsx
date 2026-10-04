@@ -6,6 +6,7 @@ import { COLORS } from "@/lib/theme";
 import { ETEC_LEVELS, getLevelFromPercentage, levelColor } from "@/lib/levels";
 import { EmptyState, formatPct } from "./ui";
 import type { PrincipalDashboardState } from "../_lib/use-principal-dashboard";
+import { JoinCodeCard, type AccountPlan } from "@/components/plan/plan-banner";
 
 const LEVELS = ["متقدم", "متمكن", "أساسي", "دون الأساسي"] as const;
 const WEEK_LABEL = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", { day: "numeric", month: "short", timeZone: "UTC" });
@@ -36,7 +37,7 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
 }
 
 /** The principal's home: four numbers, one chart, and what needs attention this week. */
-export function DashboardTab({ d }: { d: PrincipalDashboardState }) {
+export function DashboardTab({ d, account }: { d: PrincipalDashboardState; account?: AccountPlan | null }) {
   const { report, chartData, setActiveTab } = d;
   if (!report) return null;
 
@@ -44,6 +45,22 @@ export function DashboardTab({ d }: { d: PrincipalDashboardState }) {
   const week = report.thisWeek;
   const trend = report.trend.filter((point) => point.average !== null);
   const levelsTotal = LEVELS.reduce((sum, level) => sum + report.levelDistribution[level], 0);
+
+  // First visit: nothing to report yet, so show how to start instead.
+  if (report.teachers.length === 0) {
+    return (
+      <div className="space-y-4">
+        <Card title="ابدأ في ثلاث خطوات">
+          <ol className="space-y-3 text-sm font-bold leading-7 text-slate-600">
+            <li>1. أرسل رمز المدرسة لمعلميك في قروب الواتساب ليسجّلوا وينضموا مباشرة.</li>
+            <li>2. يضيف كل معلم فصوله وأسماء طلابه من لوحته.</li>
+            <li>3. يظهر اختبار الأسبوع للمعلم تلقائيًا: يطبعه، ويصحّحه بالجوال، وتصلك النتائج هنا.</li>
+          </ol>
+        </Card>
+        {account?.joinCode && <JoinCodeCard joinCode={account.joinCode} schoolName={account.schoolName} />}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-5">

@@ -13,9 +13,11 @@ import { ReportModal } from "./_components/report-modal";
 import { StudentsView } from "./_components/students-view";
 import { WeeklyPlansView } from "./_components/weekly-plans-view";
 import { useTeacherDashboard } from "./_lib/use-teacher-dashboard";
+import { PlanBanner, useAccountPlan } from "@/components/plan/plan-banner";
 
 export default function TeacherDashboard() {
   const d = useTeacherDashboard();
+  const account = useAccountPlan();
   const {
     router,
     view,
@@ -79,7 +81,8 @@ export default function TeacherDashboard() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl space-y-8 px-5 py-8 lg:px-8">
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-5 sm:space-y-8 sm:px-5 sm:py-8 lg:px-8">
+        <PlanBanner plan={account?.plan} />
         {pageLoading && (
           <div className="rounded-[1.5rem] border border-slate-100 bg-white p-8 text-center font-bold text-slate-500 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
             جارٍ تحميل الفصول والطلاب...

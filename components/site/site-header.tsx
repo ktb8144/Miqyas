@@ -33,7 +33,7 @@ export function SiteHeader() {
             تسجيل دخول
           </Link>
           <Link
-            href="/#trial"
+            href="/signup"
             className="rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_20px_rgba(21,159,145,0.12)] transition hover:bg-brand-dark"
           >
             ابدأ مجانًا

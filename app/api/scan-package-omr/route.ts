@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { scanAnswerSheet, scanQuestionPaperAnswers } from "@/lib/gemini";
+import { geminiModelName, scanAnswerSheet, scanQuestionPaperAnswers } from "@/lib/gemini";
+import { getSchoolPlan, recordScanUsage } from "@/lib/plan";
 import { getLevel } from "@/lib/levels";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole } from "@/lib/auth";
@@ -465,11 +466,36 @@ export async function POST(req: NextRequest) {
     if (body.studentAnswers) {
       scanned = body.studentAnswers;
     } else {
+      // Trial cap and expiry apply to AI reading only; typed answers and saving stay open.
+      const planSchoolId = auth.profile.role === "admin" ? null : auth.profile.school_id;
+      if (planSchoolId) {
+        const plan = await getSchoolPlan(getAdminClient(), planSchoolId);
+        if (plan?.blockedReason) {
+          return NextResponse.json(
+            { success: false, error: plan.blockedReason, errorCode: "PLAN_LIMIT" },
+            { status: 402 }
+          );
+        }
+      }
+      const usageBase = planSchoolId
+        ? { schoolId: planSchoolId, userId: auth.profile.id, classPackageAssignmentId: body.classPackageAssignmentId, model: geminiModelName() }
+        : null;
       try {
         scanned = body.scanMode === "question_paper"
           ? await scanQuestionPaperAnswers(body.imageBase64!, totalQuestions, body.mimeType)
           : await scanAnswerSheet(body.imageBase64!, totalQuestions, body.mimeType);
+        if (usageBase) {
+          const toInt = (value?: string) => (value && Number.isFinite(Number(value)) ? Number(value) : null);
+          await recordScanUsage(getAdminClient(), {
+            ...usageBase,
+            succeeded: true,
+            inputTokens: toInt(scanned._promptTokens),
+            outputTokens: toInt(scanned._outputTokens),
+            thinkingTokens: toInt(scanned._thinkingTokens),
+          });
+        }
       } catch (scanError) {
+        if (usageBase) await recordScanUsage(getAdminClient(), { ...usageBase, succeeded: false });
         const message = scanError instanceof Error ? scanError.message : String(scanError);
         const failedDebug = buildScanDebug({
           body,

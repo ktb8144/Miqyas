@@ -39,6 +39,10 @@ export function SiteFooter() {
       </div>
 
       <div className="mx-auto mt-10 max-w-6xl border-t border-slate-100 pt-6 text-center text-sm font-semibold text-slate-400">
+        <div className="mb-3 flex justify-center gap-5">
+          <Link href="/privacy" className="hover:text-brand">سياسة الخصوصية</Link>
+          <Link href="/terms" className="hover:text-brand">شروط الاستخدام</Link>
+        </div>
         © {BRAND.nameAr}. جميع الحقوق محفوظة.
       </div>
     </footer>

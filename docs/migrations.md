@@ -72,3 +72,12 @@ drop table if exists public.teacher_training_tracking;
 
 - **مشغّلا التحقق عند النشر غير موجودين في القاعدة:** `validate_assessment_package_publish` و `validate_package_question_mapping` مُعرّفان في `20260511010000` لكن لا يوجد أي trigger مرتبط بالدالتين حاليًا. التحقق يتم في كود مسار النشر فقط. إعادتهما قرار يحتاج اختبارًا لأنه قد يمنع حفظ أسئلة حالية.
 - **جداول غير مستخدمة في الكود:** `nafis_plans`، `notifications`، `otp_sessions`، `prizes`، `questions`، `users_password_backup_20260526` (فارغ).
+
+
+## 2026-10-04 — self_signup_and_trial_quota (مطبّق)
+
+`supabase/migrations/20261004050000_self_signup_and_trial_quota.sql` — إضافي فقط:
+- `schools`: `kind` (school/individual)، `ministry_number` (فريد)، `gender`، `join_code` (فريد، أُضيف للمدارس الحالية)، `scan_quota`.
+- جدول `scan_usage`: سطر لكل ورقة تُرسل للقراءة الآلية مع عدد التوكنات (حد التجربة + التكلفة الفعلية). RLS مفعّل بدون سياسات (الخادم فقط).
+- trigger `classes_individual_limit`: المعلم المستقل حتى 4 فصول.
+- تحديث بيانات: المدارس التجريبية النشطة التي انتهى تاريخها أو بلا تاريخ بدأت تجربة جديدة من 2026-10-04 إلى 2026-11-03.

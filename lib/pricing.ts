@@ -70,7 +70,7 @@ export const PRICING_PLANS: PricingPlan[] = [
       "ملف شواهد لكل معلم",
       "دعم في الإعداد",
     ],
-    href: "/#trial",
+    href: "/signup?type=school",
     cta: "ابدأ شهرك المجاني",
     freeTrial: true,
     highlighted: true,

@@ -9,9 +9,11 @@ import { PeriodicReportsTab } from "./_components/periodic-reports-tab";
 import { TABS } from "./_lib/tabs";
 import { TeachersTab } from "./_components/teachers-tab";
 import { usePrincipalDashboard } from "./_lib/use-principal-dashboard";
+import { PlanBanner, useAccountPlan } from "@/components/plan/plan-banner";
 
 export default function PrincipalDashboard() {
   const d = usePrincipalDashboard();
+  const account = useAccountPlan();
   const {
     router,
     activeTab,
@@ -69,6 +71,7 @@ export default function PrincipalDashboard() {
       {inviteOpen && <InviteTeacherModal d={d} />}
 
       <main className="mx-auto max-w-7xl px-4 py-5 sm:px-5 sm:py-8 lg:px-8">
+        <div className="mb-4"><PlanBanner plan={account?.plan} /></div>
         {loading && (
           <div className="mb-6 rounded-[1.5rem] border border-slate-100 bg-white p-6 text-center text-sm font-extrabold text-slate-500 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
             جارٍ تحميل لوحة المدرسة...
@@ -83,9 +86,9 @@ export default function PrincipalDashboard() {
           </div>
         )}
 
-        {!loading && !loadError && report && activeTab === 0 && <DashboardTab d={d} />}
+        {!loading && !loadError && report && activeTab === 0 && <DashboardTab d={d} account={account} />}
 
-        {!loading && !loadError && report && activeTab === 1 && <TeachersTab d={d} />}
+        {!loading && !loadError && report && activeTab === 1 && <TeachersTab d={d} account={account} />}
 
         {!loading && !loadError && report && activeTab === 2 && <ImpactTab d={d} />}
 

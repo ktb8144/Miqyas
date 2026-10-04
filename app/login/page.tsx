@@ -197,7 +197,8 @@ function LoginContent() {
               </form>
 
               <p className="mt-6 text-center text-xs font-semibold text-slate-400">
-                ليس لديك حساب؟ تواصل مع قائد مدرستك
+                ليس لديك حساب؟{" "}
+                <Link href="/signup" className="text-brand hover:underline">سجّل مجانًا</Link>
               </p>
             </div>
           </div>

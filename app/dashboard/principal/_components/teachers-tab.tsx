@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toEnglishDigits } from "@/lib/format";
 import { EmptyState, TeacherCard } from "./ui";
 import type { PrincipalDashboardState } from "../_lib/use-principal-dashboard";
+import { JoinCodeCard, type AccountPlan } from "@/components/plan/plan-banner";
 
 function ResendButton({ onResend }: { onResend: () => Promise<string> }) {
   const [state, setState] = useState<{ status: "idle" | "sending" | "done" | "error"; message?: string }>({ status: "idle" });
@@ -30,7 +31,7 @@ function ResendButton({ onResend }: { onResend: () => Promise<string> }) {
   );
 }
 
-export function TeachersTab({ d }: { d: PrincipalDashboardState }) {
+export function TeachersTab({ d, account }: { d: PrincipalDashboardState; account?: AccountPlan | null }) {
   const { report, resendInvite, setInviteOpen, inviteNotice, setInviteNotice } = d;
   if (!report) return null;
 
@@ -54,6 +55,8 @@ export function TeachersTab({ d }: { d: PrincipalDashboardState }) {
           + إضافة معلم
         </button>
       </div>
+
+      {account?.joinCode && <JoinCodeCard joinCode={account.joinCode} schoolName={account.schoolName} />}
 
       {inviteNotice && (
         <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm font-bold text-brand">

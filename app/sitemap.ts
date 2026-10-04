@@ -11,6 +11,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/guides/how-it-works",
     "/guides/learning-outcomes-reports",
     "/guides/grade-6-math-diagnostic",
+    "/signup",
+    "/privacy",
+    "/terms",
   ].map((path) => ({
     url: new URL(path, SITE_URL).toString(),
   }));

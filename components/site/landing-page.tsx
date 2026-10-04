@@ -216,9 +216,9 @@ export default function LandingPage() {
               اختبار قصير كل أسبوع يكشف مهارات نواتج التعلم غير المتقنة لكل طالب، ويُخرج لقائد المدرسة تقارير متابعة نواتج التعلم وخطة التحسين جاهزة للطباعة.
             </p>
             <div className="mt-10 flex flex-wrap justify-center gap-4 md:justify-start">
-              <a href="#trial" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark">
+              <Link href="/signup" className="rounded-xl bg-brand px-8 py-4 text-base font-extrabold text-white shadow-[0_10px_24px_rgba(21,159,145,0.14)] transition hover:bg-brand-dark">
                 ابدأ شهرك المجاني
-              </a>
+              </Link>
               <a href="#features" className="rounded-xl border border-brand/30 bg-white/70 px-8 py-4 text-base font-extrabold text-brand-navy transition hover:border-brand hover:text-brand">
                 اعرف المزيد
               </a>
