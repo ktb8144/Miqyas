@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     const [schoolRes, teachersRes, classesRes] = await Promise.all([
       db.from("schools").select("id, name, city, region, active, trial").eq("id", schoolId).single(),
-      db.from("users").select("id, name, email, phone, subject, status, created_at").eq("school_id", schoolId).eq("role", "teacher").order("created_at", { ascending: false }),
+      db.from("users").select("id, auth_id, name, email, phone, subject, status, created_at").eq("school_id", schoolId).eq("role", "teacher").order("created_at", { ascending: false }),
       db.from("classes").select("id, name, grade, subject, teacher_id, school_id, students(id, name, class_id)").eq("school_id", schoolId).order("created_at", { ascending: false }),
     ]);
 
@@ -107,6 +107,24 @@ export async function GET(req: NextRequest) {
 
     const school = schoolRes.data;
     const teachers = teachersRes.data ?? [];
+
+    // "invited" is only a hint: a teacher who has signed in is active, whichever flow they used.
+    // Fix the stored status on the way, so the list stays correct.
+    const invitedWithAuth = teachers.filter((teacher) => teacher.status === "invited" && teacher.auth_id);
+    if (invitedWithAuth.length) {
+      const checks = await Promise.all(
+        invitedWithAuth.map(async (teacher) => {
+          const { data } = await db.auth.admin.getUserById(teacher.auth_id as string);
+          return data.user?.last_sign_in_at ? teacher.id : null;
+        })
+      );
+      const activated = checks.filter((id): id is string => Boolean(id));
+      if (activated.length) {
+        for (const teacher of teachers) if (activated.includes(teacher.id)) teacher.status = "active";
+        const { error } = await db.from("users").update({ status: "active" }).in("id", activated).eq("status", "invited");
+        if (error) console.error("activate signed-in teachers failed", error);
+      }
+    }
     const classes = (classesRes.data ?? []) as ClassRow[];
     const students = classes.flatMap((classRow) =>
       (Array.isArray(classRow.students) ? classRow.students : []).map((student) => ({

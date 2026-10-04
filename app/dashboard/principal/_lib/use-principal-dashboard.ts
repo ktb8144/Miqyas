@@ -25,6 +25,7 @@ export function usePrincipalDashboard() {
   const [inviteClassIds, setInviteClassIds] = useState<string[]>([]);
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [packageSummaries, setPackageSummaries] = useState<PrincipalPackageSummary[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
   const [packagesError, setPackagesError] = useState<string | null>(null);
@@ -254,7 +255,9 @@ export function usePrincipalDashboard() {
           .in("id", inviteClassIds);
         if (assignError) throw assignError;
       }
-      setInviteMessage(null); // the modal closes on success; the new teacher appears in the list
+      setInviteMessage(null);
+      setInviteNotice(`أُرسلت الدعوة إلى ${inviteName.trim()} على ${inviteEmail.trim()}. يبقى في «دعوات لم تُفعَّل» حتى يفعّل حسابه.`);
+      setActiveTab(1); // show the new teacher in the list
       setInviteName("");
       setInvitePhone("");
       setInviteEmail("");
@@ -303,6 +306,8 @@ export function usePrincipalDashboard() {
     inviteMessage,
     setInviteMessage,
     resendInvite,
+    inviteNotice,
+    setInviteNotice,
     packageSummaries,
     setPackageSummaries,
     packagesLoading,
