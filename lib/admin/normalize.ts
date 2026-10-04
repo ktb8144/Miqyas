@@ -32,11 +32,14 @@ export function normalizeSchool(row: Record<string, unknown>) {
     city: String(row.city ?? ""),
     region: row.region === null ? null : String(row.region ?? ""),
     type: String(row.type ?? ""),
-    principal: "—",
+    principal: row.principal ? String(row.principal) : "—",
     teachers: Number(row.teachers ?? 0),
     students: Number(row.students ?? 0),
     status: normalizeSchoolStatus(row.active, row.trial),
     score: String(row.score ?? "—"),
+    active: row.active !== false,
+    trial: row.trial === true,
+    subscriptionEnd: row.subscription_end ? String(row.subscription_end) : null,
   };
 }
 

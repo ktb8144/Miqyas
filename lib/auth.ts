@@ -55,6 +55,14 @@ export async function requireUserRole(req: NextRequest, roles: AppRole[]) {
     return { ok: false as const, status: 403, error: "ليست لديك صلاحية لتنفيذ هذا الإجراء" };
   }
 
+  // A suspended school's staff keep their data but lose access until the school is re-activated.
+  if (profile.role !== "admin" && profile.school_id) {
+    const { data: school } = await getAdminClient().from("schools").select("active").eq("id", profile.school_id).maybeSingle();
+    if (school && school.active === false) {
+      return { ok: false as const, status: 403, error: "اشتراك مدرستك موقوف حاليًا. تواصل مع فريق دالة لإعادة التفعيل." };
+    }
+  }
+
   return { ok: true as const, user, profile };
 }
 

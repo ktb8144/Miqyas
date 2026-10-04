@@ -50,7 +50,7 @@ export async function middleware(req: NextRequest) {
 
   const { data: profile, error } = await supabase
     .from("users")
-    .select("role")
+    .select("role, schools(active)")
     .eq("auth_id", user.id)
     .single();
 
@@ -59,6 +59,11 @@ export async function middleware(req: NextRequest) {
   }
 
   const role = profile.role as string;
+  const school = Array.isArray(profile.schools) ? profile.schools[0] : profile.schools;
+  if (role !== "admin" && school && (school as { active?: boolean }).active === false) {
+    await supabase.auth.signOut();
+    return redirectTo("/login?error=school_suspended");
+  }
   const pathname = req.nextUrl.pathname;
 
   if (pathname.startsWith("/admin") && role !== "admin") {

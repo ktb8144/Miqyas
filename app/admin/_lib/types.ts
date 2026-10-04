@@ -30,12 +30,16 @@ export type AdminSchool = {
   students: number;
   status: string;
   score: string;
+  active?: boolean;
+  trial?: boolean;
+  subscriptionEnd?: string | null;
 };
 
 export type SchoolFormData = {
   name: string;
   city: string;
   type?: string;
+  subscription_end?: string;
 };
 
 export type AdminUser = {

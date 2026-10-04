@@ -30,7 +30,7 @@ import {
 } from "./_components/package-modals";
 import { PackagesTab } from "./_components/packages-tab";
 import { ReportsTab } from "./_components/reports-tab";
-import { SchoolsTab } from "./_components/schools-tab";
+import { SchoolsTab, schoolStatusOf, type SchoolStatus } from "./_components/schools-tab";
 import { TrialRequestsTab } from "./_components/trial-requests-tab";
 import { UsersTab } from "./_components/users-tab";
 import { emptyOverview, navItems } from "./_lib/navigation";
@@ -277,7 +277,15 @@ export default function AdminPage() {
       const res = await fetch(endpoint, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, city, region: null, type, active: true, trial: true }),
+        body: JSON.stringify({
+          name,
+          city,
+          region: null,
+          type,
+          ...(payload.subscription_end?.trim() ? { subscription_end: payload.subscription_end.trim() } : {}),
+          // A new school starts as a trial; editing never changes the status (that is the status menu's job).
+          ...(editingSchool ? {} : { active: true, trial: true }),
+        }),
       });
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -302,25 +310,25 @@ export default function AdminPage() {
     }
   }
 
-  async function handleDisableSchool(school: AdminSchool) {
-    const confirmed = window.confirm("سيتم إيقاف المدرسة ولن تظهر كمدرسة نشطة. لن يتم حذف بياناتها. هل تريد المتابعة؟");
-    if (!confirmed) return;
-
+  async function handleSchoolStatus(school: AdminSchool, status: SchoolStatus) {
+    if (status === schoolStatusOf(school)) return;
+    if (status === "suspended") {
+      const confirmed = window.confirm(`سيتوقف دخول مدير ومعلمي «${school.name}» إلى دالة حتى تعيد تفعيلها. لن تُحذف أي بيانات. هل تريد المتابعة؟`);
+      if (!confirmed) return;
+    }
+    const body = status === "suspended" ? { active: false } : { active: true, trial: status === "trial" };
     setBusySchoolId(school.id);
     try {
-      // TODO: hard delete requires dependency checks for users, classes, students,
-      // package assignments, and assessment results. Keep this as soft disable.
-      const res = await fetch(`/api/admin/schools/${school.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/schools/${school.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
       const json = await res.json();
-      if (!res.ok || !json.success) {
-        console.error("disable school API failed", json);
-        const details = [json.error, json.details, json.hint].filter(Boolean).join(" - ");
-        throw new Error(details || "فشل تعطيل المدرسة");
-      }
-      await loadSchools();
-      window.alert("تم إيقاف المدرسة");
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر تغيير حالة المدرسة");
+      setSchoolRows((prev) => prev.map((row) => (row.id === school.id ? { ...row, ...json.data, principal: row.principal, teachers: row.teachers, students: row.students, score: row.score } : row)));
     } catch (error) {
-      console.error("disable school failed", error);
+      console.error("change school status failed", error);
       window.alert(error instanceof Error ? error.message : "حدث خطأ");
     } finally {
       setBusySchoolId(null);
@@ -577,7 +585,7 @@ export default function AdminPage() {
           type={modalType}
           initialValues={
             modalType === "school" && editingSchool
-              ? { name: editingSchool.name, city: editingSchool.city, type: editingSchool.type ?? "حكومية" }
+              ? { name: editingSchool.name, city: editingSchool.city, type: editingSchool.type ?? "حكومية", subscription_end: editingSchool.subscriptionEnd ?? "" }
               : modalType === "user" && editingUser
                 ? { name: editingUser.name, email: editingUser.email, role: editingUser.role, school_id: editingUser.school_id ?? "" }
                 : undefined
@@ -733,7 +741,7 @@ export default function AdminPage() {
               onRetry={loadSchools}
               onAddSchool={openAddSchoolModal}
               onEditSchool={openEditSchoolModal}
-              onDisableSchool={handleDisableSchool}
+              onChangeStatus={handleSchoolStatus}
               busySchoolId={busySchoolId}
             />
           )}

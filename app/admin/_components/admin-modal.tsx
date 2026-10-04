@@ -25,6 +25,7 @@ export function AdminModal({
         { name: "name", label: "اسم المدرسة", type: "text" },
         { name: "city", label: "المدينة", type: "text" },
         { name: "type", label: "نوع المدرسة", type: "schoolType" },
+        { name: "subscription_end", label: "نهاية التجربة أو الاشتراك (اتركه فارغًا لشهرين من اليوم)", type: "date" },
       ],
     },
     user: {

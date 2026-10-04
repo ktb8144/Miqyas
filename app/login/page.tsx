@@ -15,6 +15,7 @@ function LoginContent() {
   const [loadingMessage, setLoadingMessage] = useState("");
   const [showPass, setShowPass] = useState(false);
   const inviteError = searchParams.get("error") === "invalid_invite";
+  const schoolSuspended = searchParams.get("error") === "school_suspended";
   const passwordUpdated = searchParams.get("message") === "password_updated";
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -161,6 +162,12 @@ function LoginContent() {
                 {error && (
                   <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
                     {error}
+                  </div>
+                )}
+
+                {schoolSuspended && !error && (
+                  <div className="rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">
+                    اشتراك مدرستك موقوف حاليًا. تواصل مع فريق دالة لإعادة التفعيل.
                   </div>
                 )}
 
