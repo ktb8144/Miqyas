@@ -8,6 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/",
     "/about",
     "/teachers",
+    "/parents",
     "/guides/how-it-works",
     "/guides/learning-outcomes-reports",
     "/guides/grade-6-math-diagnostic",

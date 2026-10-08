@@ -24,6 +24,7 @@ export function SiteFooter() {
           <h3 className="mb-4 font-extrabold text-brand-navy">{BRAND.nameAr}</h3>
           <div className="space-y-3 text-sm font-semibold text-slate-500">
             <Link href="/about" className="block hover:text-brand">من نحن</Link>
+            <Link href="/parents" className="block hover:text-brand">لأولياء الأمور</Link>
             <Link href="/#trial" className="block hover:text-brand">تواصل معنا</Link>
           </div>
         </div>

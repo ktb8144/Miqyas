@@ -9,6 +9,7 @@ type BrandLogoProps = {
   contextSubtitle?: string;
   centered?: boolean;
   size?: "sm" | "md" | "lg";
+  href?: string;
 };
 
 const logoSize = {
@@ -22,13 +23,14 @@ export function BrandLogo({
   contextSubtitle,
   centered = false,
   size = "md",
+  href = "/",
 }: BrandLogoProps) {
   const imageSize = logoSize[size];
   const imageHeight = Math.round(imageSize / BRAND.logoAspect);
 
   return (
     <Link
-      href="/"
+      href={href}
       className={`flex rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/30 ${
         centered ? "flex-col items-center text-center" : "min-w-0 items-center gap-2 sm:gap-3"
       }`}

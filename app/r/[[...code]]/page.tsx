@@ -24,7 +24,7 @@ export default function ResultCodePage({ params }: { params: { code?: string[] }
     <main className="flex min-h-screen items-center justify-center bg-[#f7fafc] px-5 py-12 text-brand-navy" dir="rtl">
       <section className="w-full max-w-md rounded-[1.5rem] border border-slate-100 bg-white p-8 text-center shadow-[0_10px_34px_rgba(15,35,55,0.05)]">
         <div className="flex justify-center">
-          <BrandLogo size="md" centered contextTitle={BRAND.nameAr} contextSubtitle={BRAND.tagline} />
+          <BrandLogo size="md" centered contextTitle={BRAND.nameAr} contextSubtitle={BRAND.tagline} href="/parents" />
         </div>
 
         <h1 className="mt-8 text-2xl font-black leading-10">نتائج هذا الاختبار ستكون متاحة قريبًا</h1>
@@ -39,7 +39,7 @@ export default function ResultCodePage({ params }: { params: { code?: string[] }
         )}
 
         <div className="mt-8">
-          <Link href="/" className="text-sm font-extrabold text-brand hover:underline">
+          <Link href="/parents" className="text-sm font-extrabold text-brand hover:underline">
             تعرّف على {BRAND.nameAr}
           </Link>
         </div>
