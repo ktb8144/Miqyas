@@ -34,7 +34,7 @@
 | `app/dashboard/principal/page.tsx` | 1,066 | ~102 + `use-principal-dashboard` + ملف لكل تبويب |
 
 ### الهوية والإعدادات
-- الاسم في الواجهة صار "دالة" من `lib/brand.ts`. **ملف الشعار لم يتغير** (`public/miqyas-logo.png`) — ضع الشعار الجديد وحدّث `logoSrc` و `logoAspect`.
+- الاسم في الواجهة صار "دالة" من `lib/brand.ts`. الشعار في `public/dala-logo.png`، وأيقونات المتصفح وصورة المشاركة في `app/` (favicon.ico، icon.png، apple-icon.png، opengraph-image.png).
 - نموذج Gemini مثبّت (`gemini-2.5-flash` افتراضياً، أو `GEMINI_MODEL`) بدل `gemini-flash-latest`. **تحقق أنه نفس النموذج الذي كان يعمل عندكم** قبل النشر.
 - `.env.example` يذكر كل المتغيرات، و `README.md` حقيقي.
 

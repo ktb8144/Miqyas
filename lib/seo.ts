@@ -13,11 +13,13 @@ type PublicMetadataOptions = {
 /** Only public marketing pages should opt in to indexing and a canonical URL. */
 export function publicMetadata({ path, title, description }: PublicMetadataOptions): Metadata {
   const url = new URL(path, SITE_URL).toString();
-  const image = {
-    url: new URL(BRAND.logoSrc, SITE_URL).toString(),
-    width: 344,
-    height: 317,
-    alt: `شعار ${BRAND.nameAr}`,
+  // Share image files live in app/ (1200×630). Listed explicitly because a page's own
+  // openGraph object replaces the one Next.js would otherwise inherit from those files.
+  const shareImage = {
+    url: new URL("/opengraph-image.png", SITE_URL).toString(),
+    width: 1200,
+    height: 630,
+    alt: `${BRAND.nameAr} — ${BRAND.tagline}`,
   };
 
   return {
@@ -36,13 +38,13 @@ export function publicMetadata({ path, title, description }: PublicMetadataOptio
       url,
       title,
       description,
-      images: [image],
+      images: [shareImage],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title,
       description,
-      images: [{ url: image.url, alt: image.alt }],
+      images: [{ url: shareImage.url, alt: shareImage.alt }],
     },
   };
 }
