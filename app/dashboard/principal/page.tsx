@@ -6,6 +6,7 @@ import { DashboardTab } from "./_components/dashboard-tab";
 import { ImpactTab } from "./_components/impact-tab";
 import { InviteTeacherModal } from "./_components/invite-teacher-modal";
 import { PeriodicReportsTab } from "./_components/periodic-reports-tab";
+import { NafsBaselineTab } from "./_components/nafs-baseline-tab";
 import { TABS } from "./_lib/tabs";
 import { TeachersTab } from "./_components/teachers-tab";
 import { usePrincipalDashboard } from "./_lib/use-principal-dashboard";
@@ -93,6 +94,8 @@ export default function PrincipalDashboard() {
         {!loading && !loadError && report && activeTab === 2 && <ImpactTab d={d} />}
 
         {!loading && !loadError && report && activeTab === 3 && <PeriodicReportsTab d={d} />}
+
+        {!loading && !loadError && report && activeTab === 4 && <NafsBaselineTab />}
       </main>
     </div>
   );
