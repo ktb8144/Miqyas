@@ -77,7 +77,7 @@ drop table if exists public.teacher_training_tracking;
 ## 2026-10-04 — self_signup_and_trial_quota (مطبّق)
 
 `supabase/migrations/20261004050000_self_signup_and_trial_quota.sql` — إضافي فقط:
-- `schools`: `kind` (school/individual)، `ministry_number` (فريد)، `gender`، `join_code` (فريد، أُضيف للمدارس الحالية)، `scan_quota`.
+- `schools`: `kind` (school/individual)، `ministry_number` (فريد — حُذف لاحقًا، انظر 29 أكتوبر)، `gender`، `join_code` (فريد، أُضيف للمدارس الحالية)، `scan_quota`.
 - جدول `scan_usage`: سطر لكل ورقة تُرسل للقراءة الآلية مع عدد التوكنات (حد التجربة + التكلفة الفعلية). RLS مفعّل بدون سياسات (الخادم فقط).
 - trigger `classes_individual_limit`: المعلم المستقل حتى 4 فصول.
 - تحديث بيانات: المدارس التجريبية النشطة التي انتهى تاريخها أو بلا تاريخ بدأت تجربة جديدة من 2026-10-04 إلى 2026-11-03.
@@ -93,3 +93,7 @@ drop table if exists public.teacher_training_tracking;
 طُبِّقت بأسمائها (`add_missing_assignment_foreign_keys` ثم `tighten_user_and_parent_token_access` ثم `create_nafs_baselines`) بعد التحقق مرة ثانية من عدم وجود صفوف يتيمة أو تكرار. وتحقق بعدها: 8 مفاتيح أجنبية، وسياسة تعديل المدير محذوفة، وفهرس `auth_id` الفريد موجود، وجدول نافس بـ RLS.
 
 اختُبرت الثلاثة قبل التطبيق على نسخة مصغّرة من المخطط في PGlite: المدير لم يعد يستطيع تغيير `auth_id`، والمعلم يرى رموز فصله فقط والمدير يراها كلها، والتكرار في `auth_id` يُرفض، والصف اليتيم يُرفض، وقيود نافس تعمل.
+
+## 2026-10-29 — `drop_school_ministry_number`
+
+`supabase/migrations/20261029040000_drop_school_ministry_number.sql` — حذف عمود `schools.ministry_number` وفهرسه. المنصة لم تعد تطلب الرقم الوزاري. لا توجد قيم محفوظة فيه (تحققنا يوم 29 أكتوبر). يُطبَّق بعد نشر الكود الذي توقف عن الكتابة فيه.

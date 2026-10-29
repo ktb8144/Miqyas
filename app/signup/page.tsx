@@ -36,7 +36,6 @@ function SignupContent() {
     phone: "",
     schoolName: "",
     city: "",
-    ministryNumber: "",
     gender: "boys",
     joinCode: params.get("code") ?? "",
     subject: "",
@@ -62,7 +61,7 @@ function SignupContent() {
       const common = { name: form.name, email: form.email, phone: form.phone || undefined, acceptTerms, website: form.website };
       const body =
         type === "school"
-          ? { type, ...common, schoolName: form.schoolName, city: form.city, ministryNumber: form.ministryNumber, gender: form.gender }
+          ? { type, ...common, schoolName: form.schoolName, city: form.city, gender: form.gender }
           : type === "join"
             ? { type, ...common, joinCode: form.joinCode, subject: form.subject || undefined }
             : { type, ...common, schoolName: form.schoolName, city: form.city, subject: form.subject || undefined };
@@ -149,10 +148,7 @@ function SignupContent() {
         )}
 
         {type === "school" && (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="الرقم الوزاري للمدرسة">
-              <input required inputMode="numeric" dir="ltr" value={form.ministryNumber} onChange={set("ministryNumber")} className={`${authInputClass} text-right`} />
-            </Field>
+          <div>
             <Field label="بنين أو بنات">
               <select value={form.gender} onChange={set("gender")} className={authInputClass}>
                 <option value="boys">بنين</option>
