@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { emptyToNull } from "@/lib/api";
-import { normalizeSaudiMobile, toEnglishDigits } from "@/lib/format";
+import { normalizeName, normalizeSaudiMobile } from "@/lib/format";
 import {
   deleteAuthUserQuietly,
   describeEmailRateLimit,
@@ -29,7 +29,6 @@ const schema = z.discriminatedUnion("type", [
     ...base,
     schoolName: z.string().trim().min(2).max(160),
     city: z.string().trim().min(2).max(80),
-    ministryNumber: z.string().trim().min(3).max(12),
     gender: z.enum(["boys", "girls"]),
   }),
   z.object({
@@ -108,13 +107,16 @@ export async function POST(req: NextRequest) {
       role = "teacher";
       subject = emptyToNull(input.subject);
     } else if (input.type === "school") {
-      const ministryNumber = toEnglishDigits(input.ministryNumber).replace(/\D/g, "");
-      if (ministryNumber.length < 3) {
-        return NextResponse.json({ success: false, error: "اكتب الرقم الوزاري للمدرسة بالأرقام" }, { status: 400 });
-      }
-      const { data: existing, error } = await db.from("schools").select("id").eq("ministry_number", ministryNumber).maybeSingle();
+      // Same school registered twice: same name, city and boys/girls (spacing and letter forms ignored).
+      const { data: sameCity, error } = await db
+        .from("schools")
+        .select("name")
+        .eq("kind", "school")
+        .eq("gender", input.gender)
+        .ilike("city", input.city.trim());
       if (error) throw error;
-      if (existing) {
+      const wanted = normalizeName(input.schoolName);
+      if ((sameCity ?? []).some((row) => normalizeName(row.name ?? "") === wanted)) {
         return NextResponse.json(
           { success: false, error: "هذه المدرسة مسجّلة في دالة. اطلب من قائد المدرسة رمز الانضمام، أو تواصل معنا إن كنت أنت قائدها." },
           { status: 409 }
@@ -124,7 +126,6 @@ export async function POST(req: NextRequest) {
         name: input.schoolName,
         city: input.city,
         kind: "school",
-        ministryNumber,
         gender: input.gender,
       });
       createdSchoolId = school.id;

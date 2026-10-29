@@ -48,7 +48,6 @@ export async function provisionSchool(
     kind: SchoolKind;
     type?: string;
     region?: string | null;
-    ministryNumber?: string | null;
     gender?: "boys" | "girls" | null;
   }
 ) {
@@ -64,7 +63,6 @@ export async function provisionSchool(
         region: input.region ?? null,
         type: input.type ?? (input.kind === "individual" ? "معلم مستقل" : "حكومية"),
         kind: input.kind,
-        ministry_number: input.ministryNumber ?? null,
         gender: input.gender ?? null,
         join_code: input.kind === "school" ? generateJoinCode() : null,
         subscription_type: "trial",
