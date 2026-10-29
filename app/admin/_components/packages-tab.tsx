@@ -25,6 +25,7 @@ export function PackagesTab({
   onCreate,
   onEdit,
   onImport,
+  onKeyFromSheet,
   onPublish,
   onApplyClasses,
   onWithdraw,
@@ -40,6 +41,7 @@ export function PackagesTab({
   onCreate: () => void;
   onEdit: (item: AdminAssessmentPackage) => void;
   onImport: (item: AdminAssessmentPackage) => void;
+  onKeyFromSheet: (item: AdminAssessmentPackage) => void;
   onPublish: (item: AdminAssessmentPackage) => void;
   onApplyClasses: (item: AdminAssessmentPackage) => void;
   onWithdraw: (item: AdminAssessmentPackage) => void;
@@ -111,6 +113,7 @@ export function PackagesTab({
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 <SoftButton onClick={() => onEdit(item)} disabled={busy}>تعديل</SoftButton>
+                <SoftButton onClick={() => onKeyFromSheet(item)} disabled={busy}>مفتاح من ورقة مظللة</SoftButton>
                 <SoftButton onClick={() => onImport(item)} disabled={busy}>استيراد/تعديل مفتاح الإجابة</SoftButton>
                 <SoftButton onClick={() => onPublish(item)} disabled={busy || item.status === "archived"}>نشر للمدارس</SoftButton>
                 <SoftButton onClick={() => onApplyClasses(item)} disabled={busy || item.status !== "published"}>تطبيق على كل الفصول المطابقة</SoftButton>
