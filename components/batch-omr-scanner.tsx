@@ -1,23 +1,27 @@
 "use client";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { ETEC_LEVELS } from "@/lib/levels";
+import { buildStandardTemplate } from "@/lib/omr/standard-sheet";
+import type { OmrTemplate } from "@/lib/omr/types";
+import { readPhoto } from "@/components/omr/read-photo";
 import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 import { BRAND } from "@/lib/brand";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const Q_COUNT = 10;
-const MAX_PAPERS = 40;
-// Package scanning settings (the only scan mode since the weekly-questions flow was removed).
+const MAX_PAPERS = 50;
+// Answers are read on the device; this endpoint only grades them against the protected answer key.
 const SCAN_ENDPOINT = "/api/scan-package-omr";
 const SCAN_MAX_WIDTH = 1600;
 const SCAN_QUALITY = 0.88;
 const SCAN_RETAKE_QUALITY = 0.9;
-const SCAN_TIMEOUT_MS = 40_000;
+const GRADE_TIMEOUT_MS = 20_000;
 const MISSING_ASSIGNMENT_ERROR = "لا يمكن بدء التصحيح بدون تعيين الحزمة على الفصل.";
 
 const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
+const BLANK = "blank";
+const UNCLEAR = "unclear";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -45,6 +49,11 @@ interface ScanResult {
   errorMsg?: string;
   thumbBase64: string;
   imageBase64?: string;
+  /** Questions the reader could not decide; the teacher must choose before saving. */
+  unclear: string[];
+  /** Close-ups of the unclear questions (and "code" for the student number). */
+  crops?: Record<string, string>;
+  warnings?: string[];
 }
 
 type ScannerStudent = {
@@ -77,7 +86,7 @@ function namesSimilar(a: string, b: string) {
 function confidenceLabel(value?: ScanResult["matchConfidence"]) {
   const labels: Record<NonNullable<ScanResult["matchConfidence"]>, string> = {
     strong: "مطابق بالرقم والاسم",
-    code_only: "مطابق بالرقم فقط",
+    code_only: "مطابق برقم الطالب",
     name_only: "مطابق بالاسم فقط",
     conflict: "تعارض بين الرقم والاسم",
     needs_review: "يحتاج اختيار يدوي",
@@ -171,6 +180,14 @@ function sendBrowserNotification(body: string) {
 
 function formatCount(value: number) {
   return toEnglishDigits(value);
+}
+
+function unclearKeys(answers: Record<string, string>) {
+  return Object.entries(answers).filter(([, value]) => value === UNCLEAR).map(([key]) => key);
+}
+
+function blankAnswers(count: number) {
+  return Object.fromEntries(Array.from({ length: count }, (_, index) => [`q${index + 1}`, ""]));
 }
 
 // ─── Retake Modal (single paper in review mode) ───────────────────────────────
@@ -269,19 +286,29 @@ function RetakeModal({
 
 function PaperReviewModal({
   result,
+  title,
+  questionCount,
   onSave,
   onClose,
 }: {
   result: ScanResult;
+  title: string;
+  questionCount: number;
   onSave: (paperId: string, answers: Record<string, string>) => Promise<void>;
   onClose: () => void;
 }) {
   const [localAnswers, setLocalAnswers] = useState<Record<string, string>>(result.answers);
   const [saving, setSaving] = useState(false);
   const [showImage, setShowImage] = useState(false);
-  const total = result.total || Q_COUNT;
+  const total = questionCount || result.total;
   const levelColor = ETEC_LEVELS[result.level as keyof typeof ETEC_LEVELS]?.color ?? "#374151";
-  const studentLabel = result.editedName || result.studentName || "ورقة بدون اسم";
+  const studentLabel = title;
+  const flagged = new Set(result.unclear);
+  const remaining = Array.from({ length: total }, (_, i) => `q${i + 1}`).filter(
+    (key) => !localAnswers[key] || localAnswers[key] === UNCLEAR
+  );
+  const firstFlagged = flagged.size ? Array.from({ length: total }, (_, i) => `q${i + 1}`).filter((key) => flagged.has(key)) : [];
+  const ordered = [...firstFlagged, ...Array.from({ length: total }, (_, i) => `q${i + 1}`).filter((key) => !flagged.has(key))];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60" dir="rtl">
@@ -290,10 +317,12 @@ function PaperReviewModal({
         <div className="p-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
           <div>
             <p className="font-bold text-gray-900">{studentLabel}</p>
-            <p className="text-xs text-gray-400 mt-0.5">راجع قراءة الطالب فقط، نموذج التصحيح مركزي</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {flagged.size ? `${formatCount(flagged.size)} سؤال يحتاج قرارك — قارن بالصورة واختر` : "راجع قراءة الطالب فقط، نموذج التصحيح مركزي"}
+            </p>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold leading-none" style={{ color: levelColor }}>{toEnglishDigits(`${result.score}/${total}`)}</div>
+            <div className="text-3xl font-bold leading-none" style={{ color: levelColor }}>{toEnglishDigits(`${result.score}/${result.total}`)}</div>
             <div className="text-xs font-medium mt-1" style={{ color: levelColor }}>{result.level}</div>
           </div>
         </div>
@@ -307,37 +336,57 @@ function PaperReviewModal({
           )}
         </div>
 
-        {/* Question rows */}
+        {/* Question rows: the ones the reader left for the teacher come first, with a close-up. */}
         <div className="overflow-y-auto flex-1 px-4 py-3 space-y-2.5">
-          {Array.from({ length: total }, (_, i) => i + 1).map((q) => {
-            const qKey = `q${q}`;
+          {ordered.map((qKey) => {
+            const q = Number(qKey.slice(1));
             const selected = localAnswers[qKey] ?? "";
+            const isFlagged = flagged.has(qKey);
+            const crop = result.crops?.[qKey];
+            const decided = selected && selected !== UNCLEAR;
 
             return (
-              <div key={q} className="flex items-center gap-2">
-                <span className="w-7 text-xs text-gray-500 text-center flex-shrink-0 font-medium">س{formatCount(q)}</span>
-                <div className="flex gap-1 flex-1">
-                  {ARABIC_LETTERS.map((letter) => {
-                    const isSelected = selected === letter;
-                    return (
-                      <button
-                        key={letter}
-                        onClick={() => setLocalAnswers((prev) => ({ ...prev, [qKey]: letter }))}
-                        className="flex-1 h-9 rounded-lg font-bold text-sm border-2 transition-all hover:opacity-80"
-                        style={
-                          isSelected
-                            ? { background: COLORS.brand, borderColor: COLORS.brand, color: "white" }
-                            : { borderColor: "#e5e7eb", color: "#374151" }
-                        }
-                      >
-                        {letter}
-                      </button>
-                    );
-                  })}
+              <div key={qKey} className={isFlagged ? "rounded-xl border border-amber-200 bg-amber-50/60 p-2" : ""}>
+                {isFlagged && crop && (
+                  // eslint-disable-next-line @next/next/no-img-element -- local close-up of the photo
+                  <img src={crop} alt={`السؤال ${formatCount(q)} في الورقة`} className="mb-2 w-full rounded-lg border border-amber-100 bg-white" />
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="w-7 text-xs text-gray-500 text-center flex-shrink-0 font-medium">س{formatCount(q)}</span>
+                  <div className="flex gap-1 flex-1">
+                    {ARABIC_LETTERS.map((letter) => {
+                      const isSelected = selected === letter;
+                      return (
+                        <button
+                          key={letter}
+                          onClick={() => setLocalAnswers((prev) => ({ ...prev, [qKey]: letter }))}
+                          className="flex-1 h-9 rounded-lg font-bold text-sm border-2 transition-all hover:opacity-80"
+                          style={
+                            isSelected
+                              ? { background: COLORS.brand, borderColor: COLORS.brand, color: "white" }
+                              : { borderColor: "#e5e7eb", color: "#374151" }
+                          }
+                        >
+                          {letter}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setLocalAnswers((prev) => ({ ...prev, [qKey]: BLANK }))}
+                      className="h-9 rounded-lg border-2 px-2 text-xs font-bold transition-all hover:opacity-80"
+                      style={
+                        selected === BLANK
+                          ? { background: COLORS.navy, borderColor: COLORS.navy, color: "white" }
+                          : { borderColor: "#e5e7eb", color: "#6b7280" }
+                      }
+                    >
+                      فارغ
+                    </button>
+                  </div>
+                  <span className="w-5 text-center text-sm flex-shrink-0 font-bold" style={{ color: decided ? COLORS.brand : "#d97706" }}>
+                    {decided ? "✓" : "؟"}
+                  </span>
                 </div>
-                <span className="w-5 text-center text-sm flex-shrink-0 font-bold" style={{ color: selected ? COLORS.brand : "#9ca3af" }}>
-                  {selected ? "✓" : "—"}
-                </span>
               </div>
             );
           })}
@@ -351,11 +400,15 @@ function PaperReviewModal({
               await onSave(result.paperId, localAnswers);
               setSaving(false);
             }}
-            disabled={saving}
+            disabled={saving || remaining.length > 0}
             className="flex-1 py-3 rounded-xl text-white font-bold text-sm hover:opacity-90 transition-all disabled:opacity-60"
             style={{ background: COLORS.brand }}
           >
-            {saving ? "جارٍ إعادة التصحيح..." : "تأكيد القراءة وإعادة التصحيح"}
+            {saving
+              ? "جارٍ إعادة التصحيح..."
+              : remaining.length
+                ? `بقي ${formatCount(remaining.length)} سؤال بلا قرار`
+                : "تأكيد القراءة وإعادة التصحيح"}
           </button>
           <button onClick={onClose} className="px-4 py-3 rounded-xl border border-gray-300 text-gray-700 text-sm hover:bg-gray-50">
             إغلاق
@@ -380,11 +433,14 @@ function PaperReviewModal({
               <div className="overflow-y-auto rounded-xl bg-slate-50 p-3">
                 <h4 className="mb-3 text-sm font-black text-slate-700">الإجابات المقروءة</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  {Array.from({ length: total }, (_, i) => i + 1).map((q) => (
-                    <div key={q} className="rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-600">
-                      س{formatCount(q)}: {localAnswers[`q${q}`] || "—"}
-                    </div>
-                  ))}
+                  {Array.from({ length: total }, (_, i) => i + 1).map((q) => {
+                    const value = localAnswers[`q${q}`];
+                    return (
+                      <div key={q} className="rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-600">
+                        س{formatCount(q)}: {value === BLANK ? "فارغ" : value === UNCLEAR || !value ? "؟" : value}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -400,14 +456,21 @@ function PaperReviewModal({
 export function BatchOMRScanner({
   totalStudents,
   classPackageAssignmentId,
+  questionCount,
+  sheetSeed,
   students = [],
   onComplete,
 }: {
   totalStudents: number;
   classPackageAssignmentId?: string;
+  /** Number of questions in the test; sets the answer-sheet layout. */
+  questionCount: number;
+  /** The test's id; must match the identity strip printed on the sheet. */
+  sheetSeed: string;
   students?: ScannerStudent[];
   onComplete: (results: ScanResult[]) => Promise<void> | void;
 }) {
+  const template = useMemo<OmrTemplate>(() => buildStandardTemplate(questionCount, sheetSeed), [questionCount, sheetSeed]);
   const [step, setStep] = useState<Step>("capture");
   const [papers, setPapers] = useState<CapturedPaper[]>([]);
   // Each paper is sent for analysis the moment it is captured; results land here.
@@ -439,68 +502,82 @@ export function BatchOMRScanner({
     messageTimer.current = window.setTimeout(() => setCaptureMessage(null), 1800);
   }, []);
 
-  // ── Scan a single image against the API ────────────────────────────────────
+  // ── Grade answers on the server (answer key stays protected; no image is sent) ──
 
-  const scanImage = useCallback(async (imageBase64: string, paperId: string, thumbBase64: string): Promise<ScanResult> => {
+  const gradeAnswers = useCallback(async (answers: Record<string, string>) => {
+    if (!classPackageAssignmentId) throw new Error(MISSING_ASSIGNMENT_ERROR);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), GRADE_TIMEOUT_MS);
     try {
-      if (!classPackageAssignmentId) {
-        throw new Error(MISSING_ASSIGNMENT_ERROR);
-      }
-
       const res = await fetch(SCAN_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classPackageAssignmentId, imageBase64, mimeType: "image/jpeg", scanMode: "question_paper" }),
+        body: JSON.stringify({ classPackageAssignmentId, studentAnswers: answers }),
         signal: controller.signal,
       });
-      clearTimeout(timer);
-      const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || "تعذّر تحليل الورقة");
-
-      const result = json.result as {
-        studentName?: string;
-        studentCode?: string;
-        answers?: Record<string, string>;
-        score?: number;
-        total?: number;
-        percentage?: number;
-        level?: string;
-        weakSkills?: { question: string; skill: string }[];
-      };
-      const studentName = (result.studentName ?? "").trim();
-      const studentCode = normalizeStudentCode(result.studentCode ?? "");
-      const match = resolveStudentMatch({ studentName, studentCode, editedName: studentName }, students);
-
-      return {
-        paperId, studentName, studentCode, editedName: studentName,
-        matchedStudentId: match.matchedStudentId,
-        matchConfidence: match.matchConfidence,
-        answers: result.answers ?? {},
-        score: result.score ?? 0,
-        total: result.total ?? Q_COUNT,
-        percentage: result.percentage ?? 0,
-        level: result.level ?? "دون الأساسي",
-        weakSkills: result.weakSkills ?? [],
-        error: false, thumbBase64, imageBase64,
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || json.error) throw new Error(json.error || "تعذّر تصحيح الورقة");
+      return json.result as {
+        answers: Record<string, string>;
+        score: number;
+        total: number;
+        percentage: number;
+        level: string;
+        weakSkills: { question: string; skill: string }[];
       };
     } catch (e) {
+      if (e instanceof Error && e.name === "AbortError") throw new Error("انقطع الاتصال أثناء التصحيح — حاول مرة أخرى");
+      throw e;
+    } finally {
       clearTimeout(timer);
-      const isTimeout = e instanceof Error && e.name === "AbortError";
+    }
+  }, [classPackageAssignmentId]);
+
+  // ── Read one photo on the device, then grade it ────────────────────────────
+
+  const scanImage = useCallback(async (
+    readBase64: string,
+    paperId: string,
+    thumbBase64: string,
+    keepBase64?: string
+  ): Promise<ScanResult> => {
+    try {
+      const { reading, crops } = await readPhoto(readBase64, template);
+      if (!reading.ok) throw new Error(reading.message);
+      const graded = await gradeAnswers(reading.answers);
+      const studentCode = normalizeStudentCode(reading.studentCode);
+      const match = resolveStudentMatch({ studentName: "", studentCode, editedName: "" }, students);
+      return {
+        paperId, studentName: "", studentCode, editedName: "",
+        matchedStudentId: match.matchedStudentId,
+        matchConfidence: match.matchConfidence,
+        answers: graded.answers,
+        score: graded.score,
+        total: graded.total,
+        percentage: graded.percentage,
+        level: graded.level,
+        weakSkills: graded.weakSkills ?? [],
+        error: false,
+        thumbBase64,
+        imageBase64: keepBase64 ?? thumbBase64,
+        unclear: unclearKeys(graded.answers),
+        crops,
+        warnings: reading.warnings,
+      };
+    } catch (e) {
       return {
         paperId, studentName: "", studentCode: "", editedName: "", answers: {}, score: 0,
-        total: Q_COUNT, percentage: 0, level: "دون الأساسي", weakSkills: [], error: true,
-        errorMsg: isTimeout ? `انتهت المهلة (${toEnglishDigits(SCAN_TIMEOUT_MS / 1000)} ثانية) — أعد التصوير` : e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
-        thumbBase64, imageBase64,
+        total: questionCount, percentage: 0, level: "دون الأساسي", weakSkills: [], error: true,
+        errorMsg: e instanceof Error ? e.message : "تعذّرت قراءة الورقة",
+        thumbBase64, imageBase64: keepBase64 ?? thumbBase64, unclear: [],
       };
     }
-  }, [classPackageAssignmentId, students]);
+  }, [gradeAnswers, questionCount, students, template]);
 
-  /** Adds a paper and starts analysing it straight away, so results are ready by the time the teacher finishes. */
-  const addPaper = useCallback((paper: CapturedPaper) => {
+  /** Adds a paper and starts reading it straight away, so results are ready by the time the teacher finishes. */
+  const addPaper = useCallback((paper: CapturedPaper, readBase64?: string) => {
     setPapers((prev) => [...prev, paper]);
-    const promise = scanImage(paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64);
+    const promise = scanImage(readBase64 ?? paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64, paper.reviewBase64);
     pendingScans.current.set(paper.id, promise);
     void promise.then((result) => {
       if (pendingScans.current.get(paper.id) === promise) {
@@ -576,7 +653,7 @@ export function BatchOMRScanner({
       drawVideoCoverToPortraitCanvas(video, canvas);
       const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
       const paper = await preparePaper(raw, `p${Date.now()}`);
-      addPaper(paper);
+      addPaper(paper, raw);
       flashMessage(`✓ تم حفظ الورقة ${formatCount(papers.length + 1)} — صوّر التالية`);
     } catch {
       flashMessage("تعذّر التقاط الصورة، حاول مرة أخرى");
@@ -588,7 +665,6 @@ export function BatchOMRScanner({
 
   const addManualPaper = useCallback(() => {
     const paperId = `manual-${Date.now()}`;
-    const blankAnswers = Object.fromEntries(Array.from({ length: Q_COUNT }, (_, index) => [`q${index + 1}`, ""]));
     setResults((prev) => [
       ...prev,
       {
@@ -598,20 +674,21 @@ export function BatchOMRScanner({
         editedName: "",
         matchedStudentId: null,
         matchConfidence: "needs_review",
-        answers: blankAnswers,
+        answers: blankAnswers(questionCount),
         score: 0,
-        total: Q_COUNT,
+        total: questionCount,
         percentage: 0,
         level: "دون الأساسي",
         weakSkills: [],
         error: false,
         thumbBase64: "",
+        unclear: [],
       },
     ]);
     closeCamera();
     setStep("review");
     setReviewingPaperId(paperId);
-  }, [closeCamera]);
+  }, [closeCamera, questionCount]);
 
   const handleGalleryUpload = useCallback(async (files: FileList | null) => {
     if (!files?.length) return;
@@ -623,7 +700,7 @@ export function BatchOMRScanner({
         reader.readAsDataURL(file);
       });
       const raw = dataUrl.split(",")[1] ?? "";
-      if (raw) addPaper(await preparePaper(raw, `p${Date.now()}-${file.name}`));
+      if (raw) addPaper(await preparePaper(raw, `p${Date.now()}-${file.name}`), raw);
     }
     flashMessage("تم رفع الصور");
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -640,7 +717,7 @@ export function BatchOMRScanner({
     closeCamera();
     setStep("processing");
     const allResults = await Promise.all(
-      papers.map((paper) => pendingScans.current.get(paper.id) ?? scanImage(paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64))
+      papers.map((paper) => pendingScans.current.get(paper.id) ?? scanImage(paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64, paper.reviewBase64))
     );
     // Keep anything the teacher already reviewed (student choice, corrected answers, retakes).
     setResults((prev) => {
@@ -666,7 +743,7 @@ export function BatchOMRScanner({
           : r
       )
     );
-    const newResult = await scanImage(newBase64, paperId, thumb);
+    const newResult = await scanImage(newBase64, paperId, thumb, thumb);
     setResults((prev) => prev.map((r) => (r.paperId === paperId ? { ...newResult, editedName: newResult.studentName } : r)));
   };
 
@@ -674,22 +751,20 @@ export function BatchOMRScanner({
 
   const handleReviewSave = async (paperId: string, answers: Record<string, string>) => {
     try {
-      if (!classPackageAssignmentId) {
-        throw new Error(MISSING_ASSIGNMENT_ERROR);
-      }
-
-      const res = await fetch(SCAN_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classPackageAssignmentId, studentAnswers: answers }),
-      });
-      const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error || "تعذّرت إعادة التصحيح");
-      const graded = json.result as { answers: Record<string, string>; score: number; total: number; percentage: number; level: string; weakSkills: { question: string; skill: string }[] };
+      const graded = await gradeAnswers(answers);
       setResults((prev) =>
         prev.map((r) =>
           r.paperId === paperId
-            ? { ...r, answers: graded.answers, score: graded.score, total: graded.total, percentage: graded.percentage, level: graded.level, weakSkills: graded.weakSkills }
+            ? {
+                ...r,
+                answers: graded.answers,
+                score: graded.score,
+                total: graded.total,
+                percentage: graded.percentage,
+                level: graded.level,
+                weakSkills: graded.weakSkills,
+                unclear: unclearKeys(graded.answers),
+              }
             : r
         )
       );
@@ -725,6 +800,10 @@ export function BatchOMRScanner({
       setSaveError("يوجد أكثر من ورقة لنفس الطالب. احذف المكررة أو غيّر اختيار الطالب.");
       return;
     }
+    if (valid.some((r) => r.unclear.length > 0 || Object.values(r.answers).some((value) => !value))) {
+      setSaveError("بعض الأوراق فيها أسئلة تحتاج قرارك. افتح الأوراق المعلّمة واختر الإجابة أو «فارغ».");
+      return;
+    }
 
     setSaveError(null);
     setSaving(true);
@@ -743,6 +822,7 @@ export function BatchOMRScanner({
   const validResults = results.filter((r) => !r.error);
   const errorResults = results.filter((r) => r.error);
   const unmatchedCount = validResults.filter((r) => !r.matchedStudentId).length;
+  const needsDecisionCount = validResults.filter((r) => r.unclear.length > 0 || Object.values(r.answers).some((value) => !value)).length;
   const duplicateIds = new Set(
     validResults
       .map((r) => r.matchedStudentId)
@@ -779,7 +859,13 @@ export function BatchOMRScanner({
       {reviewingPaperId && (() => {
         const r = results.find((x) => x.paperId === reviewingPaperId);
         return r ? (
-          <PaperReviewModal result={r} onSave={handleReviewSave} onClose={() => setReviewingPaperId(null)} />
+          <PaperReviewModal
+            result={r}
+            title={students.find((student) => student.id === r.matchedStudentId)?.name ?? (r.studentCode ? `الطالب رقم ${toEnglishDigits(r.studentCode)}` : "ورقة بدون رقم")}
+            questionCount={questionCount}
+            onSave={handleReviewSave}
+            onClose={() => setReviewingPaperId(null)}
+          />
         ) : null;
       })()}
 
@@ -891,7 +977,7 @@ export function BatchOMRScanner({
             </button>
           </div>
           <p className="text-center text-xs font-bold text-slate-400">
-            صوّر كل ورقة بضغطة واحدة؛ تُقرأ الأوراق تلقائيًا أثناء التصوير ويُصحَّح بمفتاح الإجابة المحمي.
+            صوّر ورقة الإجابة كاملة بمربعاتها الأربعة؛ تُقرأ على جهازك فورًا دون إرسال الصورة، ويُصحَّح بمفتاح الإجابة المحمي. ما لا يُحسم يُعرض عليك لتختار.
           </p>
 
           {papers.length > 0 && (
@@ -949,9 +1035,10 @@ export function BatchOMRScanner({
             })}
           </div>
 
-          {(errorResults.length > 0 || unmatchedCount > 0 || duplicateIds.size > 0) && (
+          {(errorResults.length > 0 || unmatchedCount > 0 || duplicateIds.size > 0 || needsDecisionCount > 0) && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-bold text-amber-800">
               {errorResults.length > 0 && <p>{formatCount(errorResults.length)} ورقة لم تُقرأ — اضغط «أعد التصوير».</p>}
+              {needsDecisionCount > 0 && <p>{formatCount(needsDecisionCount)} ورقة فيها أسئلة تحتاج قرارك — اضغط «مراجعة».</p>}
               {unmatchedCount > 0 && <p>{formatCount(unmatchedCount)} ورقة تحتاج اختيار الطالب.</p>}
               {duplicateIds.size > 0 && <p>توجد أوراق مكررة لنفس الطالب.</p>}
             </div>
@@ -967,7 +1054,8 @@ export function BatchOMRScanner({
             {results.map((r, i) => {
               const cfg = !r.error && r.level ? ETEC_LEVELS[r.level as keyof typeof ETEC_LEVELS] : null;
               const isDuplicate = !r.error && !!r.matchedStudentId && duplicateIds.has(r.matchedStudentId);
-              const needsChoice = !r.error && (!r.matchedStudentId || isDuplicate);
+              const needsDecision = !r.error && (r.unclear.length > 0 || Object.values(r.answers).some((value) => !value));
+              const needsChoice = !r.error && (!r.matchedStudentId || isDuplicate || needsDecision);
               return (
                 <li
                   key={r.paperId}
@@ -1000,11 +1088,23 @@ export function BatchOMRScanner({
                             ))}
                           </select>
                           <p className="mt-1 truncate text-[11px] font-bold text-slate-400">
-                            {r.studentName || r.studentCode
-                              ? `المقروء: ${r.studentName || "—"}${r.studentCode ? ` · ${toEnglishDigits(r.studentCode)}` : ""}`
-                              : "لم يُقرأ الاسم أو الرقم"}
-                            {isDuplicate ? " · مكررة" : r.matchConfidence && r.matchConfidence !== "strong" ? ` · ${confidenceLabel(r.matchConfidence)}` : ""}
+                            {r.studentCode ? `رقم الطالب المقروء: ${toEnglishDigits(r.studentCode)}` : "لم يُقرأ رقم الطالب — اختره من القائمة"}
+                            {isDuplicate
+                              ? " · مكررة"
+                              : r.matchConfidence && !["strong", "code_only"].includes(r.matchConfidence)
+                                ? ` · ${confidenceLabel(r.matchConfidence)}`
+                                : ""}
                           </p>
+                          {needsDecision && (
+                            <p className="mt-0.5 text-[11px] font-black text-amber-700">
+                              {r.unclear.length ? `${formatCount(r.unclear.length)} سؤال يحتاج قرارك` : "أكمل الإجابات"}
+                            </p>
+                          )}
+                          {r.warnings?.length ? <p className="mt-0.5 text-[11px] font-bold text-amber-700">{r.warnings[0]}</p> : null}
+                          {!r.matchedStudentId && r.crops?.code && (
+                            // eslint-disable-next-line @next/next/no-img-element -- local close-up of the student-number area
+                            <img src={r.crops.code} alt="منطقة رقم الطالب في الورقة" className="mt-2 w-full max-w-xs rounded border border-amber-100" />
+                          )}
                         </>
                       )}
                     </div>

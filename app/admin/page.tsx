@@ -28,6 +28,7 @@ import {
   PublishPackageModal,
   QuestionImportModal,
 } from "./_components/package-modals";
+import { AnswerKeySheetModal } from "./_components/answer-key-sheet-modal";
 import { PackagesTab } from "./_components/packages-tab";
 import { ReportsTab } from "./_components/reports-tab";
 import { SchoolsTab, schoolStatusOf, type SchoolStatus } from "./_components/schools-tab";
@@ -45,6 +46,7 @@ export default function AdminPage() {
   const [editingPackage, setEditingPackage] = useState<AdminAssessmentPackage | null>(null);
   const [packageModalOpen, setPackageModalOpen] = useState(false);
   const [importingPackage, setImportingPackage] = useState<AdminAssessmentPackage | null>(null);
+  const [keySheetPackage, setKeySheetPackage] = useState<AdminAssessmentPackage | null>(null);
   const [publishingPackage, setPublishingPackage] = useState<AdminAssessmentPackage | null>(null);
   const [schoolRows, setSchoolRows] = useState<AdminSchool[]>([]);
   const [userRows, setUserRows] = useState<AdminUser[]>([]);
@@ -612,6 +614,14 @@ export default function AdminPage() {
         />
       )}
 
+      {keySheetPackage && (
+        <AnswerKeySheetModal
+          assessmentPackage={keySheetPackage}
+          onSaved={loadPackages}
+          onClose={() => setKeySheetPackage(null)}
+        />
+      )}
+
       {publishingPackage && (
         <PublishPackageModal
           assessmentPackage={publishingPackage}
@@ -770,6 +780,7 @@ export default function AdminPage() {
               onCreate={openCreatePackageModal}
               onEdit={openEditPackageModal}
               onImport={setImportingPackage}
+              onKeyFromSheet={setKeySheetPackage}
               onPublish={setPublishingPackage}
               onApplyClasses={handleApplyPackageClasses}
               onWithdraw={handleWithdrawPackage}

@@ -20,13 +20,13 @@ export function TestCard({
   studentCount,
   onScan,
   onResults,
-  onPrint,
 }: {
   item: TeacherPackageAssignment;
   studentCount: number;
   onScan: () => void;
   onResults: () => void;
-  onPrint: () => void;
+  /** Kept for callers; the print page marks the test as printed itself. */
+  onPrint?: () => void;
 }) {
   const tested = item.testedCount ?? 0;
   const done = studentCount > 0 && tested >= studentCount;
@@ -66,23 +66,15 @@ export function TestCard({
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        {item.studentPdfUrl ? (
-          <a
-            href={item.studentPdfUrl}
-            target="_blank"
-            rel="noreferrer"
-            onClick={onPrint}
-            className="flex flex-col items-center gap-1 rounded-xl border border-slate-200 py-2.5 text-xs font-extrabold text-slate-600 transition hover:border-brand/40 hover:text-brand"
-          >
-            <FileText className="h-4 w-4" />
-            طباعة
-          </a>
-        ) : (
-          <span className="flex flex-col items-center gap-1 rounded-xl border border-slate-100 py-2.5 text-xs font-extrabold text-slate-300">
-            <FileText className="h-4 w-4" />
-            طباعة
-          </span>
-        )}
+        <a
+          href={`/dashboard/teacher/answer-sheet/${item.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="flex flex-col items-center gap-1 rounded-xl border border-slate-200 py-2.5 text-xs font-extrabold text-slate-600 transition hover:border-brand/40 hover:text-brand"
+        >
+          <FileText className="h-4 w-4" />
+          طباعة
+        </a>
         <button
           onClick={onScan}
           disabled={!studentCount}

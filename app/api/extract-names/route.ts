@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { extractStudentNames } from "@/lib/gemini";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
+import { AI_READING_ENABLED } from "@/lib/ai-reading";
 
 const extractNamesSchema = z.object({
   imageBase64: z.string().min(100),
@@ -12,6 +13,12 @@ export async function POST(req: NextRequest) {
   try {
     const auth = await requireUserRole(req, ["principal", "teacher"]);
     if (!auth.ok) return authErrorResponse(auth);
+    if (!AI_READING_ENABLED) {
+      return NextResponse.json(
+        { success: false, error: "قراءة الكشوف بالصور متوقفة. ارفع ملف Excel من نور أو الصق الأسماء." },
+        { status: 403 }
+      );
+    }
 
     const parsed = extractNamesSchema.safeParse(await req.json());
     if (!parsed.success) {
