@@ -35,6 +35,8 @@ export function PackageScanModal({ d }: { d: TeacherDashboardState }) {
           {activePackageStudents.length ? (
             <BatchOMRScanner
               classPackageAssignmentId={activePackageAssignment.id}
+              questionCount={activePackageAssignment.questionCount}
+              sheetSeed={activePackageAssignment.packageId}
               totalStudents={activePackageStudents.length}
               onComplete={handlePackageScanComplete}
               students={activePackageStudents.map((student) => ({ id: student.id, name: student.name, studentCode: student.studentCode }))}

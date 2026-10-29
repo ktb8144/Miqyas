@@ -6,6 +6,7 @@ import { getLevel } from "@/lib/levels";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole } from "@/lib/auth";
 import type { AssessmentPackageRow, ClassPackageAssignmentRow } from "@/lib/db/rows";
+import { AI_READING_DISABLED_MESSAGE, AI_READING_ENABLED } from "@/lib/ai-reading";
 
 export const dynamic = "force-dynamic";
 
@@ -443,6 +444,13 @@ export async function POST(req: NextRequest) {
     }
 
     const body = parsed.data;
+    // Answers read on the device (or typed) are graded here. Sending the photo to an AI model is opt-in.
+    if (!body.studentAnswers && !AI_READING_ENABLED) {
+      return NextResponse.json(
+        { success: false, error: AI_READING_DISABLED_MESSAGE, errorCode: "AI_READING_DISABLED" },
+        { status: 403 }
+      );
+    }
     const loaded = await loadPackageQuestionsForAssignment(body.classPackageAssignmentId, auth.profile);
     if ("error" in loaded) {
       const loadedError = loaded.error ?? "تعذر تحميل بيانات حزمة التقييم";
