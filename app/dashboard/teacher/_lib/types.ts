@@ -1,5 +1,5 @@
-
-
+import type { ClassDiagnosis } from "@/lib/reports/class-diagnosis";
+import type { ReportNarrative } from "@/lib/reports/class-report-ai";
 export type View = "classes" | "students" | "weeklyPlans" | "packages";
 
 export interface Student {
@@ -47,13 +47,12 @@ export type WeeklyPlanItem = {
   };
 };
 
-export interface ClassReport {
-  summary: string;
-  strengths: string;
-  weaknesses: string;
-  interventionPlan: string;
-  recommendations: string;
-}
+export type ClassReportData = {
+  diagnosis: ClassDiagnosis;
+  narrative: ReportNarrative;
+  notice: string | null;
+  generatedAt: string;
+};
 
 export type ClassStudentsMap = Record<string, Student[]>;
 export type AssignmentStudentScores = Record<string, Record<string, { score: number; total: number; percentage: number; level: string; scannedAt: string | null }>>;

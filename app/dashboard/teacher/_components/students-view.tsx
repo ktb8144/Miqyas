@@ -62,7 +62,7 @@ export function StudentsView({ d }: { d: TeacherDashboardState }) {
           <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={generateReport}
-              disabled={activeStudents.every((s) => s.score === 0)}
+              disabled={!activeStudents.length}
               className="flex items-center gap-2 rounded-xl bg-brand-navy px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-brand-navy-light disabled:opacity-50"
             >
               توليد تقرير الفصل
