@@ -5,6 +5,7 @@ import { toEnglishDigits } from "@/lib/format";
 import { EmptyState, TeacherCard } from "./ui";
 import type { PrincipalDashboardState } from "../_lib/use-principal-dashboard";
 import { JoinCodeCard, type AccountPlan } from "@/components/plan/plan-banner";
+import { RosterImportModal } from "./roster-import-modal";
 
 function ResendButton({ onResend }: { onResend: () => Promise<string> }) {
   const [state, setState] = useState<{ status: "idle" | "sending" | "done" | "error"; message?: string }>({ status: "idle" });
@@ -32,7 +33,8 @@ function ResendButton({ onResend }: { onResend: () => Promise<string> }) {
 }
 
 export function TeachersTab({ d, account }: { d: PrincipalDashboardState; account?: AccountPlan | null }) {
-  const { report, resendInvite, setInviteOpen, inviteNotice, setInviteNotice } = d;
+  const { report, resendInvite, setInviteOpen, inviteNotice, setInviteNotice, loadReport } = d;
+  const [importOpen, setImportOpen] = useState(false);
   if (!report) return null;
 
   const pending = report.teachers.filter((teacher) => teacher.status === "invited");
@@ -48,13 +50,29 @@ export function TeachersTab({ d, account }: { d: PrincipalDashboardState; accoun
             {pending.length ? ` · ${toEnglishDigits(pending.length)} لم يفعّلوا حساباتهم بعد` : ""}
           </p>
         </div>
-        <button
-          onClick={() => setInviteOpen(true)}
-          className="flex-shrink-0 rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark"
-        >
-          + إضافة معلم
-        </button>
+        <div className="flex flex-shrink-0 gap-2">
+          <button
+            onClick={() => setImportOpen(true)}
+            className="rounded-xl border border-brand/30 bg-white px-4 py-2 text-sm font-extrabold text-brand transition hover:bg-teal-50"
+          >
+            استيراد الطلاب من نور
+          </button>
+          <button
+            onClick={() => setInviteOpen(true)}
+            className="rounded-xl bg-brand px-4 py-2 text-sm font-extrabold text-white transition hover:bg-brand-dark"
+          >
+            + إضافة معلم
+          </button>
+        </div>
       </div>
+
+      {importOpen && (
+        <RosterImportModal
+          teachers={report.teachers}
+          onClose={() => setImportOpen(false)}
+          onDone={loadReport}
+        />
+      )}
 
       {account?.joinCode && <JoinCodeCard joinCode={account.joinCode} schoolName={account.schoolName} />}
 

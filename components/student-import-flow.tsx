@@ -2,9 +2,12 @@
 import { useState, useRef } from "react";
 import { toEnglishDigits, cleanName, normalizeName } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
+import { AI_READING_ENABLED } from "@/lib/ai-reading";
+import { detectRoster, type RosterDetection } from "@/lib/import/roster";
 
 type Step =
   | "choice"
+  | "section"
   | "camera"
   | "extracting"
   | "review"
@@ -55,7 +58,11 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
   const [manualText, setManualText] = useState("");
   const [savedCount, setSavedCount] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [roster, setRoster] = useState<RosterDetection | null>(null);
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const [fileBusy, setFileBusy] = useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -144,6 +151,50 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
     }
   };
 
+  // ── Excel / CSV (read in the browser; only names leave the device) ─────────────
+
+  const addNamesFromList = (names: string[]) => {
+    setEditableNames((prev) => {
+      const result = mergeNames(prev, names);
+      setMergeInfo({ added: result.added, duplicates: result.duplicates });
+      return result.merged;
+    });
+    setStep("review");
+  };
+
+  const handleFile = async (file: File | undefined) => {
+    if (!file) return;
+    setExtractError(null);
+    setFileNote(null);
+    setFileBusy(true);
+    try {
+      const sheets = await (await import("@/lib/import/table-file")).readTableFile(file);
+      const detections = sheets
+        .map((sheet) => detectRoster(sheet.rows))
+        .filter((item): item is RosterDetection => Boolean(item))
+        .sort((a, b) => b.rows.length - a.rows.length);
+      const best = detections[0];
+      if (!best) throw new Error("لم نجد عمود أسماء الطلاب في الملف. تأكد أن فيه عمودًا عنوانه «اسم الطالب».");
+      setFileNote(
+        best.skippedIdColumns
+          ? `تجاهلنا ${toEnglishDigits(best.skippedIdColumns)} عمودًا فيه أرقام هوية — لا تُحفظ في دالة.`
+          : null
+      );
+      if (best.sections.length > 1) {
+        setRoster(best);
+        setStep("section");
+      } else {
+        addNamesFromList(best.rows.map((row) => row.name));
+      }
+    } catch (err) {
+      setExtractError(err instanceof Error ? err.message : "تعذر قراءة الملف");
+      setStep(editableNames.length > 0 ? "review" : "choice");
+    } finally {
+      setFileBusy(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   // ── Review edits ─────────────────────────────────────────────────────────────
 
   const updateName = (i: number, val: string) =>
@@ -215,26 +266,49 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
               ⚠️ {extractError}
             </div>
           )}
-          <div className="grid md:grid-cols-2 gap-4">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+            className="hidden"
+            onChange={(event) => void handleFile(event.target.files?.[0])}
+          />
+          <div className={`grid gap-4 ${AI_READING_ENABLED ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
             <button
-              onClick={openCamera}
-              className="flex flex-col items-center gap-3 p-8 rounded-xl border-2 hover:shadow-md transition-all text-center"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={fileBusy}
+              className="flex flex-col items-center gap-3 p-8 rounded-xl border-2 hover:shadow-md transition-all text-center disabled:opacity-60"
               style={{ borderColor: COLORS.brand, background: "#f0fdf8" }}
             >
-              <span className="text-5xl">📷</span>
+              <span className="text-5xl">📄</span>
               <div>
-                <div className="font-bold text-gray-900 text-lg">تصوير كشف الأسماء</div>
+                <div className="font-bold text-gray-900 text-lg">{fileBusy ? "جارٍ قراءة الملف..." : "رفع ملف Excel من نور"}</div>
                 <div className="text-gray-500 text-sm mt-1">
-                  صوّر صفحة من الكشف وسيتم دمج الأسماء مع القائمة الحالية
+                  كشف الفصل بصيغة xlsx أو CSV — نأخذ الأسماء والترتيب فقط
                 </div>
               </div>
-              <span
-                className="px-3 py-1 rounded-full text-xs font-bold text-white"
-                style={{ background: COLORS.brand }}
-              >
-                مدعوم بالذكاء الاصطناعي
+              <span className="px-3 py-1 rounded-full text-xs font-bold text-white" style={{ background: COLORS.brand }}>
+                الأسرع والأدق
               </span>
             </button>
+
+            {AI_READING_ENABLED && (
+              <button
+                onClick={openCamera}
+                className="flex flex-col items-center gap-3 p-8 rounded-xl border-2 hover:shadow-md transition-all text-center border-gray-300"
+              >
+                <span className="text-5xl">📷</span>
+                <div>
+                  <div className="font-bold text-gray-900 text-lg">تصوير كشف الأسماء</div>
+                  <div className="text-gray-500 text-sm mt-1">
+                    صوّر صفحة من الكشف وسيتم دمج الأسماء مع القائمة الحالية
+                  </div>
+                </div>
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
+                  مدعوم بالذكاء الاصطناعي
+                </span>
+              </button>
+            )}
 
             <button
               onClick={() => { setExtractError(null); setStep("manual"); }}
@@ -252,6 +326,36 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
               </span>
             </button>
           </div>
+          <p className="mt-3 text-xs text-gray-400">
+            ترتيب الطلاب في الملف هو رقم كل طالب في ورقة الإجابة، فارفع الكشف بنفس ترتيب نور.
+          </p>
+        </div>
+      )}
+
+      {/* ── STEP: section (file has several classes) ── */}
+      {step === "section" && roster && (
+        <div>
+          <p className="mb-3 font-bold text-gray-900">الملف فيه أكثر من فصل. اختر فصل هذه القائمة:</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {roster.sections.map((section) => (
+              <button
+                key={section}
+                onClick={() => {
+                  addNamesFromList(roster.rows.filter((row) => row.section === section).map((row) => row.name));
+                  setRoster(null);
+                }}
+                className="rounded-xl border-2 border-gray-200 px-4 py-3 text-right font-bold hover:border-brand"
+              >
+                {section}
+                <span className="mr-2 text-xs text-gray-400">
+                  {toEnglishDigits(roster.rows.filter((row) => row.section === section).length)} طالب
+                </span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => { setRoster(null); setStep("choice"); }} className="mt-4 text-sm font-bold text-gray-500">
+            رجوع
+          </button>
         </div>
       )}
 
@@ -332,7 +436,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
           {/* header */}
           <div className="flex items-center justify-between mb-4">
             <div>
-              <span className="font-bold text-gray-900">مراجعة الأسماء المستخرجة</span>
+              <span className="font-bold text-gray-900">مراجعة الأسماء</span>
               <span
                 className="mr-2 px-2.5 py-0.5 rounded-full text-sm font-bold text-white"
                 style={{ background: COLORS.brand }}
@@ -340,12 +444,21 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
                 {toEnglishDigits(editableNames.filter(n => n.trim()).length)} اسم
               </span>
             </div>
-            <button
-              onClick={openCamera}
-              className="text-sm font-bold text-brand hover:opacity-80"
-            >
-              + إضافة صفحة أخرى بالكاميرا
-            </button>
+            {AI_READING_ENABLED ? (
+              <button
+                onClick={openCamera}
+                className="text-sm font-bold text-brand hover:opacity-80"
+              >
+                + إضافة صفحة أخرى بالكاميرا
+              </button>
+            ) : (
+              <button
+                onClick={() => setStep("choice")}
+                className="text-sm font-bold text-brand hover:opacity-80"
+              >
+                + إضافة من ملف أو يدويًا
+              </button>
+            )}
           </div>
 
           {mergeInfo && (
@@ -355,6 +468,12 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             >
               تمت إضافة <b>{toEnglishDigits(mergeInfo.added)}</b> اسم جديد
               {mergeInfo.duplicates > 0 && <>، وتم تجاهل <b>{toEnglishDigits(mergeInfo.duplicates)}</b> اسم مكرر</>}
+            </div>
+          )}
+
+          {fileNote && (
+            <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-600">
+              {fileNote}
             </div>
           )}
 
@@ -374,7 +493,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             >
               <span>⚠️</span>
               <span>
-                تم استخراج {toEnglishDigits(editableNames.filter(n => n.trim()).length)} اسم فقط — تحقق من الصورة أو أضف الأسماء يدوياً
+                القائمة فيها {toEnglishDigits(editableNames.filter(n => n.trim()).length)} اسم فقط — تحقق من المصدر أو أضف الأسماء يدوياً
               </span>
             </div>
           )}
