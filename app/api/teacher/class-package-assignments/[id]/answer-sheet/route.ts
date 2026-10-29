@@ -37,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       return NextResponse.json({ success: false, error: "لم يتم العثور على اختبار مرتبط بحسابك" }, { status: 404 });
     }
 
-    // class_package_assignments has no foreign keys to classes/schools, so those are read separately.
+    // Classes and schools are read with their own queries (simple, and works even if an embed changes).
     const [
       { count, error: countError },
       { data: students, error: studentsError },
