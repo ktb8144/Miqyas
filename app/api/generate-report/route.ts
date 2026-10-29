@@ -27,7 +27,9 @@ export async function POST(req: NextRequest) {
     }
 
     const { teacherName, skill, grade, subject, results } = parsed.data;
-    const report = await generateClassReport(teacherName, skill, grade, subject, results);
+    // The class report needs the spread of scores, not who scored what: student names never go to the AI model.
+    const anonymous = results.map((result, index) => ({ ...result, name: `طالب ${index + 1}` }));
+    const report = await generateClassReport(teacherName, skill, grade, subject, anonymous);
     return NextResponse.json({ success: true, report });
   } catch (err) {
     console.error("generate report failed", err);
