@@ -94,22 +94,6 @@ function normalizeScannedAnswers(raw: unknown, totalQuestions: number): OMRResul
   return result;
 }
 
-export interface StudentResult {
-  name: string;
-  score: number;
-  total: number;
-  level: string;
-}
-
-export interface ClassReport {
-  summary: string;
-  strengths: string;
-  weaknesses: string;
-  interventionPlan: string;
-  recommendations: string;
-}
-
-
 // ─── Function 1: Scan answer sheet image ─────────────────────────────────────
 
 export async function scanAnswerSheet(
@@ -245,70 +229,31 @@ Return this exact shape:
   }
 }
 
-// ─── Function 2: Generate class report ───────────────────────────────────────
+// ─── Function 2: Text-only JSON answer (class reports) ───────────────────────
 
-export async function generateClassReport(
-  teacherName: string,
-  skill: string,
-  grade: string,
-  subject: string,
-  results: StudentResult[]
-): Promise<ClassReport> {
-  const model = getModel();
-
-  const summary = results
-    .map((r) => `- ${r.name}: ${r.score}/${r.total} (${r.level})`)
-    .join("\n");
-
-  const advanced = results.filter((r) => r.level === "متقدم").length;
-  const proficient = results.filter((r) => r.level === "متمكن").length;
-  const basic = results.filter((r) => r.level === "أساسي").length;
-  const belowBasic = results.filter((r) => r.level === "دون الأساسي").length;
-
-  const prompt = `أنت خبير تربوي متخصص في تحليل نتائج الطلاب وإعداد التقارير التعليمية.
-
-بيانات التقييم:
-- المعلم: ${teacherName}
-- المهارة: ${skill}
-- الصف: ${grade}
-- المادة: ${subject}
-- عدد الطلاب: ${results.length}
-
-توزيع المستويات (وفق معايير هيئة تقويم التعليم ETEC):
-- متقدم (90-100%): ${advanced} طلاب
-- متمكن (70-89%): ${proficient} طلاب
-- أساسي (50-69%): ${basic} طلاب
-- دون الأساسي (0-49%): ${belowBasic} طلاب
-
-نتائج الطلاب:
-${summary}
-
-أعد تقريراً تعليمياً شاملاً باللغة العربية بصيغة JSON فقط:
-{
-  "summary": "ملخص شامل لأداء الفصل (فقرة واحدة)",
-  "strengths": "نقاط القوة في الفصل والمهارات المتقنة",
-  "weaknesses": "نقاط الضعف والمهارات التي تحتاج تحسيناً",
-  "interventionPlan": "خطة تدخل مقترحة للطلاب دون الأساسي والأساسي (خطوات عملية)",
-  "recommendations": "توصيات للمعلم لتحسين نتائج نافس"
+/** True when an AI key is configured, so callers can skip the call and use their rule-based text. */
+export function geminiConfigured() {
+  return Boolean(process.env.GEMINI_API_KEY);
 }
 
-أعد JSON فقط بدون markdown أو نص إضافي. التقرير يجب أن يكون احترافياً ومفيداً ومحفزاً.
-لا تستخدم كلمات: ضعيف، فاشل، موهوب.`;
-
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
-  const jsonText = stripCodeFence(text);
-
+/**
+ * Sends a text-only prompt and returns the parsed JSON object, or null if the model's reply
+ * isn't valid JSON. Never send student names or images through this.
+ */
+export async function generateJson(prompt: string, { timeoutMs = 25000 } = {}): Promise<unknown> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) throw new Error("GEMINI_API_KEY is not configured");
+  const model = new GoogleGenerativeAI(key).getGenerativeModel({
+    model: geminiModelName(),
+    generationConfig: { responseMimeType: "application/json", temperature: 0.3 },
+  });
+  const call = model.generateContent(prompt);
+  const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("AI request timed out")), timeoutMs));
+  const result = await Promise.race([call, timeout]);
   try {
-    return JSON.parse(jsonText) as ClassReport;
+    return JSON.parse(stripCodeFence(result.response.text().trim()));
   } catch {
-    return {
-      summary: text,
-      strengths: "—",
-      weaknesses: "—",
-      interventionPlan: "—",
-      recommendations: "—",
-    };
+    return null;
   }
 }
 

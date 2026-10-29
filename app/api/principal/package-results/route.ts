@@ -20,6 +20,7 @@ type QuestionResultRow = {
   is_correct: boolean;
   nafs_domains?: { domain_name?: string | null } | null;
   learning_skills?: { skill_name?: string | null } | null;
+  package_questions?: { skill_text?: string | null; domain_text?: string | null } | null;
 };
 
 function weakest(items: Array<{ name: string; isCorrect: boolean }>) {
@@ -72,7 +73,7 @@ export async function GET(req: NextRequest) {
         .in("class_package_assignment_id", assignmentIds),
       db
         .from("student_question_results")
-        .select("is_correct, package_id, nafs_domains(domain_name), learning_skills(skill_name)")
+        .select("is_correct, package_id, nafs_domains(domain_name), learning_skills(skill_name), package_questions(skill_text, domain_text)")
         .in("package_id", packageIds),
     ]);
 
@@ -106,11 +107,11 @@ export async function GET(req: NextRequest) {
         studentsTested: packageResults.length,
         averagePercentage: average,
         weakestDomains: weakest(packageQuestionRows.map((item) => ({
-          name: item.nafs_domains?.domain_name ?? "مجال غير محدد",
+          name: item.nafs_domains?.domain_name || item.package_questions?.domain_text || "مجال غير محدد",
           isCorrect: item.is_correct,
         }))),
         weakestSkills: weakest(packageQuestionRows.map((item) => ({
-          name: item.learning_skills?.skill_name ?? "مهارة غير محددة",
+          name: item.learning_skills?.skill_name || item.package_questions?.skill_text || "مهارة غير محددة",
           isCorrect: item.is_correct,
         }))),
       };

@@ -2,12 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { toEnglishDigits, normalizeName } from "@/lib/format";
-import { getLevel } from "@/lib/levels";
-import { gradeLabel } from "@/lib/labels";
 import type {
   AssignmentStudentScores,
   ClassItem,
-  ClassReport,
+  ClassReportData,
   ClassStudentsMap,
   PackageResultDetails,
   SkillDiagnosisDetails,
@@ -65,7 +63,7 @@ export function useTeacherDashboard() {
 
   // ── Report state ─────────────────────────────────────────────────────────────
   const [reportOpen, setReportOpen] = useState(false);
-  const [report, setReport] = useState<ClassReport | null>(null);
+  const [report, setReport] = useState<ClassReportData | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
 
@@ -310,22 +308,10 @@ export function useTeacherDashboard() {
         throw new Error("أضف فصلًا أولًا لتوليد التقرير");
       }
 
-      const res = await fetch("/api/generate-report", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          teacherName: teacherProfile?.name?.trim() || "المعلم",
-          skill: `متابعة ${reportClass.subject}`,
-          grade: gradeLabel(reportClass.grade),
-          subject: reportClass.subject || teacherProfile?.subject || "غير محدد",
-          results: activeStudents
-            .filter((s) => s.score > 0)
-            .map((s) => ({ name: s.name, score: s.score, total: s.total, level: getLevel(s.score, s.total) })),
-        }),
-      });
+      const res = await fetch(`/api/teacher/classes/${reportClass.id}/report`, { method: "POST" });
       const json = await res.json();
-      if (!res.ok || json.error) throw new Error(json.error);
-      setReport(json.report);
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذر إنشاء التقرير");
+      setReport(json.data as ClassReportData);
     } catch (err) {
       setReportError(err instanceof Error ? err.message : "خطأ غير معروف");
     } finally {

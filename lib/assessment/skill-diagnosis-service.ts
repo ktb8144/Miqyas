@@ -28,12 +28,16 @@ type QuestionResultRow = {
     question_text?: string | null;
     remediation_note?: string | null;
     misconceptions_json?: unknown;
+    skill_text?: string | null;
+    domain_text?: string | null;
   } | Array<{
     question_number?: number | null;
     difficulty_level?: string | null;
     question_text?: string | null;
     remediation_note?: string | null;
     misconceptions_json?: unknown;
+    skill_text?: string | null;
+    domain_text?: string | null;
   }> | null;
   nafs_domains?: { domain_name?: string | null } | Array<{ domain_name?: string | null }> | null;
   learning_skills?: { skill_name?: string | null } | Array<{ skill_name?: string | null }> | null;
@@ -162,7 +166,7 @@ export async function analyzeClassPackageAssignmentSkills({
       correct_option,
       is_correct,
       error_type,
-      package_questions(question_number, difficulty_level, question_text, remediation_note, misconceptions_json),
+      package_questions(question_number, difficulty_level, question_text, remediation_note, misconceptions_json, skill_text, domain_text),
       nafs_domains(domain_name),
       learning_skills(skill_name)
     `)
@@ -180,9 +184,10 @@ export async function analyzeClassPackageAssignmentSkills({
   }>();
 
   questionRows.forEach((row) => {
-    const skillText = firstJoin(row.learning_skills)?.skill_name || "مهارة غير محددة";
-    const domainText = firstJoin(row.nafs_domains)?.domain_name || "مجال غير محدد";
     const packageQuestion = firstJoin(row.package_questions);
+    // Tests can link a skill by id (learning_skills) or only by name (skill_text); use either.
+    const skillText = firstJoin(row.learning_skills)?.skill_name?.trim() || packageQuestion?.skill_text?.trim() || "مهارة غير محددة";
+    const domainText = firstJoin(row.nafs_domains)?.domain_name?.trim() || packageQuestion?.domain_text?.trim() || "مجال غير محدد";
     const questionNumber = Number(packageQuestion?.question_number ?? 0);
     const key = skillKey(skillText, domainText);
     const bucket = buckets.get(key) ?? {

@@ -10,15 +10,16 @@ type QuestionResultRow = {
   is_correct: boolean;
   nafs_domains?: { domain_name?: string | null } | null;
   learning_skills?: { skill_name?: string | null; remediation_summary?: string | null } | null;
+  package_questions?: { skill_text?: string | null; domain_text?: string | null } | null;
 };
 
 export function getWeakestSkill(rows: QuestionResultRow[]) {
   const grouped = new Map<string, { name: string; domain: string; wrong: number; total: number; remediation?: string | null }>();
   rows.forEach((row) => {
-    const name = row.learning_skills?.skill_name ?? "مهارة تحتاج متابعة";
+    const name = row.learning_skills?.skill_name || row.package_questions?.skill_text?.trim() || "مهارة تحتاج متابعة";
     const current = grouped.get(name) ?? {
       name,
-      domain: row.nafs_domains?.domain_name ?? "مجال غير محدد",
+      domain: row.nafs_domains?.domain_name || row.package_questions?.domain_text?.trim() || "مجال غير محدد",
       wrong: 0,
       total: 0,
       remediation: row.learning_skills?.remediation_summary ?? null,
@@ -100,7 +101,7 @@ export async function loadParentReportData(token: string, eventType?: "open_repo
   const questionRows = result
     ? await db
         .from("student_question_results")
-        .select("is_correct, nafs_domains(domain_name), learning_skills(skill_name, remediation_summary)")
+        .select("is_correct, nafs_domains(domain_name), learning_skills(skill_name, remediation_summary), package_questions(skill_text, domain_text)")
         .eq("student_package_result_id", result.id)
     : { data: [], error: null };
 

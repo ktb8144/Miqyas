@@ -43,3 +43,31 @@
     max-width: 100%;
   }
 }
+
+/* Printing the class report prints the report alone (see report-modal.tsx). */
+@media print {
+  body.print-class-report > *:not(#class-report-print) {
+    display: none !important;
+  }
+  body.print-class-report #class-report-print {
+    position: static !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+  body.print-class-report #class-report-print .report-sheet {
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    max-width: none !important;
+  }
+  body.print-class-report .no-print {
+    display: none !important;
+  }
+  body.print-class-report .print-keep,
+  body.print-class-report tr {
+    break-inside: avoid;
+  }
+  body.print-class-report .report-section h3 {
+    break-after: avoid;
+  }
+}
