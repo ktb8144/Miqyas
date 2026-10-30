@@ -73,13 +73,14 @@ export default function PrincipalDashboard() {
 
       <main className="mx-auto max-w-7xl px-4 py-5 sm:px-5 sm:py-8 lg:px-8">
         <div className="mb-4"><PlanBanner plan={account?.plan} /></div>
-        {loading && (
+        {/* The full-page loader shows on first load only: a refresh keeps the tab (and any open dialog) mounted. */}
+        {loading && !report && (
           <div className="mb-6 rounded-[1.5rem] border border-slate-100 bg-white p-6 text-center text-sm font-extrabold text-slate-500 shadow-[0_10px_34px_rgba(15,35,55,0.035)]">
             جارٍ تحميل لوحة المدرسة...
           </div>
         )}
 
-        {loadError && !loading && (
+        {loadError && !loading && !report && (
           <div className="rounded-[1.5rem] border border-red-100 bg-red-50 p-5 text-red-700">
             <p className="font-black">تعذر تحميل البيانات</p>
             <p className="mt-1 text-sm font-bold">{loadError}</p>
@@ -87,15 +88,15 @@ export default function PrincipalDashboard() {
           </div>
         )}
 
-        {!loading && !loadError && report && activeTab === 0 && <DashboardTab d={d} account={account} />}
+        {report && activeTab === 0 && <DashboardTab d={d} account={account} />}
 
-        {!loading && !loadError && report && activeTab === 1 && <TeachersTab d={d} account={account} />}
+        {report && activeTab === 1 && <TeachersTab d={d} account={account} />}
 
-        {!loading && !loadError && report && activeTab === 2 && <ImpactTab d={d} />}
+        {report && activeTab === 2 && <ImpactTab d={d} />}
 
-        {!loading && !loadError && report && activeTab === 3 && <PeriodicReportsTab d={d} />}
+        {report && activeTab === 3 && <PeriodicReportsTab d={d} />}
 
-        {!loading && !loadError && report && activeTab === 4 && <NafsBaselineTab />}
+        {report && activeTab === 4 && <NafsBaselineTab />}
       </main>
     </div>
   );

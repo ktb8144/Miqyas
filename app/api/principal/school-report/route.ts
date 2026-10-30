@@ -4,6 +4,7 @@ import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { LEVEL_THRESHOLDS, getLevelFromPercentage, type LevelName } from "@/lib/levels";
 import { addDays, saudiToday, testPhase } from "@/lib/test-schedule";
 import { average } from "@/lib/math";
+import { normalizeName } from "@/lib/format";
 import { chunk, fetchAllRows } from "@/lib/db/paginate";
 import type { ClassRow as DbClassRow, StudentPackageResultRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
 
@@ -149,9 +150,24 @@ export async function GET(req: NextRequest) {
     const classAverages = averageBy(results, (row) => row.class_id);
     const teacherAverages = averageBy(results, (row) => row.teacher_id);
 
-    const scoredStudents = students
+    // Each subject class has its own copy of a student, so one child appears once per subject.
+    // School-wide numbers count children: same class name + same name = same child.
+    const childKey = (student: { className: string; name: string }) => `${normalizeName(student.className)}|${normalizeName(student.name)}`;
+    const studentRows = students
       .map((student) => ({ ...student, percentage: studentAverages.get(student.id) ?? null }))
       .filter((student): student is typeof student & { percentage: number } => student.percentage !== null);
+    const childrenByKey = new Map<string, (typeof studentRows)[number] & { subjectAverages: number[] }>();
+    for (const row of studentRows) {
+      const key = childKey(row);
+      const child = childrenByKey.get(key);
+      if (child) child.subjectAverages.push(row.percentage);
+      else childrenByKey.set(key, { ...row, subjectAverages: [row.percentage] });
+    }
+    const scoredStudents = Array.from(childrenByKey.values()).map((child) => ({
+      ...child,
+      percentage: Math.round(child.subjectAverages.reduce((sum, value) => sum + value, 0) / child.subjectAverages.length),
+    }));
+    const childrenCount = new Set(students.map(childKey)).size;
 
     const performanceAverage = average(scoredStudents.map((student) => student.percentage));
     const atRiskAll = scoredStudents.filter((student) => student.percentage < AT_RISK_THRESHOLD);
@@ -387,7 +403,7 @@ export async function GET(req: NextRequest) {
         kpis: {
           teachersCount: teachers.length,
           classesCount: classes.length,
-          studentsCount: students.length,
+          studentsCount: childrenCount,
           performanceAverage,
           atRiskCount: atRiskAll.length,
           implementationRate,
