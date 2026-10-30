@@ -14,7 +14,8 @@ type Teacher = { id: string; name: string; subject: string; status: string };
 type SectionPlan = {
   key: string;
   className: string;
-  grade: number;
+  /** null until the principal picks it, when the file doesn't say which grade a section is. */
+  grade: number | null;
   names: string[];
   teachers: Record<Subject, string>;
 };
@@ -65,7 +66,7 @@ export function RosterImportModal({
         sections.map((section) => ({
           key: section || "all",
           className: section || "",
-          grade: gradeFromSection(section) ?? 6,
+          grade: gradeFromSection(section),
           names: best.rows.filter((row) => row.section === section).map((row) => row.name),
           teachers: {
             "رياضيات": defaultTeacher(teachers, "رياضيات"),
@@ -98,6 +99,7 @@ export function RosterImportModal({
     );
     if (!classes.length) return setError("اختر معلمًا لمادة واحدة على الأقل.");
     if (classes.some((entry) => !entry.name)) return setError("اكتب اسم كل فصل (مثل ٦/١).");
+    if (classes.some((entry) => !entry.grade)) return setError("اختر صف كل فصل؛ الملف لا يحدد الصف لبعض الفصول.");
     setBusy(true);
     try {
       const res = await fetch("/api/principal/roster-import", {
@@ -191,10 +193,11 @@ export function RosterImportModal({
                       <label className="text-xs font-bold text-slate-500">
                         الصف
                         <select
-                          value={plan.grade}
-                          onChange={(e) => updatePlan(plan.key, { grade: Number(e.target.value) })}
+                          value={plan.grade ?? ""}
+                          onChange={(e) => updatePlan(plan.key, { grade: e.target.value ? Number(e.target.value) : null })}
                           className="mr-2 rounded-lg border border-slate-200 px-2 py-1.5 text-sm font-bold text-brand-navy"
                         >
+                          {plan.grade === null && <option value="">اختر الصف</option>}
                           {[3, 4, 5, 6].map((g) => <option key={g} value={g}>{gradeLabel(g)}</option>)}
                         </select>
                       </label>

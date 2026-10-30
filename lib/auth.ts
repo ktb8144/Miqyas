@@ -1,5 +1,6 @@
 import "server-only";
 import { createServerClient } from "@supabase/ssr";
+import { noStoreFetch } from "@/lib/no-store-fetch";
 import { NextResponse, type NextRequest } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
 
@@ -25,6 +26,7 @@ export async function requireUserRole(req: NextRequest, roles: AppRole[]) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: noStoreFetch },
       cookies: {
         getAll() {
           return req.cookies.getAll();

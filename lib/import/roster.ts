@@ -119,12 +119,28 @@ export function detectRoster(table: unknown[][]): RosterDetection | null {
     }
   }
 
+  // Noor often splits the grade ("السادس الابتدائي") and the section ("1") into two columns.
+  // When the section alone has no grade, take it from that other column: "1" → "6/1".
+  let gradeColumn: number | null = null;
+  for (let c = 0; c < width && sectionColumn !== null; c++) {
+    if (c === sectionColumn || c === nameColumn || c === serialColumn) continue;
+    const values = body.map((row) => row[c] ?? "").filter(Boolean);
+    if (values.length && values.filter((v) => gradeFromSection(v) !== null && !/\//.test(v)).length / values.length > 0.8) {
+      gradeColumn = c;
+      break;
+    }
+  }
+
   const seen = new Set<string>();
   const result: RosterRow[] = [];
   body.forEach((row) => {
     const name = cleanName(row[nameColumn] ?? "");
     if (!looksLikeName(name) || (NAME_HEADER.test(name) && name.length < 15)) return;
-    const section = sectionColumn === null ? "" : normalizeSection(row[sectionColumn] ?? "");
+    let section = sectionColumn === null ? "" : normalizeSection(row[sectionColumn] ?? "");
+    if (gradeColumn !== null && /^\d{1,2}$/.test(section)) {
+      const grade = gradeFromSection(row[gradeColumn] ?? "");
+      if (grade) section = `${grade}/${section}`;
+    }
     const key = `${section}|${normalizeName(name)}`;
     if (seen.has(key)) return;
     seen.add(key);
