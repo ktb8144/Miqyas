@@ -43,6 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       { data: students, error: studentsError },
       { data: classRow },
       { data: schoolRow },
+      { data: codeRow },
     ] = await Promise.all([
       db.from("package_questions").select("id", { count: "exact", head: true }).eq("package_id", assignment.package_id),
       db
@@ -53,6 +54,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         .order("created_at", { ascending: true }),
       db.from("classes").select("name").eq("id", assignment.class_id).maybeSingle(),
       db.from("schools").select("name").eq("id", schoolId).maybeSingle(),
+      // Own query: before migration 20261031010000 the column is missing and this simply yields no code.
+      db.from("class_package_assignments").select("sheet_code").eq("id", assignment.id).maybeSingle(),
     ]);
     if (countError) throw countError;
     if (studentsError) throw studentsError;
@@ -66,6 +69,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       data: {
         assignmentId: assignment.id,
         packageId: assignment.package_id,
+        /** This class's code for the QR on its sheets (issued by the database). */
+        sheetCode: (codeRow as { sheet_code?: string | null } | null)?.sheet_code ?? null,
         title: assignment.assessment_packages?.title ?? "اختبار دالة",
         subject: assignment.assessment_packages?.subject ?? "",
         grade: assignment.assessment_packages?.grade ?? null,

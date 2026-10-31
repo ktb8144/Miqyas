@@ -15,6 +15,8 @@ export type OmrChoiceGroup = {
   /** Value of each bubble, in the same order as `bubbles` (e.g. ["أ","ب","ج","د"] or ["0",…,"9"]). */
   options: string[];
   bubbles: Point[];
+  /** Bubble radius (mm) for this group when it differs from the template's (e.g. a smaller number grid). */
+  radius?: number;
 };
 
 export type OmrTemplate = {
