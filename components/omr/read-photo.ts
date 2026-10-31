@@ -59,7 +59,7 @@ function cropTemplateRect(
 
 export type PhotoReading = {
   reading: OmrReading;
-  /** Close-ups of every question (and the student number) the reader left for the teacher. */
+  /** Close-ups of every question (and the student number) the reader left for the teacher; `number` is always the number area. */
   crops: Record<string, string>;
   /** Which class QR is printed on the sheet (only when `classQr` was given and the sheet was read). */
   qr?: QrMatch;
@@ -96,6 +96,16 @@ export async function readPhoto(base64: string, template: OmrTemplate, classQr?:
         y1: y + r + 2.5,
       });
     });
+    if (template.studentCode) {
+      // The number area (written number + shaded rows) for the teacher to check at capture time.
+      const all = [...template.studentCode.ones.bubbles, ...template.studentCode.tens.bubbles];
+      crops.number = cropTemplateRect(canvas, reading.homography, {
+        x0: Math.min(...all.map((b) => b.x)) - 4,
+        x1: Math.max(...all.map((b) => b.x)) + 20,
+        y0: Math.min(...all.map((b) => b.y)) - 13,
+        y1: Math.max(...all.map((b) => b.y)) + 4,
+      }, 520);
+    }
     if (template.studentCode && reading.studentCodeDecision !== "ok") {
       const all = [...template.studentCode.ones.bubbles, ...template.studentCode.tens.bubbles];
       crops.code = cropTemplateRect(canvas, reading.homography, {

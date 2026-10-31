@@ -5,7 +5,7 @@ import { buildStandardTemplate } from "@/lib/omr/standard-sheet";
 import type { OmrTemplate } from "@/lib/omr/types";
 import type { PrintedQr } from "@/lib/omr/printed-qr";
 import { sheetQrModules } from "@/lib/omr/sheet-code";
-import { readPhoto, type ClassQrCheck } from "@/components/omr/read-photo";
+import { readPhoto, type ClassQrCheck, type PhotoReading } from "@/components/omr/read-photo";
 import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 import { BRAND } from "@/lib/brand";
@@ -65,6 +65,17 @@ type ScannerStudent = {
 };
 
 type Step = "capture" | "processing" | "review" | "done";
+
+/** The question shown right after a photo: "is this <student>'s paper?" */
+type Confirmation = {
+  paperId: string;
+  studentCode: string;
+  suggestedId: string | null;
+  otherClassName: string | null;
+  qrUnsure: boolean;
+  /** Close-up of the written + shaded number, so the teacher can compare. */
+  numberCrop?: string;
+};
 
 /** A Dala question sheet (master PDF): its own bubble layout, and the class QR to check each paper against. */
 export type ClassSheetInfo = {
@@ -509,6 +520,8 @@ export function BatchOMRScanner({
   const [retakingPaperId, setRetakingPaperId] = useState<string | null>(null);
   const [reviewingPaperId, setReviewingPaperId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<Confirmation | null>(null);
+  const [picking, setPicking] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -521,10 +534,10 @@ export function BatchOMRScanner({
   const target = Math.min(totalStudents || MAX_PAPERS, MAX_PAPERS);
   const analyzedCount = papers.filter((paper) => scanned[paper.id]).length;
 
-  const flashMessage = useCallback((text: string) => {
+  const flashMessage = useCallback((text: string, ms = 1800) => {
     setCaptureMessage(text);
     if (messageTimer.current) window.clearTimeout(messageTimer.current);
-    messageTimer.current = window.setTimeout(() => setCaptureMessage(null), 1800);
+    messageTimer.current = window.setTimeout(() => setCaptureMessage(null), ms);
   }, []);
 
   // ── Grade answers on the server (answer key stays protected; no image is sent) ──
@@ -560,32 +573,41 @@ export function BatchOMRScanner({
 
   // ── Read one photo on the device, then grade it ────────────────────────────
 
-  const scanImage = useCallback(async (
-    readBase64: string,
+  /** What the device read tells us before grading: the student number, whose paper it is, and the class check. */
+  const assess = useCallback((quick: PhotoReading) => {
+    const reading = quick.reading;
+    const studentCode = reading.ok ? normalizeStudentCode(reading.studentCode) : "";
+    const warnings = reading.ok ? [...reading.warnings] : [];
+    // A paper from another class has the same test but another roster: never match it by number.
+    let otherClassName: string | null = null;
+    let qrUnsure = false;
+    if (classQr && quick.qr) {
+      if (quick.qr.code && quick.qr.code !== sheet?.expectedCode) {
+        otherClassName = sheet?.classes.find((item) => item.code === quick.qr?.code)?.className || "فصل آخر";
+        warnings.unshift(`هذه ورقة ${otherClassName === "فصل آخر" ? otherClassName : `فصل ${otherClassName}`} وليست من هذا الفصل؛ لم تُربط بطالب.`);
+      } else if (!quick.qr.code) {
+        qrUnsure = true;
+        warnings.push("تعذّر التحقق من رمز الفصل على الورقة؛ تأكد أنها من هذا الفصل.");
+      }
+    }
+    const match = otherClassName
+      ? { matchedStudentId: null, matchConfidence: "needs_review" as const }
+      : resolveStudentMatch({ studentName: "", studentCode, editedName: "" }, students);
+    return { studentCode, warnings, otherClassName, qrUnsure, match };
+  }, [classQr, sheet, students]);
+
+  /** Grades a paper the device has already read (the answer key stays on the server). */
+  const finishScan = useCallback(async (
+    quick: PhotoReading,
     paperId: string,
     thumbBase64: string,
     keepBase64?: string
   ): Promise<ScanResult> => {
     try {
-      const { reading, crops, qr } = await readPhoto(readBase64, template, classQr);
+      const { reading, crops } = quick;
       if (!reading.ok) throw new Error(reading.message);
       const graded = await gradeAnswers(reading.answers);
-      const studentCode = normalizeStudentCode(reading.studentCode);
-      const warnings = [...reading.warnings];
-      // A paper from another class has the same test but another roster: never match it by number.
-      let otherClass = false;
-      if (classQr && qr) {
-        if (qr.code && qr.code !== sheet?.expectedCode) {
-          otherClass = true;
-          const name = sheet?.classes.find((item) => item.code === qr.code)?.className;
-          warnings.unshift(`هذه ورقة ${name ? `فصل ${name}` : "فصل آخر"} وليست من هذا الفصل؛ لم تُربط بطالب.`);
-        } else if (!qr.code) {
-          warnings.push("تعذّر التحقق من رمز الفصل على الورقة؛ تأكد أنها من هذا الفصل.");
-        }
-      }
-      const match = otherClass
-        ? { matchedStudentId: null, matchConfidence: "needs_review" as const }
-        : resolveStudentMatch({ studentName: "", studentCode, editedName: "" }, students);
+      const { studentCode, warnings, match } = assess(quick);
       return {
         paperId, studentName: "", studentCode, editedName: "",
         matchedStudentId: match.matchedStudentId,
@@ -611,21 +633,48 @@ export function BatchOMRScanner({
         thumbBase64, imageBase64: keepBase64 ?? thumbBase64, unclear: [],
       };
     }
-  }, [gradeAnswers, questionCount, students, template, classQr, sheet]);
+  }, [assess, gradeAnswers, questionCount]);
+
+  const scanImage = useCallback(async (
+    readBase64: string,
+    paperId: string,
+    thumbBase64: string,
+    keepBase64?: string
+  ): Promise<ScanResult> => {
+    let quick: PhotoReading;
+    try {
+      quick = await readPhoto(readBase64, template, classQr);
+    } catch (e) {
+      quick = { reading: { ok: false, reason: "alignment_failed", message: e instanceof Error ? e.message : "تعذّرت قراءة الورقة" }, crops: {} };
+    }
+    return finishScan(quick, paperId, thumbBase64, keepBase64);
+  }, [classQr, finishScan, template]);
+
+  // ── Teacher's choice of student at capture time (wins over the number read) ──
+
+  const decisions = useRef(new Map<string, string>());
+  const applyDecision = useCallback((result: ScanResult): ScanResult => {
+    const studentId = decisions.current.get(result.paperId);
+    return studentId && !result.error ? { ...result, matchedStudentId: studentId, matchConfidence: "strong" } : result;
+  }, []);
 
   /** Adds a paper and starts reading it straight away, so results are ready by the time the teacher finishes. */
-  const addPaper = useCallback((paper: CapturedPaper, readBase64?: string) => {
+  const addPaper = useCallback((paper: CapturedPaper, readBase64?: string, quick?: PhotoReading) => {
     setPapers((prev) => [...prev, paper]);
-    const promise = scanImage(readBase64 ?? paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64, paper.reviewBase64);
+    const thumb = paper.reviewBase64 || paper.thumbBase64;
+    const promise = quick
+      ? finishScan(quick, paper.id, thumb, paper.reviewBase64)
+      : scanImage(readBase64 ?? paper.imageBase64, paper.id, thumb, paper.reviewBase64);
     pendingScans.current.set(paper.id, promise);
     void promise.then((result) => {
       if (pendingScans.current.get(paper.id) === promise) {
-        setScanned((prev) => ({ ...prev, [paper.id]: result }));
+        setScanned((prev) => ({ ...prev, [paper.id]: applyDecision(result) }));
       }
     });
-  }, [scanImage]);
+  }, [applyDecision, finishScan, scanImage]);
 
   const removePaper = useCallback((paperId: string) => {
+    decisions.current.delete(paperId);
     pendingScans.current.delete(paperId);
     setPapers((prev) => prev.filter((paper) => paper.id !== paperId));
     setScanned((prev) => {
@@ -678,9 +727,12 @@ export function BatchOMRScanner({
     if (window.matchMedia?.("(pointer: coarse)").matches) void openCamera();
   }, [classPackageAssignmentId, openCamera]);
 
-  /** One tap: capture, keep, and start analysing. A bad photo shows up in review with "أعد التصوير". */
+  /**
+   * One tap: read the paper on the device (a fraction of a second), then ask the teacher whose paper it is
+   * before the next photo. Grading continues in the background. A photo that can't be read is not kept.
+   */
   const captureOne = useCallback(async () => {
-    if (papers.length >= MAX_PAPERS || captureBusy) return;
+    if (papers.length >= MAX_PAPERS || captureBusy || confirming) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
@@ -691,16 +743,51 @@ export function BatchOMRScanner({
     try {
       drawVideoCoverToPortraitCanvas(video, canvas);
       const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
+      const quick = await readPhoto(raw, template, classQr);
+      if (!quick.reading.ok) {
+        flashMessage(`لم تُحفظ: ${quick.reading.message}`, 4000);
+        return;
+      }
       const paper = await preparePaper(raw, `p${Date.now()}`);
-      addPaper(paper, raw);
-      flashMessage(`✓ تم حفظ الورقة ${formatCount(papers.length + 1)} — صوّر التالية`);
+      addPaper(paper, raw, quick);
+      const { studentCode, otherClassName, qrUnsure, match } = assess(quick);
+      setPicking(!otherClassName && !match.matchedStudentId);
+      setConfirming({ paperId: paper.id, studentCode, suggestedId: match.matchedStudentId, otherClassName, qrUnsure, numberCrop: quick.crops.number });
     } catch {
       flashMessage("تعذّر التقاط الصورة، حاول مرة أخرى");
     } finally {
       setCaptureBusy(false);
       window.setTimeout(() => setCaptureFlash(false), 160);
     }
-  }, [addPaper, captureBusy, flashMessage, papers.length, preparePaper]);
+  }, [addPaper, assess, captureBusy, classQr, confirming, flashMessage, papers.length, preparePaper, template]);
+
+  /** The teacher says whose paper this is. The same student photographed twice keeps the newest photo. */
+  const decideStudent = useCallback((studentId: string) => {
+    if (!confirming) return;
+    const paperId = confirming.paperId;
+    const earlier = Array.from(decisions.current.entries()).filter(([id, student]) => student === studentId && id !== paperId).map(([id]) => id);
+    earlier.forEach((id) => removePaper(id));
+    decisions.current.set(paperId, studentId);
+    setScanned((prev) => (prev[paperId] ? { ...prev, [paperId]: applyDecision(prev[paperId]) } : prev));
+    setConfirming(null);
+    setPicking(false);
+    const name = students.find((student) => student.id === studentId)?.name ?? "";
+    flashMessage(`✓ ${name} — صوّر الورقة التالية`);
+  }, [applyDecision, confirming, flashMessage, removePaper, students]);
+
+  const discardConfirming = useCallback(() => {
+    if (!confirming) return;
+    removePaper(confirming.paperId);
+    setConfirming(null);
+    setPicking(false);
+    flashMessage("حُذفت الصورة — صوّر الورقة من جديد");
+  }, [confirming, flashMessage, removePaper]);
+
+  const decideLater = useCallback(() => {
+    setConfirming(null);
+    setPicking(false);
+    flashMessage("تُركت لتختار صاحبها في المراجعة");
+  }, [flashMessage]);
 
   const addManualPaper = useCallback(() => {
     const paperId = `manual-${Date.now()}`;
@@ -755,9 +842,9 @@ export function BatchOMRScanner({
     }
     closeCamera();
     setStep("processing");
-    const allResults = await Promise.all(
+    const allResults = (await Promise.all(
       papers.map((paper) => pendingScans.current.get(paper.id) ?? scanImage(paper.imageBase64, paper.id, paper.reviewBase64 || paper.thumbBase64, paper.reviewBase64))
-    );
+    )).map(applyDecision);
     // Keep anything the teacher already reviewed (student choice, corrected answers, retakes).
     setResults((prev) => {
       const existing = new Map(prev.map((r) => [r.paperId, r]));
@@ -929,7 +1016,7 @@ export function BatchOMRScanner({
             </div>
             <button
               onClick={processAll}
-              disabled={!papers.length}
+              disabled={!papers.length || Boolean(confirming)}
               className="h-11 rounded-full bg-brand px-5 text-sm font-black text-white disabled:opacity-40"
             >
               إنهاء
@@ -968,7 +1055,7 @@ export function BatchOMRScanner({
             </button>
             <button
               onClick={captureOne}
-              disabled={papers.length >= MAX_PAPERS || captureBusy}
+              disabled={papers.length >= MAX_PAPERS || captureBusy || Boolean(confirming)}
               aria-label="تصوير الورقة"
               className="flex h-20 w-20 items-center justify-center justify-self-center rounded-full border-4 border-white disabled:opacity-40"
             >
@@ -992,6 +1079,79 @@ export function BatchOMRScanner({
               </button>
             )}
           </div>
+
+          {/* ── Whose paper is this? (right after each photo) ── */}
+          {confirming && (() => {
+            const suggested = students.find((student) => student.id === confirming.suggestedId);
+            const takenBy = new Set(Array.from(decisions.current.entries()).filter(([id]) => id !== confirming.paperId).map(([, student]) => student));
+            const roster = [...students].sort((a, b) => (Number(normalizeStudentCode(a.studentCode)) || 999) - (Number(normalizeStudentCode(b.studentCode)) || 999));
+            return (
+              <div className="absolute inset-x-0 bottom-0 z-10 max-h-[78dvh] overflow-y-auto rounded-t-3xl bg-white px-4 pt-4 text-brand-navy shadow-2xl" style={{ paddingBottom: "max(env(safe-area-inset-bottom), 1rem)" }}>
+                {confirming.numberCrop && (
+                  // eslint-disable-next-line @next/next/no-img-element -- local crop of the photo
+                  <img src={confirming.numberCrop} alt="رقم الطالب في الورقة" className="mx-auto mb-3 max-h-24 rounded-lg border border-slate-200" />
+                )}
+
+                {confirming.otherClassName && !picking ? (
+                  <div className="text-center">
+                    <p className="text-xl font-black text-danger">هذه ورقة فصل {confirming.otherClassName}</p>
+                    <p className="mt-1 text-sm font-bold text-slate-500">ليست من هذا الفصل، فلن تُحسب هنا.</p>
+                    <div className="mt-4 grid gap-2">
+                      <button onClick={discardConfirming} className="rounded-2xl bg-brand py-3.5 text-base font-black text-white">حذفها والمتابعة</button>
+                      <button onClick={() => setPicking(true)} className="rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-600">هي من هذا الفصل — اختر الطالب</button>
+                    </div>
+                  </div>
+                ) : !picking && suggested ? (
+                  <div className="text-center">
+                    <p className="text-sm font-bold text-slate-500">هل هذه ورقة</p>
+                    <p className="mt-1 text-2xl font-black">{suggested.name}</p>
+                    <p className="mt-1 text-sm font-bold text-slate-400">رقم {toEnglishDigits(confirming.studentCode)} في الكشف</p>
+                    {takenBy.has(suggested.id) && (
+                      <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">سبق تصوير ورقة لهذا الطالب؛ التأكيد يحذف الصورة السابقة.</p>
+                    )}
+                    {confirming.qrUnsure && (
+                      <p className="mt-2 text-xs font-bold text-amber-700">تعذّر التحقق من رمز الفصل؛ تأكد أن الورقة من هذا الفصل.</p>
+                    )}
+                    <div className="mt-4 grid gap-2">
+                      <button onClick={() => decideStudent(suggested.id)} autoFocus className="rounded-2xl bg-brand py-4 text-lg font-black text-white">✓ نعم، التالية</button>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => setPicking(true)} className="rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-600">طالب آخر</button>
+                        <button onClick={discardConfirming} className="rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-600">حذف وإعادة التصوير</button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-center text-lg font-black">
+                      {confirming.studentCode && !suggested
+                        ? `لا يوجد طالب برقم ${toEnglishDigits(confirming.studentCode)} في هذا الفصل`
+                        : confirming.studentCode
+                          ? "اختر صاحب الورقة"
+                          : "لم يُقرأ رقم الطالب"}
+                    </p>
+                    <p className="mb-3 text-center text-sm font-bold text-slate-500">من صاحب هذه الورقة؟</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {roster.map((student) => (
+                        <button
+                          key={student.id}
+                          onClick={() => decideStudent(student.id)}
+                          className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-right text-sm font-bold ${takenBy.has(student.id) ? "border-slate-100 text-slate-300" : "border-slate-200 text-brand-navy"}`}
+                        >
+                          <span className="w-6 flex-shrink-0 text-xs font-black text-slate-400">{toEnglishDigits(normalizeStudentCode(student.studentCode) || "–")}</span>
+                          <span className="truncate">{student.name}</span>
+                          {takenBy.has(student.id) && <span className="mr-auto text-xs">✓</span>}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <button onClick={decideLater} className="rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-600">أحدده لاحقًا</button>
+                      <button onClick={discardConfirming} className="rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-600">حذف وإعادة التصوير</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
