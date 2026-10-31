@@ -3,7 +3,9 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { ETEC_LEVELS } from "@/lib/levels";
 import { buildStandardTemplate } from "@/lib/omr/standard-sheet";
 import type { OmrTemplate } from "@/lib/omr/types";
-import { readPhoto } from "@/components/omr/read-photo";
+import type { PrintedQr } from "@/lib/omr/printed-qr";
+import { sheetQrModules } from "@/lib/omr/sheet-code";
+import { readPhoto, type ClassQrCheck } from "@/components/omr/read-photo";
 import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 import { BRAND } from "@/lib/brand";
@@ -63,6 +65,16 @@ type ScannerStudent = {
 };
 
 type Step = "capture" | "processing" | "review" | "done";
+
+/** A Dala question sheet (master PDF): its own bubble layout, and the class QR to check each paper against. */
+export type ClassSheetInfo = {
+  template: OmrTemplate;
+  printedQr: PrintedQr;
+  /** This class's sheet code; null when it has none yet. */
+  expectedCode: string | null;
+  /** Every class in the school with this test (including this one). */
+  classes: Array<{ code: string; className: string }>;
+};
 
 const DIACRITICS = /[\u064B-\u065F\u0670]/g;
 function normalizeArabicName(name: string) {
@@ -459,6 +471,7 @@ export function BatchOMRScanner({
   questionCount,
   sheetSeed,
   students = [],
+  sheet,
   onComplete,
 }: {
   totalStudents: number;
@@ -468,9 +481,21 @@ export function BatchOMRScanner({
   /** The test's id; must match the identity strip printed on the sheet. */
   sheetSeed: string;
   students?: ScannerStudent[];
+  /** Set for Dala question sheets; otherwise the standard answer sheet is read. */
+  sheet?: ClassSheetInfo | null;
   onComplete: (results: ScanResult[]) => Promise<void> | void;
 }) {
-  const template = useMemo<OmrTemplate>(() => buildStandardTemplate(questionCount, sheetSeed), [questionCount, sheetSeed]);
+  const template = useMemo<OmrTemplate>(
+    () => sheet?.template ?? buildStandardTemplate(questionCount, sheetSeed),
+    [sheet, questionCount, sheetSeed]
+  );
+  const classQr = useMemo<ClassQrCheck | undefined>(() => {
+    if (!sheet?.expectedCode || !sheet.classes.length) return undefined;
+    return {
+      printedQr: sheet.printedQr,
+      candidates: sheet.classes.map((item) => ({ code: item.code, matrix: sheetQrModules(item.code) })),
+    };
+  }, [sheet]);
   const [step, setStep] = useState<Step>("capture");
   const [papers, setPapers] = useState<CapturedPaper[]>([]);
   // Each paper is sent for analysis the moment it is captured; results land here.
@@ -542,11 +567,25 @@ export function BatchOMRScanner({
     keepBase64?: string
   ): Promise<ScanResult> => {
     try {
-      const { reading, crops } = await readPhoto(readBase64, template);
+      const { reading, crops, qr } = await readPhoto(readBase64, template, classQr);
       if (!reading.ok) throw new Error(reading.message);
       const graded = await gradeAnswers(reading.answers);
       const studentCode = normalizeStudentCode(reading.studentCode);
-      const match = resolveStudentMatch({ studentName: "", studentCode, editedName: "" }, students);
+      const warnings = [...reading.warnings];
+      // A paper from another class has the same test but another roster: never match it by number.
+      let otherClass = false;
+      if (classQr && qr) {
+        if (qr.code && qr.code !== sheet?.expectedCode) {
+          otherClass = true;
+          const name = sheet?.classes.find((item) => item.code === qr.code)?.className;
+          warnings.unshift(`هذه ورقة ${name ? `فصل ${name}` : "فصل آخر"} وليست من هذا الفصل؛ لم تُربط بطالب.`);
+        } else if (!qr.code) {
+          warnings.push("تعذّر التحقق من رمز الفصل على الورقة؛ تأكد أنها من هذا الفصل.");
+        }
+      }
+      const match = otherClass
+        ? { matchedStudentId: null, matchConfidence: "needs_review" as const }
+        : resolveStudentMatch({ studentName: "", studentCode, editedName: "" }, students);
       return {
         paperId, studentName: "", studentCode, editedName: "",
         matchedStudentId: match.matchedStudentId,
@@ -562,7 +601,7 @@ export function BatchOMRScanner({
         imageBase64: keepBase64 ?? thumbBase64,
         unclear: unclearKeys(graded.answers),
         crops,
-        warnings: reading.warnings,
+        warnings,
       };
     } catch (e) {
       return {
@@ -572,7 +611,7 @@ export function BatchOMRScanner({
         thumbBase64, imageBase64: keepBase64 ?? thumbBase64, unclear: [],
       };
     }
-  }, [gradeAnswers, questionCount, students, template]);
+  }, [gradeAnswers, questionCount, students, template, classQr, sheet]);
 
   /** Adds a paper and starts reading it straight away, so results are ready by the time the teacher finishes. */
   const addPaper = useCallback((paper: CapturedPaper, readBase64?: string) => {

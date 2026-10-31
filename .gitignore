@@ -38,3 +38,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# sheet generator build cache
+scripts/sheets/.stamp-bundle.js
+scripts/sheets/__pycache__/
