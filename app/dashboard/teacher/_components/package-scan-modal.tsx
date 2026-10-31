@@ -31,7 +31,9 @@ function useClassSheet(assignmentId: string | null, pdfUrl: string | null) {
           classCodes?: Array<{ code: string; className: string }>;
         };
         const hasPdf = Boolean(data.questionsPdfUrl ?? pdfUrl);
-        const master = hasPdf ? (await fetchSheetMaster(`/api/teacher/class-package-assignments/${assignmentId}/questions-pdf`)).master : null;
+        const master = hasPdf
+          ? (await fetchSheetMaster(`/api/teacher/class-package-assignments/${assignmentId}/questions-pdf`).catch(() => null))?.master ?? null
+          : null;
         if (!active) return;
         setState({
           status: "ready",

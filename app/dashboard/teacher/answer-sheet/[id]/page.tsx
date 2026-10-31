@@ -91,9 +91,9 @@ export default function AnswerSheetPage({ params }: { params: { id: string } }) 
         const loaded = json.data as SheetData;
         let found: { bytes: Uint8Array; master: SheetMaster } | null = null;
         if (loaded.questionsPdfUrl) {
-          const result = await fetchSheetMaster(`/api/teacher/class-package-assignments/${params.id}/questions-pdf`).catch(() => undefined);
-          if (result === undefined) throw new Error("تعذّر تحميل ورقة الأسئلة. تحقق من الاتصال وأعد تحميل الصفحة.");
-          if (result.master) found = { bytes: result.bytes, master: result.master };
+          // If the sheet can't be checked, the page falls back to the standard answer sheets, as before.
+          const result = await fetchSheetMaster(`/api/teacher/class-package-assignments/${params.id}/questions-pdf`).catch(() => null);
+          if (result?.master) found = { bytes: result.bytes, master: result.master };
         }
         if (!active) return;
         setMaster(found);

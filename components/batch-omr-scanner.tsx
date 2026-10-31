@@ -19,6 +19,7 @@ const SCAN_MAX_WIDTH = 1600;
 const SCAN_QUALITY = 0.88;
 const SCAN_RETAKE_QUALITY = 0.9;
 const GRADE_TIMEOUT_MS = 20_000;
+const AUTO_NOTE_MS = 2600;
 const MISSING_ASSIGNMENT_ERROR = "لا يمكن بدء التصحيح بدون تعيين الحزمة على الفصل.";
 
 const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
@@ -522,6 +523,9 @@ export function BatchOMRScanner({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<Confirmation | null>(null);
   const [picking, setPicking] = useState(false);
+  /** Name shown for a moment after a clear paper was accepted without asking. */
+  const [autoNote, setAutoNote] = useState<{ paperId: string; name: string; code: string } | null>(null);
+  const autoNoteTimer = useRef<number | null>(null);
   const [saving, setSaving] = useState(false);
 
   const streamRef = useRef<MediaStream | null>(null);
@@ -593,7 +597,8 @@ export function BatchOMRScanner({
     const match = otherClassName
       ? { matchedStudentId: null, matchConfidence: "needs_review" as const }
       : resolveStudentMatch({ studentName: "", studentCode, editedName: "" }, students);
-    return { studentCode, warnings, otherClassName, qrUnsure, match };
+    const codeClear = reading.ok && reading.studentCodeDecision === "ok" && reading.warnings.length === 0;
+    return { studentCode, warnings, otherClassName, qrUnsure, match, codeClear };
   }, [classQr, sheet, students]);
 
   /** Grades a paper the device has already read (the answer key stays on the server). */
@@ -652,11 +657,17 @@ export function BatchOMRScanner({
 
   // ── Teacher's choice of student at capture time (wins over the number read) ──
 
-  const decisions = useRef(new Map<string, string>());
+  /** paperId → student chosen at capture; null = unlinked by the teacher (choose in review). */
+  const decisions = useRef(new Map<string, string | null>());
   const applyDecision = useCallback((result: ScanResult): ScanResult => {
+    if (result.error || !decisions.current.has(result.paperId)) return result;
     const studentId = decisions.current.get(result.paperId);
-    return studentId && !result.error ? { ...result, matchedStudentId: studentId, matchConfidence: "strong" } : result;
+    return studentId
+      ? { ...result, matchedStudentId: studentId, matchConfidence: "strong" }
+      : { ...result, matchedStudentId: null, matchConfidence: "needs_review" };
   }, []);
+  /** Question details per captured paper, so "تغيير" can reopen it. */
+  const confirmInfo = useRef(new Map<string, Confirmation>());
 
   /** Adds a paper and starts reading it straight away, so results are ready by the time the teacher finishes. */
   const addPaper = useCallback((paper: CapturedPaper, readBase64?: string, quick?: PhotoReading) => {
@@ -675,6 +686,7 @@ export function BatchOMRScanner({
 
   const removePaper = useCallback((paperId: string) => {
     decisions.current.delete(paperId);
+    confirmInfo.current.delete(paperId);
     pendingScans.current.delete(paperId);
     setPapers((prev) => prev.filter((paper) => paper.id !== paperId));
     setScanned((prev) => {
@@ -728,8 +740,10 @@ export function BatchOMRScanner({
   }, [classPackageAssignmentId, openCamera]);
 
   /**
-   * One tap: read the paper on the device (a fraction of a second), then ask the teacher whose paper it is
-   * before the next photo. Grading continues in the background. A photo that can't be read is not kept.
+   * One tap: read the paper on the device (a fraction of a second). A clear paper (number read cleanly,
+   * student in the roster and not photographed yet, class QR confirmed) is accepted at once with its name
+   * shown for a moment and a "تغيير" button; anything doubtful stops and asks the teacher.
+   * Grading continues in the background. A photo that can't be read is not kept.
    */
   const captureOne = useCallback(async () => {
     if (papers.length >= MAX_PAPERS || captureBusy || confirming) return;
@@ -750,30 +764,56 @@ export function BatchOMRScanner({
       }
       const paper = await preparePaper(raw, `p${Date.now()}`);
       addPaper(paper, raw, quick);
-      const { studentCode, otherClassName, qrUnsure, match } = assess(quick);
-      setPicking(!otherClassName && !match.matchedStudentId);
-      setConfirming({ paperId: paper.id, studentCode, suggestedId: match.matchedStudentId, otherClassName, qrUnsure, numberCrop: quick.crops.number });
+      const { studentCode, otherClassName, qrUnsure, match, codeClear } = assess(quick);
+      const info: Confirmation = { paperId: paper.id, studentCode, suggestedId: match.matchedStudentId, otherClassName, qrUnsure, numberCrop: quick.crops.number };
+      confirmInfo.current.set(paper.id, info);
+      const taken = Array.from(decisions.current.values()).includes(match.matchedStudentId);
+      const classConfirmed = !classQr || (quick.qr?.code != null && quick.qr.code === sheet?.expectedCode);
+      if (codeClear && match.matchedStudentId && !taken && classConfirmed && !otherClassName) {
+        decisions.current.set(paper.id, match.matchedStudentId);
+        const name = students.find((student) => student.id === match.matchedStudentId)?.name ?? "";
+        setCaptureMessage(null);
+        setAutoNote({ paperId: paper.id, name, code: studentCode });
+        if (autoNoteTimer.current) window.clearTimeout(autoNoteTimer.current);
+        autoNoteTimer.current = window.setTimeout(() => setAutoNote(null), AUTO_NOTE_MS);
+      } else {
+        setAutoNote(null);
+        if ("vibrate" in navigator) navigator.vibrate?.([30, 60, 30]);
+        setPicking(!otherClassName && !match.matchedStudentId);
+        setConfirming(info);
+      }
     } catch {
       flashMessage("تعذّر التقاط الصورة، حاول مرة أخرى");
     } finally {
       setCaptureBusy(false);
       window.setTimeout(() => setCaptureFlash(false), 160);
     }
-  }, [addPaper, assess, captureBusy, classQr, confirming, flashMessage, papers.length, preparePaper, template]);
+  }, [addPaper, assess, captureBusy, classQr, confirming, flashMessage, papers.length, preparePaper, sheet, students, template]);
 
-  /** The teacher says whose paper this is. The same student photographed twice keeps the newest photo. */
-  const decideStudent = useCallback((studentId: string) => {
+  /**
+   * The teacher says whose paper this is. With `unlinkEarlier`, a paper already given to this student is
+   * unlinked (it belongs to someone else; chosen in review). No photo is ever deleted here.
+   */
+  const decideStudent = useCallback((studentId: string, unlinkEarlier = false) => {
     if (!confirming) return;
     const paperId = confirming.paperId;
-    const earlier = Array.from(decisions.current.entries()).filter(([id, student]) => student === studentId && id !== paperId).map(([id]) => id);
-    earlier.forEach((id) => removePaper(id));
+    const changed = [paperId];
+    if (unlinkEarlier) {
+      Array.from(decisions.current.entries())
+        .filter(([id, student]) => student === studentId && id !== paperId)
+        .forEach(([id]) => { decisions.current.set(id, null); changed.push(id); });
+    }
     decisions.current.set(paperId, studentId);
-    setScanned((prev) => (prev[paperId] ? { ...prev, [paperId]: applyDecision(prev[paperId]) } : prev));
+    setScanned((prev) => {
+      const next = { ...prev };
+      changed.forEach((id) => { if (next[id]) next[id] = applyDecision(next[id]); });
+      return next;
+    });
     setConfirming(null);
     setPicking(false);
     const name = students.find((student) => student.id === studentId)?.name ?? "";
-    flashMessage(`✓ ${name} — صوّر الورقة التالية`);
-  }, [applyDecision, confirming, flashMessage, removePaper, students]);
+    flashMessage(changed.length > 1 ? `✓ ${name} — الورقة السابقة ستنتظر اختيار صاحبها عند الإنهاء` : `✓ ${name} — صوّر الورقة التالية`, changed.length > 1 ? 3500 : 1800);
+  }, [applyDecision, confirming, flashMessage, students]);
 
   const discardConfirming = useCallback(() => {
     if (!confirming) return;
@@ -782,6 +822,17 @@ export function BatchOMRScanner({
     setPicking(false);
     flashMessage("حُذفت الصورة — صوّر الورقة من جديد");
   }, [confirming, flashMessage, removePaper]);
+
+  /** "تغيير" on the name note: reopen that paper's question with the class list. */
+  const changeAutoAccepted = useCallback(() => {
+    if (!autoNote) return;
+    const info = confirmInfo.current.get(autoNote.paperId);
+    if (autoNoteTimer.current) window.clearTimeout(autoNoteTimer.current);
+    setAutoNote(null);
+    if (!info) return;
+    setPicking(true);
+    setConfirming(info);
+  }, [autoNote]);
 
   const decideLater = useCallback(() => {
     setConfirming(null);
@@ -1042,6 +1093,16 @@ export function BatchOMRScanner({
                   {captureMessage}
                 </div>
               )}
+              {autoNote && !confirming && (
+                <div role="status" className="absolute inset-x-3 bottom-3 flex items-center justify-between gap-2 rounded-2xl bg-white/95 px-3 py-2 text-brand-navy shadow-lg">
+                  <span className="min-w-0 truncate text-base font-black">
+                    ✓ {autoNote.name} <span className="text-xs font-bold text-slate-400">· {toEnglishDigits(autoNote.code)}</span>
+                  </span>
+                  <button onClick={changeAutoAccepted} className="flex-shrink-0 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-extrabold text-slate-600">
+                    تغيير
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1101,14 +1162,21 @@ export function BatchOMRScanner({
                       <button onClick={() => setPicking(true)} className="rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-600">هي من هذا الفصل — اختر الطالب</button>
                     </div>
                   </div>
+                ) : !picking && suggested && takenBy.has(suggested.id) ? (
+                  <div className="text-center">
+                    <p className="text-lg font-black text-amber-700">سبق تصوير ورقة لـ{suggested.name}</p>
+                    <p className="mt-1 text-sm font-bold text-slate-500">رقم {toEnglishDigits(confirming.studentCode)} في الكشف. هل صُوّرت الورقة نفسها مرتين، أم ظلّل أحدهما رقمًا خطأ؟</p>
+                    <div className="mt-4 grid gap-2">
+                      <button onClick={discardConfirming} className="rounded-2xl bg-brand py-3.5 text-base font-black text-white">الورقة نفسها — احذف هذه الصورة</button>
+                      <button onClick={() => decideStudent(suggested.id, true)} className="rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-600">هذه ورقته، والسابقة لطالب آخر</button>
+                      <button onClick={() => setPicking(true)} className="rounded-2xl border border-slate-200 py-3 text-sm font-extrabold text-slate-600">هذه لطالب آخر — اختره</button>
+                    </div>
+                  </div>
                 ) : !picking && suggested ? (
                   <div className="text-center">
                     <p className="text-sm font-bold text-slate-500">هل هذه ورقة</p>
                     <p className="mt-1 text-2xl font-black">{suggested.name}</p>
                     <p className="mt-1 text-sm font-bold text-slate-400">رقم {toEnglishDigits(confirming.studentCode)} في الكشف</p>
-                    {takenBy.has(suggested.id) && (
-                      <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">سبق تصوير ورقة لهذا الطالب؛ التأكيد يحذف الصورة السابقة.</p>
-                    )}
                     {confirming.qrUnsure && (
                       <p className="mt-2 text-xs font-bold text-amber-700">تعذّر التحقق من رمز الفصل؛ تأكد أن الورقة من هذا الفصل.</p>
                     )}
@@ -1242,11 +1310,39 @@ export function BatchOMRScanner({
               {duplicateIds.size > 0 && <p>توجد أوراق مكررة لنفس الطالب.</p>}
             </div>
           )}
-          {missingStudents.length > 0 && students.length > 0 && (
-            <p className="text-xs font-bold text-slate-400">
-              لم تُصحَّح بعد أوراق: {missingStudents.slice(0, 6).map((s) => s.name).join("، ")}
-              {missingStudents.length > 6 ? ` و${formatCount(missingStudents.length - 6)} آخرين` : ""}
-            </p>
+          {students.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm font-bold text-brand-navy">
+              <p className="font-black">
+                تحقق قبل الحفظ: صُوّرت أوراق {formatCount(usedStudentIds.size)} من {formatCount(students.length)} طالبًا
+              </p>
+              {Array.from(duplicateIds).map((id) => {
+                const student = students.find((item) => item.id === id);
+                const count = validResults.filter((r) => r.matchedStudentId === id).length;
+                return (
+                  <p key={id} className="mt-1 text-amber-800">
+                    {formatCount(count)} أوراق باسم {student?.name ?? "طالب"}
+                    {student?.studentCode ? ` (${toEnglishDigits(normalizeStudentCode(student.studentCode))})` : ""} — واحدة فقط له، والباقي غالبًا لطلاب آخرين.
+                  </p>
+                );
+              })}
+              {missingStudents.length > 0 && (
+                <>
+                  <p className="mt-2 text-xs text-slate-500">لم تُصوَّر أوراقهم:</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {missingStudents.map((student) => (
+                      <span key={student.id} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {student.studentCode ? `${toEnglishDigits(normalizeStudentCode(student.studentCode))} · ` : ""}{student.name}
+                      </span>
+                    ))}
+                  </div>
+                  {(duplicateIds.size > 0 || unmatchedCount > 0) ? (
+                    <p className="mt-2 text-xs text-amber-800">إن لم يكونوا غائبين، فغالبًا إحدى الأوراق المعلّمة بالأصفر لأحدهم: افتح القائمة واختره.</p>
+                  ) : (
+                    <p className="mt-2 text-xs text-slate-400">إن كانوا غائبين فلا شيء عليك؛ وإن حضروا فصوّر أوراقهم قبل الحفظ.</p>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
           <ul className="space-y-2">

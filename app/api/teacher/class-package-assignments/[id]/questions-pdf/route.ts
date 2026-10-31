@@ -29,8 +29,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const url = (data as { assessment_packages?: { student_pdf_url?: string | null } | null } | null)?.assessment_packages?.student_pdf_url;
   if (!url) return NextResponse.json({ success: false, error: "لا توجد ورقة أسئلة لهذا الاختبار" }, { status: 404 });
 
-  const storage = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/`;
-  if (!url.startsWith(storage)) return NextResponse.json({ success: false, error: "رابط ورقة الأسئلة غير مدعوم" }, { status: 400 });
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/+$/, "");
+  const storage = `${base}/storage/v1/object/`;
+  if (!base || !url.startsWith(storage)) return NextResponse.json({ success: false, error: "رابط ورقة الأسئلة غير مدعوم" }, { status: 400 });
 
   const upstream = await fetch(url, { cache: "no-store" });
   if (!upstream.ok || !upstream.body) return NextResponse.json({ success: false, error: "تعذّر تحميل ورقة الأسئلة" }, { status: 502 });
