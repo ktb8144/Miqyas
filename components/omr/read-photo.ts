@@ -1,6 +1,8 @@
 "use client";
 
 import { applyHomography } from "@/lib/omr/geometry";
+import { toGray } from "@/lib/omr/image";
+import { matchPrintedQr, type PrintedQr, type QrCandidate, type QrMatch } from "@/lib/omr/printed-qr";
 import { readAnswerSheet } from "@/lib/omr/reader";
 import type { OmrReading, OmrTemplate } from "@/lib/omr/types";
 
@@ -57,11 +59,16 @@ function cropTemplateRect(
 
 export type PhotoReading = {
   reading: OmrReading;
-  /** Close-ups of every question (and the student number) the reader left for the teacher. */
+  /** Close-ups of every question (and the student number) the reader left for the teacher; `number` is always the number area. */
   crops: Record<string, string>;
+  /** Which class QR is printed on the sheet (only when `classQr` was given and the sheet was read). */
+  qr?: QrMatch;
 };
 
-export async function readPhoto(base64: string, template: OmrTemplate): Promise<PhotoReading> {
+/** Class QR check for question sheets that carry one: where it is printed and the codes it may be. */
+export type ClassQrCheck = { printedQr: PrintedQr; candidates: QrCandidate[] };
+
+export async function readPhoto(base64: string, template: OmrTemplate, classQr?: ClassQrCheck): Promise<PhotoReading> {
   const img = await loadImage(base64);
   const { canvas, ctx } = drawScaled(img, READ_MAX_SIDE);
   // Let the camera UI breathe before the (short) synchronous read.
@@ -70,6 +77,11 @@ export async function readPhoto(base64: string, template: OmrTemplate): Promise<
   const reading = readAnswerSheet({ width: imageData.width, height: imageData.height, data: imageData.data }, template);
 
   const crops: Record<string, string> = {};
+  let qr: QrMatch | undefined;
+  if (reading.ok && classQr && classQr.candidates.length) {
+    const gray = toGray({ width: imageData.width, height: imageData.height, data: imageData.data });
+    qr = matchPrintedQr(gray, reading.homography, classQr.printedQr, classQr.candidates);
+  }
   if (reading.ok) {
     const r = template.bubbleRadius;
     reading.questions.forEach((group, index) => {
@@ -84,6 +96,16 @@ export async function readPhoto(base64: string, template: OmrTemplate): Promise<
         y1: y + r + 2.5,
       });
     });
+    if (template.studentCode) {
+      // The number area (written number + shaded rows) for the teacher to check at capture time.
+      const all = [...template.studentCode.ones.bubbles, ...template.studentCode.tens.bubbles];
+      crops.number = cropTemplateRect(canvas, reading.homography, {
+        x0: Math.min(...all.map((b) => b.x)) - 4,
+        x1: Math.max(...all.map((b) => b.x)) + 20,
+        y0: Math.min(...all.map((b) => b.y)) - 13,
+        y1: Math.max(...all.map((b) => b.y)) + 4,
+      }, 520);
+    }
     if (template.studentCode && reading.studentCodeDecision !== "ok") {
       const all = [...template.studentCode.ones.bubbles, ...template.studentCode.tens.bubbles];
       crops.code = cropTemplateRect(canvas, reading.homography, {
@@ -94,5 +116,5 @@ export async function readPhoto(base64: string, template: OmrTemplate): Promise<
       }, 480);
     }
   }
-  return { reading, crops };
+  return { reading, crops, qr };
 }

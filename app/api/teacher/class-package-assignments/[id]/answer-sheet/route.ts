@@ -60,6 +60,20 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (countError) throw countError;
     if (studentsError) throw studentsError;
 
+    // Every class in the school that has this test, with its sheet code: the scanner checks a sheet's QR against these.
+    const { data: siblings } = await db
+      .from("class_package_assignments")
+      .select("class_id, sheet_code")
+      .eq("package_id", assignment.package_id)
+      .eq("school_id", schoolId);
+    const siblingRows = ((siblings ?? []) as Array<{ class_id: string; sheet_code: string | null }>).filter((row) => row.sheet_code);
+    const classIds = Array.from(new Set(siblingRows.map((row) => row.class_id)));
+    const { data: siblingClasses } = classIds.length
+      ? await db.from("classes").select("id, name").in("id", classIds)
+      : { data: [] as Array<{ id: string; name: string }> };
+    const classNames = new Map(((siblingClasses ?? []) as Array<{ id: string; name: string | null }>).map((row) => [row.id, row.name ?? ""]));
+    const classCodes = siblingRows.map((row) => ({ code: row.sheet_code as string, className: classNames.get(row.class_id) ?? "" }));
+
     const roster = ((students ?? []) as Array<{ id: string; name: string; student_code: string | null }>)
       .map((student) => ({ id: student.id, name: student.name, code: Number(normalizeStudentCode(student.student_code)) || null }))
       .sort((a, b) => (a.code ?? 999) - (b.code ?? 999));
@@ -71,6 +85,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         packageId: assignment.package_id,
         /** This class's code for the QR on its sheets (issued by the database). */
         sheetCode: (codeRow as { sheet_code?: string | null } | null)?.sheet_code ?? null,
+        classCodes,
         title: assignment.assessment_packages?.title ?? "اختبار دالة",
         subject: assignment.assessment_packages?.subject ?? "",
         grade: assignment.assessment_packages?.grade ?? null,

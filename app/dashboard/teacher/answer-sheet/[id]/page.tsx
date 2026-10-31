@@ -5,8 +5,10 @@ import Link from "next/link";
 import { ArrowRight, FileText, Printer } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { toEnglishDigits } from "@/lib/format";
+import { fetchSheetMaster, type SheetMaster } from "@/lib/omr/sheet-master";
 import { renderAnswerBlockSvg } from "@/lib/omr/sheet-svg";
 import { MAX_SHEET_QUESTIONS, MAX_STUDENT_CODE } from "@/lib/omr/standard-sheet";
+import { ClassQuestionSheet } from "./class-question-sheet";
 
 type SheetData = {
   assignmentId: string;
@@ -15,6 +17,8 @@ type SheetData = {
   subject: string;
   grade: number | null;
   questionsPdfUrl: string | null;
+  /** This class's QR code (database-issued). */
+  sheetCode: string | null;
   className: string;
   schoolName: string;
   questionCount: number;
@@ -73,6 +77,8 @@ export default function AnswerSheetPage({ params }: { params: { id: string } }) 
   const [data, setData] = useState<SheetData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>("personal");
+  // A Dala master question sheet prints per class (QR, class and school name); other PDFs keep the answer sheet.
+  const [master, setMaster] = useState<{ bytes: Uint8Array; master: SheetMaster } | null | "loading">("loading");
 
   useEffect(() => {
     let active = true;
@@ -83,6 +89,14 @@ export default function AnswerSheetPage({ params }: { params: { id: string } }) 
         if (!res.ok || !json.success) throw new Error(json.error || "تعذر تجهيز ورقة الإجابة");
         if (!active) return;
         const loaded = json.data as SheetData;
+        let found: { bytes: Uint8Array; master: SheetMaster } | null = null;
+        if (loaded.questionsPdfUrl) {
+          // If the sheet can't be checked, the page falls back to the standard answer sheets, as before.
+          const result = await fetchSheetMaster(`/api/teacher/class-package-assignments/${params.id}/questions-pdf`).catch(() => null);
+          if (result?.master) found = { bytes: result.bytes, master: result.master };
+        }
+        if (!active) return;
+        setMaster(found);
         setData(loaded);
         if (!loaded.students.length) setMode("shared");
       } catch (err) {
@@ -102,6 +116,20 @@ export default function AnswerSheetPage({ params }: { params: { id: string } }) 
   };
 
   const studentsWithoutNumber = data?.students.filter((s) => !s.code || s.code > MAX_STUDENT_CODE) ?? [];
+
+  if (data && master && master !== "loading") {
+    return (
+      <ClassQuestionSheet
+        assignmentId={params.id}
+        master={master.master}
+        masterBytes={master.bytes}
+        schoolName={data.schoolName}
+        className={data.className}
+        sheetCode={data.sheetCode}
+        studentCount={data.students.length}
+      />
+    );
+  }
   const tooManyQuestions = (data?.questionCount ?? 0) > MAX_SHEET_QUESTIONS;
 
   return (
