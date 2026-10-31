@@ -218,7 +218,8 @@ export function decide(measures: BubbleMeasure[]): { index: number; decision: Bu
 }
 
 function readGroup(at: Sampler, group: OmrChoiceGroup, radius: number): GroupReading {
-  const measures = group.bubbles.map((bubble) => measureBubble(at, bubble, radius));
+  const r = group.radius ?? radius;
+  const measures = group.bubbles.map((bubble) => measureBubble(at, bubble, r));
   const { index, decision } = decide(measures);
   const fill = measures.map((m) => m.fill);
   const value = decision === "ok" ? group.options[index] : decision === "blank" ? "blank" : "unclear";
@@ -248,6 +249,7 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
   const rotations = [0, 1, 2, 3].filter((k) => (k % 2 === 0 ? evenFits : oddFits));
 
   let chosen: { homography: number[]; ordered: Point[]; markScore: number } | null = null;
+  const scores: number[] = [];
   for (const k of rotations) {
     const ordered = [0, 1, 2, 3].map((i) => corners[(i + k) % 4]);
     const homography = solveHomography(templateCorners, ordered);
@@ -263,12 +265,19 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
       const opposite = rectFill(at, template.width - mark.x - mark.w, template.height - mark.y - mark.h, mark.w, mark.h);
       if (onMark < 0.55 || onMark - opposite < 0.35) continue;
       markScore = onMark - opposite;
-    } else if (k !== 0) {
-      continue; // without an orientation mark only an upright photo can be trusted
+    } else {
+      // No orientation bar: the printed bubble outlines only line up in the right orientation.
+      const bubbles = template.questions.flatMap((group) => group.bubbles);
+      markScore = bubbles.filter((b) => outlineContrast(at, b, template.bubbleRadius) > 0.08).length / Math.max(1, bubbles.length);
     }
+    scores.push(markScore);
     if (!chosen || markScore > chosen.markScore) chosen = { homography, ordered, markScore };
   }
   if (!chosen) return fail("orientation_unknown");
+  if (!template.orientationMark) {
+    const runnerUp = [...scores].sort((a, b) => b - a)[1] ?? 0;
+    if (chosen.markScore - runnerUp < 0.25) return fail(chosen.markScore < 0.7 ? "alignment_failed" : "orientation_unknown");
+  }
 
   const { homography, ordered } = chosen;
   const at: Sampler = (p) => {
