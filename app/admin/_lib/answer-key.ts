@@ -1,3 +1,4 @@
+import { parseAnswerKeyMisconceptions } from "@/lib/assessment/question-helpers";
 import { toEnglishDigits } from "@/lib/format";
 import type { AnswerKeyValidationResult } from "./types";
 
@@ -61,8 +62,13 @@ export function validateAnswerKeyJson(rawValue: string): AnswerKeyValidationResu
     if (!options || ANSWER_KEY_OPTION_LABELS.some((label) => typeof options[label] !== "string" || !String(options[label]).trim())) {
       throw new Error(`السؤال رقم ${number} لا يحتوي على الخيارات الأربعة.`);
     }
+    const misconceptions = parseAnswerKeyMisconceptions(question.misconceptions, correctAnswer, number);
+    if (misconceptions.error !== undefined) throw new Error(misconceptions.error);
+    const misconceptionCount = misconceptions.value ? Object.keys(misconceptions.value).length : 0;
 
-    return `سؤال ${toEnglishDigits(number)}: ${correctAnswer} - ${skill}`;
+    return `سؤال ${toEnglishDigits(number)}: ${correctAnswer} - ${skill}${
+      misconceptionCount ? ` · ${toEnglishDigits(misconceptionCount)} مفاهيم خاطئة` : ""
+    }`;
   });
 
   return { count: questions.length, summary };
@@ -82,6 +88,10 @@ export const ANSWER_KEY_JSON_EXAMPLE = `{
         "ب": "٦",
         "ج": "٧",
         "د": "٨"
+      },
+      "misconceptions": {
+        "أ": "اختياري: الفهم الخاطئ الذي يقود الطالب إلى هذا الخيار",
+        "ج": "اختياري: لكل خيار خاطئ وصفه، ولا يُكتب للإجابة الصحيحة"
       }
     }
   ]
