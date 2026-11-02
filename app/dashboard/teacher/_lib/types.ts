@@ -55,6 +55,15 @@ export type ClassReportData = {
 };
 
 export type ClassStudentsMap = Record<string, Student[]>;
+
+/** A printed test whose sheets are not all scanned yet: renumbering now would mis-assign them. */
+export interface RenumberPendingTest {
+  className: string;
+  subject: string | null;
+  title: string;
+  scanned: number;
+  students: number;
+}
 export type AssignmentStudentScores = Record<string, Record<string, { score: number; total: number; percentage: number; level: string; scannedAt: string | null }>>;
 
 export interface TeacherProfile {

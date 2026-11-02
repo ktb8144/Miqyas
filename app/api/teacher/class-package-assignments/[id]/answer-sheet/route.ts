@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { normalizeStudentCode } from "@/lib/format";
+import { sortByStudentName } from "@/lib/students/order";
 
 export const dynamic = "force-dynamic";
 
@@ -74,9 +75,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const classNames = new Map(((siblingClasses ?? []) as Array<{ id: string; name: string | null }>).map((row) => [row.id, row.name ?? ""]));
     const classCodes = siblingRows.map((row) => ({ code: row.sheet_code as string, className: classNames.get(row.class_id) ?? "" }));
 
-    const roster = ((students ?? []) as Array<{ id: string; name: string; student_code: string | null }>)
-      .map((student) => ({ id: student.id, name: student.name, code: Number(normalizeStudentCode(student.student_code)) || null }))
-      .sort((a, b) => (a.code ?? 999) - (b.code ?? 999));
+    // Alphabetical, like the class roster, so personal sheets come off the printer in handing-out order.
+    const roster = sortByStudentName(
+      ((students ?? []) as Array<{ id: string; name: string; student_code: string | null }>)
+        .map((student) => ({ id: student.id, name: student.name, code: Number(normalizeStudentCode(student.student_code)) || null })),
+      (student) => student.code
+    );
 
     return NextResponse.json({
       success: true,

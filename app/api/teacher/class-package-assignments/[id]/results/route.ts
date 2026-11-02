@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
 import { toPercent } from "@/lib/math";
+import { sortByStudentName } from "@/lib/students/order";
 import type { StudentPackageResultRow, StudentRow as DbStudentRow } from "@/lib/db/rows";
 
 export const dynamic = "force-dynamic";
@@ -201,7 +202,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
           studentsTestedCount: results.length,
           averagePercentage: average,
         },
-        students: results.map((item) => {
+        students: sortByStudentName(
+          results.map((item) => ({ item, name: studentsById.get(item.student_id)?.name ?? "طالب غير محدد" })),
+          ({ item }) => studentsById.get(item.student_id)?.student_code
+        ).map(({ item }) => {
           const student = studentsById.get(item.student_id);
           return {
             id: item.id,

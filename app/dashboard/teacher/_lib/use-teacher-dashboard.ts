@@ -2,12 +2,14 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { toEnglishDigits, normalizeName } from "@/lib/format";
+import { sortByStudentName } from "@/lib/students/order";
 import type {
   AssignmentStudentScores,
   ClassItem,
   ClassReportData,
   ClassStudentsMap,
   PackageResultDetails,
+  RenumberPendingTest,
   SkillDiagnosisDetails,
   Student,
   TeacherPackage,
@@ -60,6 +62,11 @@ export function useTeacherDashboard() {
   const [showAddStudents, setShowAddStudents] = useState(false);
   const [addStudentMode, setAddStudentMode] = useState<"choice" | "import" | "manual">("choice");
   const [manualNames, setManualNames] = useState("");
+  // ── Renumber (alphabetical) state ────────────────────────────────────────────
+  const [renumbering, setRenumbering] = useState(false);
+  const [renumberError, setRenumberError] = useState<string | null>(null);
+  const [renumberPending, setRenumberPending] = useState<RenumberPendingTest[] | null>(null);
+  const [renumberMessage, setRenumberMessage] = useState<string | null>(null);
 
   // ── Report state ─────────────────────────────────────────────────────────────
   const [reportOpen, setReportOpen] = useState(false);
@@ -111,6 +118,9 @@ export function useTeacherDashboard() {
     if (!start || !end) return "تاريخ غير محدد";
     return `${toEnglishDigits(start)} - ${toEnglishDigits(end)}`;
   };
+
+  /** Lists always show students alphabetically (هجائيًا), like the official roster. */
+  const sortStudents = (list: Student[]) => sortByStudentName(list, (student) => student.studentCode);
 
   const mapStudentRow = (row: {
     id: string;
@@ -177,7 +187,7 @@ export function useTeacherDashboard() {
       const nextStudents: ClassStudentsMap = {};
       const mappedClasses: ClassItem[] = (classRows ?? []).map((row) => {
         const students = Array.isArray(row.students) ? row.students : [];
-        nextStudents[row.id] = students.map(mapStudentRow);
+        nextStudents[row.id] = sortStudents(students.map(mapStudentRow));
         return {
           id: row.id,
           name: row.name,
@@ -320,7 +330,29 @@ export function useTeacherDashboard() {
   };
 
   // ── Student handlers ─────────────────────────────────────────────────────────
-  const saveStudents = async (names: string[]) => {
+  /** Re-reads the students of the teacher's classes (after numbers change or a section was synced). */
+  const reloadClassStudents = async (classIds: string[]) => {
+    if (!classIds.length) return;
+    const { data, error } = await supabase
+      .from("students")
+      .select("id, name, class_id, student_code, score, total")
+      .in("class_id", classIds);
+    if (error) {
+      console.error("reload class students failed", error);
+      return;
+    }
+    const byClass: ClassStudentsMap = Object.fromEntries(classIds.map((id) => [id, [] as Student[]]));
+    (data ?? []).forEach((row) => byClass[row.class_id]?.push(mapStudentRow(row)));
+    setClassStudents((prev) => {
+      const next = { ...prev };
+      classIds.forEach((id) => {
+        next[id] = sortStudents(byClass[id] ?? []);
+      });
+      return next;
+    });
+  };
+
+  const saveStudents = async (names: string[], keepOrder = false) => {
     if (!activeClassId) return;
     setStudentSaveError(null);
 
@@ -336,7 +368,7 @@ export function useTeacherDashboard() {
     const res = await fetch("/api/save-students", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classId: activeClassId, names: newNames }),
+      body: JSON.stringify({ classId: activeClassId, names: newNames, keepOrder }),
     });
     const json = await res.json().catch(() => ({}));
 
@@ -347,13 +379,17 @@ export function useTeacherDashboard() {
     const savedStudents: Student[] = (json.students ?? []).map(mapStudentRow);
     setClassStudents((prev) => ({
       ...prev,
-      [activeClassId]: [...(prev[activeClassId] ?? []), ...savedStudents],
+      [activeClassId]: sortStudents([...(prev[activeClassId] ?? []), ...savedStudents]),
     }));
+    // The same section in this teacher's other subjects may have received the new students too.
+    const ownClassIds = new Set(classes.map((cls) => cls.id));
+    const synced = ((json.syncedClassIds ?? []) as string[]).filter((id) => ownClassIds.has(id));
+    if (synced.length) await reloadClassStudents(synced);
     return { savedCount: savedStudents.length };
   };
 
-  const handleImportSave = async (names: string[]) => {
-    const result = await saveStudents(names);
+  const handleImportSave = async (names: string[], options?: { keepOrder: boolean }) => {
+    const result = await saveStudents(names, options?.keepOrder ?? false);
     setShowAddStudents(false);
     setAddStudentMode("choice");
     return result;
@@ -555,7 +591,50 @@ export function useTeacherDashboard() {
     await loadPackageWorkflow();
   };
 
+  /**
+   * Renumbers the active class (and the same section in other subjects) alphabetically.
+   * The server refuses while a printed test still has sheets to scan, unless force is set.
+   */
+  const handleRenumber = async (force = false) => {
+    if (!activeClassId) return;
+    setRenumbering(true);
+    setRenumberError(null);
+    setRenumberMessage(null);
+    try {
+      const res = await fetch(`/api/teacher/classes/${activeClassId}/renumber`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.status === 409 && Array.isArray(json.pending)) {
+        setRenumberPending(json.pending as RenumberPendingTest[]);
+        return;
+      }
+      if (!res.ok || !json.success) throw new Error(json.error || "تعذرت إعادة الترقيم");
+      setRenumberPending(null);
+      const ownClassIds = new Set(classes.map((cls) => cls.id));
+      await reloadClassStudents(((json.classIds ?? []) as string[]).filter((id) => ownClassIds.has(id)));
+      setRenumberMessage(
+        json.changed
+          ? `أُعيد ترقيم ${toEnglishDigits(json.changed)} طالب. اطبع أوراق الاختبارات القادمة من جديد وأبلغ الطلاب بأرقامهم.`
+          : "الأرقام مرتبة هجائيًا مسبقًا."
+      );
+    } catch (err) {
+      setRenumberError(err instanceof Error ? err.message : "تعذرت إعادة الترقيم");
+    } finally {
+      setRenumbering(false);
+    }
+  };
+
+  const clearRenumberState = () => {
+    setRenumberPending(null);
+    setRenumberError(null);
+    setRenumberMessage(null);
+  };
+
   const handleViewStudents = (classId: string) => {
+    clearRenumberState();
     setActiveClassId(classId);
     setView("students");
     setShowAddStudents(false);
@@ -563,6 +642,7 @@ export function useTeacherDashboard() {
   };
 
   const handleBackToClasses = () => {
+    clearRenumberState();
     setView("classes");
     setActiveClassId(null);
     setShowAddStudents(false);
@@ -574,6 +654,12 @@ export function useTeacherDashboard() {
 
   return {
     router,
+    renumbering,
+    renumberError,
+    renumberPending,
+    renumberMessage,
+    handleRenumber,
+    clearRenumberState,
     view,
     setView,
     activeClassId,

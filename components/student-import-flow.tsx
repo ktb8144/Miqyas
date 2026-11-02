@@ -16,7 +16,11 @@ type Step =
   | "manual";
 
 interface Props {
-  onSave: (names: string[]) => Promise<{ savedCount?: number } | void> | { savedCount?: number } | void;
+  /** keepOrder: every name came from one Noor/Excel file, already in the official roster order. */
+  onSave: (
+    names: string[],
+    options: { keepOrder: boolean }
+  ) => Promise<{ savedCount?: number } | void> | { savedCount?: number } | void;
   initialNames?: string[];
 }
 
@@ -61,6 +65,10 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
   const [roster, setRoster] = useState<RosterDetection | null>(null);
   const [fileNote, setFileNote] = useState<string | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
+  // Where the new names came from: a single Noor/Excel file keeps its order; anything else is numbered alphabetically.
+  const [nameSource, setNameSource] = useState<"none" | "file" | "other">("none");
+  const markSource = (source: "file" | "other") =>
+    setNameSource((prev) => (prev === "none" && source === "file" ? "file" : "other"));
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -141,6 +149,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
         setMergeInfo({ added: result.added, duplicates: result.duplicates });
         return result.merged;
       });
+      markSource("other");
       setStep("review");
     } catch {
       setExtractError(
@@ -154,6 +163,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
   // ── Excel / CSV (read in the browser; only names leave the device) ─────────────
 
   const addNamesFromList = (names: string[]) => {
+    markSource("file");
     setEditableNames((prev) => {
       const result = mergeNames(prev, names);
       setMergeInfo({ added: result.added, duplicates: result.duplicates });
@@ -203,7 +213,10 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
   const deleteName = (i: number) =>
     setEditableNames((prev) => prev.filter((_, idx) => idx !== i));
 
-  const addEmptyName = () => setEditableNames((prev) => [...prev, ""]);
+  const addEmptyName = () => {
+    markSource("other");
+    setEditableNames((prev) => [...prev, ""]);
+  };
 
   // ── Save ─────────────────────────────────────────────────────────────────────
 
@@ -214,7 +227,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
     setSaveError(null);
 
     try {
-      const result = await onSave(cleaned);
+      const result = await onSave(cleaned, { keepOrder: nameSource === "file" });
       await new Promise((r) => setTimeout(r, 700));
       setSavedCount(result?.savedCount ?? cleaned.length);
       setStep("done");
@@ -230,6 +243,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
       .map(cleanName)
       .filter(Boolean);
     if (!names.length) return;
+    markSource("other");
     setEditableNames((prev) => {
       const result = mergeNames(prev, names);
       setMergeInfo({ added: result.added, duplicates: result.duplicates });

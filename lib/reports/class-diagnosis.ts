@@ -1,5 +1,6 @@
 import { getLevelFromPercentage, MASTERY_THRESHOLD, type LevelName } from "@/lib/levels";
 import { misconceptionForOption } from "@/lib/assessment/question-helpers";
+import { compareArabicNames } from "@/lib/students/order";
 
 /**
  * Turns a class's saved test results into a diagnosis: how each skill is going, which wrong
@@ -318,7 +319,7 @@ export function buildClassDiagnosis(input: DiagnosisInput): ClassDiagnosis {
     const students = Array.from(bucket.perStudent.entries())
       .filter(([, s]) => missed(s.correct, s.attempts))
       .map(([id]) => ({ id, name: nameOf.get(id) ?? "طالب" }))
-      .sort((a, b) => a.name.localeCompare(b.name, "ar", { numeric: true }));
+      .sort((a, b) => compareArabicNames(a.name, b.name));
     return { skill: stat.skill, students };
   });
 
