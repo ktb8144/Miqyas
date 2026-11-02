@@ -1,6 +1,6 @@
 import { applyHomography, distance, isConvex, orderClockwise, polygonArea, solveHomography } from "./geometry";
 import { adaptiveDarkMask, connectedComponents, downscale, sample, toGray, type Blob } from "./image";
-import { coarseAlign, fieldAt, fitPage, quickLook, shiftHomography, type CoarseAlignment, type QuickLook } from "./page-fit";
+import { circleScorer, coarseAlign, fieldAt, fitPage, quickLook, shiftHomography, type CoarseAlignment, type QuickLook } from "./page-fit";
 import type {
   BubbleDecision,
   GrayImage,
@@ -26,6 +26,9 @@ export const FILLED = 0.45;
 export const EMPTY = 0.2;
 /** Below this, a bubble is treated as untouched paper. */
 export const FAINT = 0.1;
+/** With every other bubble of the question at most CLEAN, a bubble this shaded is the answer (soft camera frames). */
+export const SOFT_MARK = 0.2;
+export const CLEAN = 0.05;
 /** A bubble whose average darkness is this much above its row's typical bubble is never called blank. */
 export const SHADE_STANDOUT = 0.05;
 /** A pixel is "dark" when it is below this fraction of the local paper brightness. */
@@ -38,12 +41,15 @@ const FRAMES_TO_CHECK = 6;
 const CLEAR_LOOK = 0.1;
 /** Frames × orientations given a closer look after the quick one. */
 const CLOSER_LOOKS = 3;
-/** Below this, the question circles were not found near where any frame put them. */
-const PAGE_FOUND = 0.05;
-/** The right orientation must line up this much better than the page turned around. */
-const ORIENTATION_MARGIN = 0.03;
-/** Share of questions that must agree with one smooth correction across the page. */
-const MIN_AGREEMENT = 0.6;
+/**
+ * Below this, the question circles were not found near where any frame put them. A soft camera
+ * frame of a bent sheet finds them only faintly, so what counts most is the next rule.
+ */
+const PAGE_FOUND = 0.04;
+/** The chosen orientation must line up this many times better than the same corners turned round. */
+const CLEARLY_BEST = 3;
+/** Share of questions whose first find must agree with its neighbours (the rest are found again from them). */
+const MIN_AGREEMENT = 0.5;
 const MIN_FRAME_SHARE = 0.08;
 
 const MESSAGES: Record<Exclude<OmrReading, { ok: true }>["reason"], string> = {
@@ -247,23 +253,31 @@ export function decide(measures: BubbleMeasure[]): { index: number; decision: Bu
   if (first.fill >= 0.75 && second.fill <= 0.35 && first.fill - second.fill >= 0.45) {
     return { index: first.index, decision: "ok" };
   }
+  // A soft camera frame lightens pencil, so a shaded bubble measures well under FILLED; but then the
+  // printed letters fade too, and every other bubble reads as clean paper. One bubble clearly marked
+  // while all the others are clean is still a clear answer.
+  if (standsOut && first.fill >= SOFT_MARK && order.slice(1).every((o) => o.fill <= CLEAN) && first.fill - second.fill >= 0.18) {
+    return { index: first.index, decision: "ok" };
+  }
   return { index: -1, decision: "uncertain" };
 }
 
 /**
- * A bubble's printed outline counts as lined up when its contrast is at least this share of the
- * sheet's typical outline contrast (a blurred photo lowers every outline alike; a bubble measured
- * in the wrong place loses its outline altogether).
+ * A bubble counts as lined up when its printed circle is found where it was measured at least this
+ * share as clearly as the sheet's typical bubble (a blurred photo lowers every circle alike; a
+ * bubble measured in the wrong place finds no circle at all).
  */
-const LINED_UP_SHARE = 0.4;
+const LINED_UP_SHARE = 0.45;
 
-function readGroup(at: Sampler, group: OmrChoiceGroup, radius: number, linedUpAbove = 0): GroupReading {
+type Ring = (p: Point, radius: number) => number;
+
+function readGroup(at: Sampler, group: OmrChoiceGroup, radius: number, ring?: Ring, linedUpAbove = 0): GroupReading {
   const r = group.radius ?? radius;
   const measures = group.bubbles.map((bubble) => measureBubble(at, bubble, r));
   const decided = decide(measures);
-  // A bubble whose outline did not line up was measured in the wrong place: it may hide a mark,
+  // A bubble whose circle did not line up was measured in the wrong place: it may hide a mark,
   // so neither "blank" nor an answer can be trusted — the teacher decides.
-  const linedUp = group.bubbles.every((bubble) => outlineContrast(at, bubble, r) > linedUpAbove);
+  const linedUp = !ring || group.bubbles.every((bubble) => ring(bubble, r) >= linedUpAbove);
   const { index, decision } = linedUp || decided.decision === "multiple" ? decided : { index: -1, decision: "uncertain" as const };
   const fill = measures.map((m) => m.fill);
   const value = decision === "ok" ? group.options[index] : decision === "blank" ? "blank" : "unclear";
@@ -338,7 +352,7 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
     // The same four squares turned the other way must line up clearly worse.
     const turned = turnedOf(chosen);
     const turnedScore = turned ? (turned.coarse ?? coarseAlign(gray, turned.homography, template, turned.quick)).score : 0;
-    if (turned && chosenCoarse.score - turnedScore < ORIENTATION_MARGIN) return fail("orientation_unknown");
+    if (turned && chosenCoarse.score < CLEARLY_BEST * turnedScore) return fail("orientation_unknown");
   }
 
   const { homography, ordered } = chosen;
@@ -363,7 +377,9 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
   const contrasts = fit.questions.flatMap((bubbles) => bubbles.map((bubble) => outlineContrast(at, bubble, radius)));
   const alignedCount = contrasts.filter((c) => c > 0.08).length;
   const bubbleCount = contrasts.length;
-  const linedUpAbove = Math.max(0.04, LINED_UP_SHARE * percentile(contrasts, 0.5));
+  const ring = circleScorer(gray, homography);
+  const rings = fit.questions.flatMap((bubbles) => bubbles.map((bubble) => ring(bubble, radius)));
+  const linedUpAbove = Math.max(0.03, LINED_UP_SHARE * percentile(rings, 0.5));
   if (alignedCount / Math.max(1, bubbleCount) < 0.7 || fit.agreement < MIN_AGREEMENT) return fail("alignment_failed");
 
   const warnings: string[] = [];
@@ -384,7 +400,7 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
     if (mismatches === 1 || unsure > 0) warnings.push("تحقق أن هذه الورقة لهذا الاختبار.");
   }
 
-  const questions = template.questions.map((group, index) => readGroup(at, settled(group, fit.questions[index]), radius, linedUpAbove));
+  const questions = template.questions.map((group, index) => readGroup(at, settled(group, fit.questions[index]), radius, ring, linedUpAbove));
   const answers: Record<string, string> = {};
   questions.forEach((reading) => { answers[reading.key] = reading.value; });
 
@@ -392,8 +408,12 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
   let studentCodeDecision: Extract<OmrReading, { ok: true }>["studentCodeDecision"] = "absent";
   if (template.studentCode) {
     const { ones: onesGroup, tens: tensGroup } = template.studentCode;
-    const ones = readGroup(at, fit.code ? settled(onesGroup, fit.code.ones) : onesGroup, radius, linedUpAbove);
-    const tens = readGroup(at, fit.code ? settled(tensGroup, fit.code.tens) : tensGroup, radius, linedUpAbove);
+    // The number circles are smaller: judge them against their own typical circle.
+    const gridRadius = onesGroup.radius ?? radius;
+    const gridRings = [...(fit.code?.ones ?? onesGroup.bubbles), ...(fit.code?.tens ?? tensGroup.bubbles)].map((b) => ring(b, gridRadius));
+    const gridLinedUpAbove = Math.max(0.03, LINED_UP_SHARE * percentile(gridRings, 0.5));
+    const ones = readGroup(at, fit.code ? settled(onesGroup, fit.code.ones) : onesGroup, radius, ring, gridLinedUpAbove);
+    const tens = readGroup(at, fit.code ? settled(tensGroup, fit.code.tens) : tensGroup, radius, ring, gridLinedUpAbove);
     if (ones.decision === "ok" && (tens.decision === "ok" || tens.decision === "blank")) {
       const value = Number(tens.decision === "ok" ? tens.value : "0") * 10 + Number(ones.value);
       if (value > 0) {

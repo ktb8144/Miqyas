@@ -43,6 +43,8 @@ const SECOND_REACH = 2;
 const LAST_REACH = 1;
 /** Reach of the local correction (mm): anchors this far away count about 60 % as much as one right here. */
 const SIGMA = 25;
+/** Weight of "no correction" at every point: an anchor ~70 mm away counts about as much. */
+const PRIOR_WEIGHT = 0.01;
 /** An anchor this far (mm) from the correction fitted through the others is dropped — unless its circle was found clearly. */
 const MISFIT_MM = 2.5;
 /** Reach (mm) of the number grid's search around the correction near it. */
@@ -312,10 +314,11 @@ export function fieldAt(field: Field, p: Point): Point {
  * flat correction where anchors are few.
  */
 export function warpAt(anchors: Field, p: Point, skip = -1): Point {
-  const m = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  // The corner homography itself (no offset) is the default: far from every anchor, it decides.
+  const m = [[PRIOR_WEIGHT, 0, 0], [0, 0, 0], [0, 0, 0]];
   const rx = [0, 0, 0];
   const ry = [0, 0, 0];
-  let sw = 0;
+  let sw = PRIOR_WEIGHT;
   for (let n = 0; n < anchors.length; n++) {
     const a = anchors[n];
     if (a.w <= 0 || n === skip) continue;
@@ -329,7 +332,6 @@ export function warpAt(anchors: Field, p: Point, skip = -1): Point {
     }
     sw += w;
   }
-  if (sw <= 0) return { x: 0, y: 0 };
   m[1][1] += 0.1 * sw;
   m[2][2] += 0.1 * sw;
   const fx = solveLinear(m.map((row) => [...row]), rx);
@@ -559,9 +561,14 @@ export function fitPage(gray: GrayImage, homography: number[], template: OmrTemp
     anchors = anchorsFrom(positions);
   }
 
-  const code = template.studentCode ? settleNumberGrid(photo, coarse.soft, template, anchors) : undefined;
+  const grid = template.studentCode ? settleNumberGrid(photo, coarse.soft, template, anchors) : undefined;
   const agreed = coarse.agrees.filter(Boolean).length / Math.max(1, coarse.agrees.length);
-  return { field: anchors, questions: positions.map((settled) => settled.map((s) => s.p)), code, agreement: agreed };
+  return {
+    field: grid ? [...anchors, ...grid.anchors] : anchors,
+    questions: positions.map((settled) => settled.map((s) => s.p)),
+    code: grid ? { ones: grid.ones, tens: grid.tens } : undefined,
+    agreement: agreed,
+  };
 }
 
 // ─── 3. Student number ───────────────────────────────────────────────────────
@@ -614,8 +621,25 @@ function settleNumberGrid(photo: Lookup, soft: Lookup, template: OmrTemplate, an
   const rough = scan(soft, scan(soft, warpAt(anchors, centre), reach, 1, false), 0.5, 0.5, false);
   const offset = scan(photo, rough, 0.5, 0.25, true);
   const settle = (row: OmrChoiceGroup, r: number) =>
-    row.bubbles.map((b) => settleAt(photo, { x: b.x + offset.x, y: b.y + offset.y }, r, 0.75, 0.75).p);
-  return { ones: settle(grid.ones, radii[0]), tens: settle(grid.tens, radii[1]) };
+    row.bubbles.map((b) => settleAt(photo, { x: b.x + offset.x, y: b.y + offset.y }, r, 0.75, 0.75));
+  const ones = settle(grid.ones, radii[0]);
+  const tens = settle(grid.tens, radii[1]);
+  // The grid also tells the correction near the top of the sheet (where the class QR is).
+  const gridAnchors: Field = [];
+  [...grid.ones.bubbles, ...grid.tens.bubbles].forEach((b, i) => {
+    const s = i < ones.length ? ones[i] : tens[i - ones.length];
+    if (s.score > 0) gridAnchors.push({ ...b, dx: s.p.x - b.x, dy: s.p.y - b.y, w: s.score });
+  });
+  return { ones: ones.map((s) => s.p), tens: tens.map((s) => s.p), anchors: gridAnchors };
+}
+
+/**
+ * How clearly a printed circle of `radius` (mm) sits at each template point on the photo: the same
+ * complete-ring measure the page fit uses, so a bubble measured in the wrong place scores near 0.
+ */
+export function circleScorer(gray: GrayImage, homography: number[]) {
+  const photo = photoLookup(gray, homography);
+  return (p: Point, radius: number) => circleScore(photo, p.x, p.y, radius, true);
 }
 
 /** The homography that also applies a constant template offset `d` (mm): photo = H(p + d). */
