@@ -69,8 +69,12 @@ export type OmrReading =
       /** "" when the number grid was left empty or could not be read with confidence. */
       studentCode: string;
       studentCodeDecision: BubbleDecision | "invalid" | "absent";
-      /** Maps template millimetres to photo pixels (3×3, row-major). */
+      /** Maps template millimetres to photo pixels (3×3, row-major), from the corner squares alone. */
       homography: number[];
+      /** Smooth correction (mm) for paper that is not flat: a point p of the template is at homography(p + field(p)). See page-fit.ts. */
+      field: Array<{ x: number; y: number; dx: number; dy: number; w: number }>;
+      /** Where every bubble finally settled (template mm, mapped with `homography`), questions in template order. */
+      bubbles: { questions: Point[][]; code?: { ones: Point[]; tens: Point[] } };
       /** Corners of the template frame in photo pixels: top-left, top-right, bottom-right, bottom-left. */
       corners: Point[];
       warnings: string[];

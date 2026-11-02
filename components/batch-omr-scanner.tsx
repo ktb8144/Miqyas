@@ -164,13 +164,21 @@ async function compressImage(base64: string, maxWidth: number, quality: number):
   });
 }
 
+/**
+ * Camera request: the sharpest stream up to about 1080p. Asking for the same size both ways lets
+ * the phone pick its best format whichever way round it reports it (a phone held upright may
+ * report 1080×1920 or 1920×1080); the old portrait-only request could land on 720p.
+ */
+const CAMERA_VIDEO: MediaTrackConstraints = { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1920 } };
+/** Longest side (px) kept from a camera frame; reading scales larger photos down to 2000 anyway. */
+const FRAME_MAX_SIDE = 2000;
+
+/** Cuts the centre of the camera frame to the sheet's shape (A4, upright), at the camera's own resolution. */
 function drawVideoCoverToPortraitCanvas(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
-  const targetWidth = 1240;
-  const targetHeight = 1754;
-  const sourceWidth = video.videoWidth || targetWidth;
-  const sourceHeight = video.videoHeight || targetHeight;
+  const sourceWidth = video.videoWidth || 1240;
+  const sourceHeight = video.videoHeight || 1754;
   const sourceRatio = sourceWidth / sourceHeight;
-  const targetRatio = targetWidth / targetHeight;
+  const targetRatio = 1240 / 1754;
 
   let sx = 0;
   let sy = 0;
@@ -185,6 +193,9 @@ function drawVideoCoverToPortraitCanvas(video: HTMLVideoElement, canvas: HTMLCan
     sy = (sourceHeight - sh) / 2;
   }
 
+  const scale = Math.min(1, FRAME_MAX_SIDE / Math.max(sw, sh));
+  const targetWidth = Math.round(sw * scale);
+  const targetHeight = Math.round(sh * scale);
   canvas.width = targetWidth;
   canvas.height = targetHeight;
   const ctx = canvas.getContext("2d");
@@ -235,7 +246,7 @@ function RetakeModal({
   const start = useCallback(async () => {
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1240 }, height: { ideal: 1754 }, aspectRatio: { ideal: 0.7071 } },
+        video: CAMERA_VIDEO,
       });
       streamRef.current = s;
       setCameraReady(true);
@@ -711,7 +722,7 @@ export function BatchOMRScanner({
     setCameraError(null);
     try {
       const s = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: { ideal: 1240 }, height: { ideal: 1754 }, aspectRatio: { ideal: 0.7071 } },
+        video: CAMERA_VIDEO,
       });
       streamRef.current = s;
       setCameraOpen(true);

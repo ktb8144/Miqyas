@@ -17,7 +17,7 @@ export function solveHomography(from: Point[], to: Point[]): number[] | null {
   return solution ? [...solution, 1] : null;
 }
 
-function solveLinear(a: number[][], b: number[]): number[] | null {
+export function solveLinear(a: number[][], b: number[]): number[] | null {
   const n = b.length;
   const m = a.map((row, i) => [...row, b[i]]);
   for (let col = 0; col < n; col++) {
