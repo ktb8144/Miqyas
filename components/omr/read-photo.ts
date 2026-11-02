@@ -2,6 +2,7 @@
 
 import { applyHomography } from "@/lib/omr/geometry";
 import { toGray } from "@/lib/omr/image";
+import { shiftHomography, warpAt } from "@/lib/omr/page-fit";
 import { matchPrintedQr, type PrintedQr, type QrCandidate, type QrMatch } from "@/lib/omr/printed-qr";
 import { readAnswerSheet } from "@/lib/omr/reader";
 import type { OmrReading, OmrTemplate } from "@/lib/omr/types";
@@ -80,25 +81,30 @@ export async function readPhoto(base64: string, template: OmrTemplate, classQr?:
   let qr: QrMatch | undefined;
   if (reading.ok && classQr && classQr.candidates.length) {
     const gray = toGray({ width: imageData.width, height: imageData.height, data: imageData.data });
-    qr = matchPrintedQr(gray, reading.homography, classQr.printedQr, classQr.candidates);
+    // Paper that is not flat: shift by the correction found near the QR.
+    const { printedQr } = classQr;
+    const near = warpAt(reading.field, { x: printedQr.x + printedQr.size / 2, y: printedQr.y + printedQr.size / 2 });
+    qr = matchPrintedQr(gray, shiftHomography(reading.homography, near), printedQr, classQr.candidates);
   }
   if (reading.ok) {
     const r = template.bubbleRadius;
     reading.questions.forEach((group, index) => {
       if (group.value !== "unclear") return;
-      const bubbles = template.questions[index].bubbles;
+      // Where the bubbles were actually found, so the close-up shows them even on a bent sheet.
+      const bubbles = reading.bubbles.questions[index] ?? template.questions[index].bubbles;
       const xs = bubbles.map((b) => b.x);
-      const y = bubbles[0].y;
+      const ys = bubbles.map((b) => b.y);
       crops[group.key] = cropTemplateRect(canvas, reading.homography, {
         x0: Math.min(...xs) - r - 3,
         x1: Math.max(...xs) + r + 9,
-        y0: y - r - 2.5,
-        y1: y + r + 2.5,
+        y0: Math.min(...ys) - r - 2.5,
+        y1: Math.max(...ys) + r + 2.5,
       });
     });
     if (template.studentCode) {
       // The number area (written number + shaded rows) for the teacher to check at capture time.
-      const all = [...template.studentCode.ones.bubbles, ...template.studentCode.tens.bubbles];
+      const code = reading.bubbles.code;
+      const all = code ? [...code.ones, ...code.tens] : [...template.studentCode.ones.bubbles, ...template.studentCode.tens.bubbles];
       crops.number = cropTemplateRect(canvas, reading.homography, {
         x0: Math.min(...all.map((b) => b.x)) - 4,
         x1: Math.max(...all.map((b) => b.x)) + 20,
@@ -107,7 +113,8 @@ export async function readPhoto(base64: string, template: OmrTemplate, classQr?:
       }, 520);
     }
     if (template.studentCode && reading.studentCodeDecision !== "ok") {
-      const all = [...template.studentCode.ones.bubbles, ...template.studentCode.tens.bubbles];
+      const code = reading.bubbles.code;
+      const all = code ? [...code.ones, ...code.tens] : [...template.studentCode.ones.bubbles, ...template.studentCode.tens.bubbles];
       crops.code = cropTemplateRect(canvas, reading.homography, {
         x0: -3,
         x1: template.width + 3,
