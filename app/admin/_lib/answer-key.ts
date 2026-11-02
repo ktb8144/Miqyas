@@ -1,4 +1,4 @@
-import { parseAnswerKeyMisconceptions } from "@/lib/assessment/question-helpers";
+import { parseAnswerKeyJsonText, parseAnswerKeyMisconceptions } from "@/lib/assessment/question-helpers";
 import { toEnglishDigits } from "@/lib/format";
 import type { AnswerKeyValidationResult } from "./types";
 
@@ -10,12 +10,9 @@ export function validateAnswerKeyJson(rawValue: string): AnswerKeyValidationResu
     return { count: 0, summary: [] };
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error("صيغة JSON غير صحيحة.");
-  }
+  const text = parseAnswerKeyJsonText(raw);
+  if (text.error !== undefined) throw new Error(text.error);
+  const parsed = text.value;
 
   const questions = Array.isArray(parsed)
     ? parsed as Array<Record<string, unknown>>

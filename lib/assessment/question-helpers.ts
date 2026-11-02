@@ -52,3 +52,53 @@ export function parseAnswerKeyMisconceptions(
   }
   return { value: Object.keys(result).length ? result : null };
 }
+
+/**
+ * Parses answer-key JSON text pasted or loaded by an admin. Tolerates what copying often adds
+ * (a byte-order mark, a ```json fence, curly quotes, invisible direction marks, trailing commas),
+ * and when the text still is not JSON, says where and why in Arabic instead of a bare
+ * "invalid JSON".
+ */
+export function parseAnswerKeyJsonText(raw: string): { value: unknown; error?: undefined } | { value?: undefined; error: string } {
+  let text = raw.replace(/^﻿/, "").trim();
+  const fence = text.match(/^```[a-zA-Z]*\s*([\s\S]*?)\s*```$/);
+  if (fence) text = fence[1].trim();
+  if (!text) return { error: "لم يُلصق شيء. ارفع ملف المفتاح أو ألصق محتواه." };
+
+  let firstError: unknown;
+  try {
+    return { value: JSON.parse(text) };
+  } catch (err) {
+    firstError = err;
+  }
+  const repaired = text
+    .replace(/[‎‏‪-‮⁦-⁩]/g, "")
+    .replace(/[“”„‟″]/g, '"')
+    .replace(/,\s*([}\]])/g, "$1");
+  try {
+    return { value: JSON.parse(repaired) };
+  } catch {
+    // fall through to a description of the original text's problem
+  }
+
+  const first = text[0];
+  if (first !== "{" && first !== "[") {
+    return { error: `النص لا يبدأ بـ { كما يبدأ ملف المفتاح، بل يبدأ بـ «${text.slice(0, 20)}». ارفع ملف ‎.json‎ نفسه بزر «اختيار ملف المفتاح».` };
+  }
+  const last = text[text.length - 1];
+  if (last !== "}" && last !== "]") {
+    return { error: `النص ناقص: ينتهي بـ «${text.slice(-20)}» لا بـ }. يبدو أن جزءًا منه لم يُنسخ؛ ارفع الملف نفسه بزر «اختيار ملف المفتاح».` };
+  }
+  const message = firstError instanceof Error ? firstError.message : "";
+  const lineCol = message.match(/line (\d+) column (\d+)/);
+  const position = message.match(/position (\d+)/);
+  let at: number | null = position ? Number(position[1]) : null;
+  if (at === null && lineCol) {
+    const lines = text.split("\n");
+    at = lines.slice(0, Number(lineCol[1]) - 1).reduce((sum, line) => sum + line.length + 1, 0) + Number(lineCol[2]) - 1;
+  }
+  if (at === null) return { error: "صيغة JSON غير صحيحة. ارفع ملف المفتاح نفسه بزر «اختيار ملف المفتاح» بدل النسخ واللصق." };
+  const line = text.slice(0, at).split("\n").length;
+  const snippet = text.slice(Math.max(0, at - 25), at + 15).replace(/\s+/g, " ");
+  return { error: `صيغة JSON غير صحيحة في السطر ${line}، قرب: «${snippet}». ارفع ملف المفتاح نفسه بزر «اختيار ملف المفتاح» بدل النسخ واللصق.` };
+}

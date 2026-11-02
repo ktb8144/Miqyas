@@ -1,5 +1,5 @@
 import "server-only";
-import { parseAnswerKeyMisconceptions } from "@/lib/assessment/question-helpers";
+import { parseAnswerKeyJsonText, parseAnswerKeyMisconceptions } from "@/lib/assessment/question-helpers";
 import { classMatchesPackage } from "@/lib/packages";
 
 const OPTION_LABELS = ["أ", "ب", "ج", "د"] as const;
@@ -54,11 +54,11 @@ export function parsePackageAnswerKey(input: unknown) {
   const source = typeof input === "string" ? input.trim() : input;
   if (!source) return { questions: [] as ParsedAnswerQuestion[] };
 
-  let parsed: unknown;
-  try {
-    parsed = typeof source === "string" ? JSON.parse(source) : source;
-  } catch {
-    fail("صيغة JSON غير صحيحة.");
+  let parsed: unknown = source;
+  if (typeof source === "string") {
+    const text = parseAnswerKeyJsonText(source);
+    if (text.error !== undefined) fail(text.error);
+    parsed = text.value;
   }
 
   const rawQuestions = Array.isArray(parsed)

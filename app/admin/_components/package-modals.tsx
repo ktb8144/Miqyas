@@ -12,6 +12,29 @@ import type {
 } from "../_lib/types";
 import { EmptyState } from "./ui";
 
+/** Loads an answer-key .json file into the textarea, so the admin need not copy and paste it. */
+function AnswerKeyFileButton({ onLoad }: { onLoad: (text: string) => void }) {
+  const [fileName, setFileName] = useState<string | null>(null);
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-brand px-4 py-2 text-xs font-extrabold text-white">
+      اختيار ملف المفتاح ‎(.json)‎
+      {fileName ? <span className="font-bold text-white/80" dir="ltr">{fileName}</span> : null}
+      <input
+        type="file"
+        accept=".json,application/json,text/plain"
+        className="hidden"
+        onChange={async (event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          if (!file) return;
+          setFileName(file.name);
+          onLoad(await file.text());
+        }}
+      />
+    </label>
+  );
+}
+
 export function PackageModal({
   initialValues,
   onClose,
@@ -28,9 +51,9 @@ export function PackageModal({
   const [answerKeyValidation, setAnswerKeyValidation] = useState<AnswerKeyValidationResult | null>(null);
   const [answerKeyValidationError, setAnswerKeyValidationError] = useState<string | null>(null);
 
-  function handleValidateAnswerKey() {
+  function handleValidateAnswerKey(value = answerKeyJson) {
     try {
-      const result = validateAnswerKeyJson(answerKeyJson);
+      const result = validateAnswerKeyJson(value);
       setAnswerKeyValidation(result);
       setAnswerKeyValidationError(null);
     } catch (err) {
@@ -149,8 +172,16 @@ export function PackageModal({
             <div className="mb-3">
               <h3 className="text-base font-black text-brand-navy">مفتاح الإجابة والمهارات</h3>
               <p className="mt-1 text-xs font-bold leading-6 text-slate-500">
-                ألصق مفتاح الإجابة بصيغة JSON. سيتم حفظه للأدمن فقط وتحويله إلى أسئلة وخيارات للتصحيح الآلي من السيرفر.
+                اختر ملف المفتاح ‎(.json)‎ أو ألصق محتواه. سيتم حفظه للأدمن فقط وتحويله إلى أسئلة وخيارات للتصحيح الآلي من السيرفر.
               </p>
+            </div>
+            <div className="mb-3">
+              <AnswerKeyFileButton
+                onLoad={(value) => {
+                  setAnswerKeyJson(value);
+                  handleValidateAnswerKey(value);
+                }}
+              />
             </div>
             <label>
               <span className="mb-2 block text-sm font-extrabold text-slate-500">مفتاح الإجابة والمهارات بصيغة JSON</span>
@@ -164,13 +195,14 @@ export function PackageModal({
                   setAnswerKeyValidationError(null);
                 }}
                 placeholder={ANSWER_KEY_JSON_EXAMPLE}
+                dir="ltr"
                 className="w-full rounded-xl border border-slate-100 bg-white px-4 py-3 font-mono text-xs font-bold leading-6 text-brand-navy outline-none focus:border-brand/40"
               />
             </label>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={handleValidateAnswerKey}
+                onClick={() => handleValidateAnswerKey()}
                 className="rounded-xl border border-brand/25 bg-white px-4 py-2 text-xs font-extrabold text-brand"
               >
                 التحقق من JSON
@@ -234,9 +266,9 @@ export function QuestionImportModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function handleValidate() {
+  function handleValidate(value = text) {
     try {
-      setValidation(validateAnswerKeyJson(text));
+      setValidation(validateAnswerKeyJson(value));
       setError(null);
     } catch (err) {
       setValidation(null);
@@ -270,7 +302,15 @@ export function QuestionImportModal({
         </div>
         {error && <div className="mb-4 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{error}</div>}
         <div className="mb-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold leading-7 text-amber-700">
-          ألصق مفتاح الإجابة والمهارات بصيغة JSON العربية البسيطة. لا نحتاج UUID للمهارة أو المجال في هذه المرحلة. هذه البيانات تحتوي مفتاح الإجابة ولا تظهر للمعلم أو قائد المدرسة.
+          اختر ملف مفتاح الإجابة ‎(.json)‎ أو ألصق محتواه. لا نحتاج UUID للمهارة أو المجال في هذه المرحلة. هذه البيانات تحتوي مفتاح الإجابة ولا تظهر للمعلم أو قائد المدرسة.
+        </div>
+        <div className="mb-3">
+          <AnswerKeyFileButton
+            onLoad={(value) => {
+              setText(value);
+              handleValidate(value);
+            }}
+          />
         </div>
         <textarea
           value={text}
@@ -298,7 +338,7 @@ export function QuestionImportModal({
           </pre>
         </details>
         <div className="mt-4 flex gap-3">
-          <button onClick={handleValidate} type="button" className="rounded-xl border border-brand/25 bg-white px-5 py-3 text-sm font-extrabold text-brand">
+          <button onClick={() => handleValidate()} type="button" className="rounded-xl border border-brand/25 bg-white px-5 py-3 text-sm font-extrabold text-brand">
             التحقق من JSON
           </button>
           <button onClick={handleSubmit} disabled={submitting} className="rounded-xl bg-brand px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60">
