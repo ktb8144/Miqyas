@@ -58,6 +58,14 @@ function cropTemplateRect(
   return out.toDataURL("image/jpeg", 0.85);
 }
 
+/** The more decisive of two QR matches; two confident but different codes mean neither can be trusted. */
+function clearer(a: QrMatch, b: QrMatch): QrMatch {
+  if (a.code && b.code && a.code !== b.code) return { ...a, code: null };
+  if (a.code && !b.code) return a;
+  if (b.code && !a.code) return b;
+  return b.margin > a.margin ? b : a;
+}
+
 export type PhotoReading = {
   reading: OmrReading;
   /** Close-ups of every question (and the student number) the reader left for the teacher; `number` is always the number area. */
@@ -81,10 +89,12 @@ export async function readPhoto(base64: string, template: OmrTemplate, classQr?:
   let qr: QrMatch | undefined;
   if (reading.ok && classQr && classQr.candidates.length) {
     const gray = toGray({ width: imageData.width, height: imageData.height, data: imageData.data });
-    // Paper that is not flat: shift by the correction found near the QR.
+    // Paper that is not flat: also try the correction found near the QR, and keep the clearer match.
     const { printedQr } = classQr;
     const near = warpAt(reading.field, { x: printedQr.x + printedQr.size / 2, y: printedQr.y + printedQr.size / 2 });
-    qr = matchPrintedQr(gray, shiftHomography(reading.homography, near), printedQr, classQr.candidates);
+    const plain = matchPrintedQr(gray, reading.homography, printedQr, classQr.candidates);
+    const shifted = Math.hypot(near.x, near.y) > 0.3 ? matchPrintedQr(gray, shiftHomography(reading.homography, near), printedQr, classQr.candidates) : plain;
+    qr = clearer(plain, shifted);
   }
   if (reading.ok) {
     const r = template.bubbleRadius;
