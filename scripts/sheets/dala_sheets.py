@@ -135,10 +135,12 @@ def make_master(src, test, ctx):
     mm = lambda *v: pymupdf.Rect(*[x * MM2PT for x in v])
     page.add_redact_annot(mm(14.0, 12.6, 60.5, 31.0), fill=False)       # old written-number boxes
     page.add_redact_annot(mm(108.0, 13.0, 197.0, 24.0), fill=False)     # "دالة | <subject>" title and its bar
+    page.add_redact_annot(mm(139.6, 26.5, 140.95, 28.0), fill=False)    # bullet before the date
     page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_REMOVE_IF_TOUCHED,
                           text=pymupdf.PDF_REDACT_TEXT_REMOVE)
     fb = test["footer_box"]
     page.add_redact_annot(mm(62.0, 41.6, 196.0, 48.2), fill=False)      # instruction sentence
+    page.add_redact_annot(mm(108.0, 24.3, 138.6, 30.0), fill=False)     # test date: no date, since teachers print ahead
     page.add_redact_annot(mm(fb[0] - 1, fb[1] - 0.3, fb[2] + 1, fb[3] + 0.3), fill=False)
     page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_NONE, graphics=pymupdf.PDF_REDACT_LINE_ART_NONE,
                           text=pymupdf.PDF_REDACT_TEXT_REMOVE)

@@ -1,4 +1,5 @@
 import "server-only";
+import { parseAnswerKeyMisconceptions } from "@/lib/assessment/question-helpers";
 import { classMatchesPackage } from "@/lib/packages";
 
 const OPTION_LABELS = ["أ", "ب", "ج", "د"] as const;
@@ -25,6 +26,8 @@ type ParsedAnswerQuestion = {
   question_text?: string | null;
   explanation?: string | null;
   options: Record<OptionLabel, string>;
+  /** Wrong option letter → the misconception behind it; null when the key has none. */
+  misconceptions: Record<string, string> | null;
 };
 
 export class AssessmentValidationError extends Error {
@@ -90,6 +93,8 @@ export function parsePackageAnswerKey(input: unknown) {
     if (!options || OPTION_LABELS.some((label) => !normalizeText(options[label]))) {
       fail(`السؤال رقم ${questionNumber} لا يحتوي على الخيارات الأربعة.`);
     }
+    const misconceptions = parseAnswerKeyMisconceptions(question.misconceptions, correctAnswer, questionNumber);
+    if (misconceptions.error !== undefined) fail(misconceptions.error);
 
     return {
       question_number: questionNumber,
@@ -105,6 +110,7 @@ export function parsePackageAnswerKey(input: unknown) {
         "ج": normalizeText(options["ج"]),
         "د": normalizeText(options["د"]),
       },
+      misconceptions: misconceptions.value,
     };
   });
 
@@ -146,6 +152,7 @@ export async function syncPackageQuestionsFromAnswerKey({
         skill_text: question.skill,
         remediation_note: question.explanation || null,
         options_json: question.options,
+        misconceptions_json: question.misconceptions,
       }))
     )
     .select("id");
