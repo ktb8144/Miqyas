@@ -145,6 +145,14 @@ function findFrames(image: GrayImage, template: OmrTemplate, keep: number): Fram
   return kept;
 }
 
+/**
+ * The likeliest four corner squares in a (small) frame, clockwise from the frame's top-left, without
+ * checking the printed circles: quick enough for a live camera preview. The full read checks the rest.
+ */
+export function findSheetCorners(image: GrayImage, template: OmrTemplate): Point[] | null {
+  return findFrames(image, template, 1)[0]?.corners ?? null;
+}
+
 // ─── 2. Sampling ─────────────────────────────────────────────────────────────
 
 function percentile(values: number[], p: number) {
