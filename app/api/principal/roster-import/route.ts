@@ -87,7 +87,8 @@ export async function POST(req: NextRequest) {
         classId = (inserted as { id: string }).id;
       }
 
-      const saved = await addStudentsToClass({ schoolId, classId, names: entry.names });
+      // Names arrive in Noor's order; each subject's copy of the section is imported here, so no sync.
+      const saved = await addStudentsToClass({ schoolId, classId, names: entry.names, keepOrder: true });
       summary.push({ className: entry.name, subject: entry.subject, created, added: saved.added, duplicates: saved.duplicates });
     }
 

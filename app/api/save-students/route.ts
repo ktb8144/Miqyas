@@ -7,6 +7,8 @@ import { addStudentsToClass } from "@/lib/students/save";
 const saveStudentsSchema = z.object({
   classId: z.string().uuid(),
   names: z.array(z.string().trim().min(1).max(120)).min(1).max(200),
+  /** True when the names come from a Noor/Excel file in roster order. */
+  keepOrder: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { classId, names } = parsed.data;
+    const { classId, names, keepOrder } = parsed.data;
     const db = getAdminClient();
 
     const { data: classRow, error: classError } = await db
@@ -45,13 +47,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const saved = await addStudentsToClass({ schoolId: classRow.school_id, classId, names });
+    const saved = await addStudentsToClass({
+      schoolId: classRow.school_id,
+      classId,
+      names,
+      keepOrder: keepOrder ?? false,
+      syncSection: true,
+    });
     return NextResponse.json({
       success: true,
       students: saved.students,
       insertedCount: saved.added,
       added: saved.added,
       duplicates: saved.duplicates,
+      syncedClassIds: saved.syncedClassIds,
     });
   } catch (err) {
     console.error("save students failed", err);

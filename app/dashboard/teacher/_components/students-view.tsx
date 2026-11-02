@@ -6,6 +6,7 @@ import { toEnglishDigits } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 import type { TeacherDashboardState } from "../_lib/use-teacher-dashboard";
 import { StudentProfileLink } from "@/components/student-profile/student-profile-link";
+import { codesFollowNameOrder } from "@/lib/students/order";
 
 export function StudentsView({ d }: { d: TeacherDashboardState }) {
   const {
@@ -26,8 +27,16 @@ export function StudentsView({ d }: { d: TeacherDashboardState }) {
     handleImportSave,
     handleManualSave,
     handleBackToClasses,
+    renumbering,
+    renumberError,
+    renumberPending,
+    renumberMessage,
+    handleRenumber,
+    clearRenumberState,
   } = d;
   if (!activeClass) return null;
+  // The list is alphabetical; numbers fall out of that order only when someone joined after the class was numbered.
+  const numbersOutOfOrder = activeStudents.length > 1 && !codesFollowNameOrder(activeStudents, (s) => s.studentCode);
 
   return (
     <>
@@ -89,6 +98,62 @@ export function StudentsView({ d }: { d: TeacherDashboardState }) {
             + إضافة طلاب
           </button>
         </div>
+        {(numbersOutOfOrder || renumberPending || renumberMessage || renumberError) && (
+          <div className="space-y-3 border-b border-gray-100 bg-amber-50/60 px-4 py-3 text-sm font-bold print:hidden">
+            {numbersOutOfOrder && !renumberPending && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-amber-800">
+                  الأسماء مرتبة هجائيًا، لكن أرقام بعض الطلاب لا تتبع هذا الترتيب لأنهم أُضيفوا بعد ترقيم الفصل.
+                  أرقامهم ثابتة حتى لا تتغير أرقام زملائهم في منتصف الفصل الدراسي. يمكنك إعادة الترقيم هجائيًا
+                  في بداية فصل دراسي قبل طباعة اختبار جديد (يشمل الفصل نفسه في المواد الأخرى).
+                </p>
+                <button
+                  onClick={() => void handleRenumber(false)}
+                  disabled={renumbering}
+                  className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-extrabold text-amber-800 transition hover:bg-amber-100 disabled:opacity-50"
+                >
+                  {renumbering ? "جارٍ إعادة الترقيم..." : "إعادة الترقيم هجائيًا"}
+                </button>
+              </div>
+            )}
+            {renumberPending && (
+              <div className="space-y-2 text-amber-900">
+                <p>
+                  توجد اختبارات مطبوعة لم تُصحَّح كل أوراقها. إن أعدت الترقيم الآن فالأوراق التي ظلّلها الطلاب بأرقامهم
+                  القديمة ستُنسب لطلاب آخرين:
+                </p>
+                <ul className="list-disc space-y-0.5 pr-5 text-xs">
+                  {renumberPending.map((test, index) => (
+                    <li key={index}>
+                      {test.title} — {test.className}
+                      {test.subject ? ` (${test.subject})` : ""}: صُحّحت {toEnglishDigits(test.scanned)} من {toEnglishDigits(test.students)} ورقة
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-amber-800">
+                  الأفضل: أكمل تصحيح هذه الأوراق أولًا. إن كان الباقي أوراق طلاب غائبين فلن تُصحَّح، ويمكنك المتابعة.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => void handleRenumber(true)}
+                    disabled={renumbering}
+                    className="rounded-xl bg-amber-700 px-4 py-2 text-xs font-extrabold text-white transition hover:bg-amber-800 disabled:opacity-50"
+                  >
+                    {renumbering ? "جارٍ إعادة الترقيم..." : "إعادة الترقيم رغم ذلك"}
+                  </button>
+                  <button
+                    onClick={clearRenumberState}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-extrabold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            )}
+            {renumberMessage && <p className="text-emerald-700">{renumberMessage}</p>}
+            {renumberError && <p className="text-red-700">{renumberError}</p>}
+          </div>
+        )}
         {activeStudents.length === 0 ? (
           <div className="py-12 text-center text-gray-400">
             <div className="text-4xl mb-3">👥</div>
@@ -99,7 +164,6 @@ export function StudentsView({ d }: { d: TeacherDashboardState }) {
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">#</th>
                   <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">رقم الطالب</th>
                   <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">اسم الطالب</th>
                   <th className="text-right px-4 py-3 text-sm font-medium text-gray-600">آخر درجة</th>
@@ -108,14 +172,13 @@ export function StudentsView({ d }: { d: TeacherDashboardState }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {activeStudents.map((s, i) => {
+                {activeStudents.map((s) => {
                   const packageScore = activeClass ? getStudentPackageScore(activeClass.id, s.id) : null;
                   return (
                     <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-gray-400 text-sm">{toEnglishDigits(i + 1)}</td>
                       <td className="px-4 py-3">
                         <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-black text-brand">
-                          رقم الطالب: {toEnglishDigits(s.studentCode ?? i + 1)}
+                          رقم الطالب: {s.studentCode ? toEnglishDigits(s.studentCode) : "—"}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-gray-900"><StudentProfileLink studentId={s.id} name={s.name} /></td>
