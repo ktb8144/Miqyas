@@ -6,6 +6,9 @@ import type { OmrTemplate } from "@/lib/omr/types";
 import type { PrintedQr } from "@/lib/omr/printed-qr";
 import { sheetQrModules } from "@/lib/omr/sheet-code";
 import { readPhoto, type ClassQrCheck, type PhotoReading } from "@/components/omr/read-photo";
+import { drawSheetFrame, grabSharpest, previewGray, readAutoCapture, writeAutoCapture } from "@/components/omr/live-camera";
+import { AutoCaptureTracker, lookAtFrame, type LiveStatus } from "@/lib/omr/live";
+import type { Point } from "@/lib/omr/types";
 import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
 import { BRAND } from "@/lib/brand";
@@ -20,6 +23,16 @@ const SCAN_QUALITY = 0.88;
 const SCAN_RETAKE_QUALITY = 0.9;
 const GRADE_TIMEOUT_MS = 20_000;
 const AUTO_NOTE_MS = 2600;
+/** How often the live camera look runs (ms). */
+const LIVE_INTERVAL_MS = 140;
+/** An automatic capture whose sharpest frame is below this waits for a steadier moment (see lib/omr/live.ts). */
+const AUTO_MIN_SHARPNESS = 0.18;
+/** …unless the sheet has been held this long (ms): then it is read anyway, and the reader decides. */
+const AUTO_SHARPNESS_PATIENCE_MS = 3000;
+/** After a capture skipped for blur, the next try waits this long (ms). */
+const AUTO_RETRY_GAP_MS = 350;
+/** An automatic capture that cannot be read is retried this many times before waiting for the sheet to move. */
+const AUTO_RETRIES = 2;
 const MISSING_ASSIGNMENT_ERROR = "لا يمكن بدء التصحيح بدون تعيين الحزمة على الفصل.";
 
 const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
@@ -170,37 +183,26 @@ async function compressImage(base64: string, maxWidth: number, quality: number):
  * report 1080×1920 or 1920×1080); the old portrait-only request could land on 720p.
  */
 const CAMERA_VIDEO: MediaTrackConstraints = { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1920 } };
-/** Longest side (px) kept from a camera frame; reading scales larger photos down to 2000 anyway. */
-const FRAME_MAX_SIDE = 2000;
+/** Whether two live corner sets are the same to the eye (avoids re-rendering for sub-pixel jitter). */
+function sameCorners(a: Point[] | null, b: Point[] | null) {
+  if (!a || !b) return a === b;
+  return a.every((p, i) => Math.abs(p.x - b[i].x) < 0.004 && Math.abs(p.y - b[i].y) < 0.004);
+}
 
-/** Cuts the centre of the camera frame to the sheet's shape (A4, upright), at the camera's own resolution. */
-function drawVideoCoverToPortraitCanvas(video: HTMLVideoElement, canvas: HTMLCanvasElement) {
-  const sourceWidth = video.videoWidth || 1240;
-  const sourceHeight = video.videoHeight || 1754;
-  const sourceRatio = sourceWidth / sourceHeight;
-  const targetRatio = 1240 / 1754;
-
-  let sx = 0;
-  let sy = 0;
-  let sw = sourceWidth;
-  let sh = sourceHeight;
-
-  if (sourceRatio > targetRatio) {
-    sw = sourceHeight * targetRatio;
-    sx = (sourceWidth - sw) / 2;
-  } else {
-    sh = sourceWidth / targetRatio;
-    sy = (sourceHeight - sh) / 2;
+/** What the teacher is told on the camera frame. */
+function liveHint(status: LiveStatus, automatic: boolean) {
+  switch (status) {
+    case "searching":
+      return "أدخل الورقة كاملة في الإطار حتى تظهر المربعات الأربعة";
+    case "closer":
+      return "اقترب من الورقة قليلًا";
+    case "holding":
+      return automatic ? "ثبّت الجوال…" : "ثبّت الجوال ثم اضغط الزر";
+    case "ready":
+      return automatic ? "يلتقطها الآن…" : "جاهزة — اضغط الزر";
+    case "waiting":
+      return "ضع الورقة التالية";
   }
-
-  const scale = Math.min(1, FRAME_MAX_SIDE / Math.max(sw, sh));
-  const targetWidth = Math.round(sw * scale);
-  const targetHeight = Math.round(sh * scale);
-  canvas.width = targetWidth;
-  canvas.height = targetHeight;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
 }
 
 function sendBrowserNotification(body: string) {
@@ -265,7 +267,7 @@ function RetakeModal({
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return;
-    drawVideoCoverToPortraitCanvas(video, canvas);
+    drawSheetFrame(video, canvas);
     const raw = canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
     streamRef.current?.getTracks().forEach((t) => t.stop());
     const compressed = await compressImage(raw, maxWidth, quality);
@@ -750,56 +752,153 @@ export function BatchOMRScanner({
     if (window.matchMedia?.("(pointer: coarse)").matches) void openCamera();
   }, [classPackageAssignmentId, openCamera]);
 
+  // ── Live camera: the sheet is looked for several times a second and, held still, captured on its own ──
+
+  const [autoCapture, setAutoCapture] = useState(true);
+  useEffect(() => setAutoCapture(readAutoCapture()), []);
+  const toggleAutoCapture = useCallback(() => {
+    setAutoCapture((on) => {
+      writeAutoCapture(!on);
+      return !on;
+    });
+  }, []);
+  const [live, setLive] = useState<{ status: LiveStatus; corners: Point[] | null }>({ status: "searching", corners: null });
+  const tracker = useRef(new AutoCaptureTracker());
+  const autoFailures = useRef(0);
+  /** Set while the held sheet is still too blurred to capture (shaking, or the camera still focusing). */
+  const [waitingSharp, setWaitingSharp] = useState(false);
+  const nextTryAt = useRef(0);
+
   /**
-   * One tap: read the paper on the device (a fraction of a second). A clear paper (number read cleanly,
-   * student in the roster and not photographed yet, class QR confirmed) is accepted at once with its name
-   * shown for a moment and a "تغيير" button; anything doubtful stops and asks the teacher.
-   * Grading continues in the background. A photo that can't be read is not kept.
+   * Reads one captured frame on the device (a fraction of a second) and files the paper — the same
+   * for a tap and for an automatic capture. A clear paper (number read cleanly, student in the roster
+   * and not photographed yet, class QR confirmed) is accepted at once with its name shown for a moment
+   * and a "تغيير" button; anything doubtful stops and asks the teacher. Grading continues in the
+   * background. A photo that can't be read is not kept. Returns whether the photo could be read.
    */
+  const fileFrame = useCallback(async (canvas: HTMLCanvasElement, automatic: boolean): Promise<boolean> => {
+    const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
+    const quick = await readPhoto(raw, template, classQr);
+    if (!quick.reading.ok) {
+      flashMessage(`لم تُحفظ: ${quick.reading.message}`, automatic ? 2500 : 4000);
+      return false;
+    }
+    const paper = await preparePaper(raw, `p${Date.now()}`);
+    addPaper(paper, raw, quick);
+    const { studentCode, otherClassName, qrUnsure, match, codeClear } = assess(quick);
+    const info: Confirmation = { paperId: paper.id, studentCode, suggestedId: match.matchedStudentId, otherClassName, qrUnsure, numberCrop: quick.crops.number };
+    confirmInfo.current.set(paper.id, info);
+    const taken = Array.from(decisions.current.values()).includes(match.matchedStudentId);
+    const classConfirmed = !classQr || (quick.qr?.code != null && quick.qr.code === sheet?.expectedCode);
+    if (codeClear && match.matchedStudentId && !taken && classConfirmed && !otherClassName) {
+      decisions.current.set(paper.id, match.matchedStudentId);
+      const name = students.find((student) => student.id === match.matchedStudentId)?.name ?? "";
+      setCaptureMessage(null);
+      setAutoNote({ paperId: paper.id, name, code: studentCode });
+      if (autoNoteTimer.current) window.clearTimeout(autoNoteTimer.current);
+      autoNoteTimer.current = window.setTimeout(() => setAutoNote(null), AUTO_NOTE_MS);
+    } else {
+      setAutoNote(null);
+      if ("vibrate" in navigator) navigator.vibrate?.([30, 60, 30]);
+      setPicking(!otherClassName && !match.matchedStudentId);
+      setConfirming(info);
+    }
+    return true;
+  }, [addPaper, assess, classQr, flashMessage, preparePaper, sheet, students, template]);
+
+  /** The button: the tap shakes the phone, so wait a moment and keep the sharpest of a few frames. */
   const captureOne = useCallback(async () => {
     if (papers.length >= MAX_PAPERS || captureBusy || confirming) return;
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    if (!video) return;
     setCaptureBusy(true);
     setCaptureFlash(true);
     if ("vibrate" in navigator) navigator.vibrate?.(35);
-
+    // The sheet in view is being taken: automatic capture waits for the next one.
+    tracker.current.captured();
     try {
-      drawVideoCoverToPortraitCanvas(video, canvas);
-      const raw = canvas.toDataURL("image/jpeg", 0.95).split(",")[1];
-      const quick = await readPhoto(raw, template, classQr);
-      if (!quick.reading.ok) {
-        flashMessage(`لم تُحفظ: ${quick.reading.message}`, 4000);
-        return;
-      }
-      const paper = await preparePaper(raw, `p${Date.now()}`);
-      addPaper(paper, raw, quick);
-      const { studentCode, otherClassName, qrUnsure, match, codeClear } = assess(quick);
-      const info: Confirmation = { paperId: paper.id, studentCode, suggestedId: match.matchedStudentId, otherClassName, qrUnsure, numberCrop: quick.crops.number };
-      confirmInfo.current.set(paper.id, info);
-      const taken = Array.from(decisions.current.values()).includes(match.matchedStudentId);
-      const classConfirmed = !classQr || (quick.qr?.code != null && quick.qr.code === sheet?.expectedCode);
-      if (codeClear && match.matchedStudentId && !taken && classConfirmed && !otherClassName) {
-        decisions.current.set(paper.id, match.matchedStudentId);
-        const name = students.find((student) => student.id === match.matchedStudentId)?.name ?? "";
-        setCaptureMessage(null);
-        setAutoNote({ paperId: paper.id, name, code: studentCode });
-        if (autoNoteTimer.current) window.clearTimeout(autoNoteTimer.current);
-        autoNoteTimer.current = window.setTimeout(() => setAutoNote(null), AUTO_NOTE_MS);
-      } else {
-        setAutoNote(null);
-        if ("vibrate" in navigator) navigator.vibrate?.([30, 60, 30]);
-        setPicking(!otherClassName && !match.matchedStudentId);
-        setConfirming(info);
-      }
+      const frame = await grabSharpest(video, template, { settle: 220, count: 4, gap: 70 });
+      if (!frame) throw new Error("no frame");
+      await fileFrame(frame.canvas, false);
     } catch {
       flashMessage("تعذّر التقاط الصورة، حاول مرة أخرى");
     } finally {
       setCaptureBusy(false);
       window.setTimeout(() => setCaptureFlash(false), 160);
     }
-  }, [addPaper, assess, captureBusy, classQr, confirming, flashMessage, papers.length, preparePaper, sheet, students, template]);
+  }, [captureBusy, confirming, fileFrame, flashMessage, papers.length, template]);
+
+  /** Automatic capture: the sheet has been held still; keep the sharpest of a few frames, or wait for one. */
+  const captureAutomatically = useCallback(async () => {
+    if (papers.length >= MAX_PAPERS || captureBusy || confirming) return;
+    const video = videoRef.current;
+    if (!video) return;
+    setCaptureBusy(true);
+    try {
+      const frame = await grabSharpest(video, template, { settle: 0, count: 3, gap: 60 });
+      if (!frame) return;
+      // Still shaking, or the camera still focusing on the new sheet: look again in a moment.
+      if (frame.sharpness < AUTO_MIN_SHARPNESS && tracker.current.heldFor(performance.now()) < AUTO_SHARPNESS_PATIENCE_MS) {
+        setWaitingSharp(true);
+        nextTryAt.current = performance.now() + AUTO_RETRY_GAP_MS;
+        return;
+      }
+      setWaitingSharp(false);
+      tracker.current.captured();
+      setCaptureFlash(true);
+      if ("vibrate" in navigator) navigator.vibrate?.(35);
+      const read = await fileFrame(frame.canvas, true);
+      if (read) {
+        autoFailures.current = 0;
+      } else if (autoFailures.current < AUTO_RETRIES) {
+        // Try the same sheet again once it has been held still again; after that, wait for it to move.
+        autoFailures.current++;
+        tracker.current.rearm();
+      }
+    } catch {
+      // A failed automatic capture is simply tried again on a later look.
+    } finally {
+      setCaptureBusy(false);
+      window.setTimeout(() => setCaptureFlash(false), 160);
+    }
+  }, [captureBusy, confirming, fileFrame, papers.length, template]);
+
+  const liveState = useRef({ busy: false, confirming: false, full: false, auto: true, capture: captureAutomatically });
+  useEffect(() => {
+    liveState.current = { busy: captureBusy, confirming: Boolean(confirming), full: papers.length >= MAX_PAPERS, auto: autoCapture, capture: captureAutomatically };
+  });
+
+  useEffect(() => {
+    if (!cameraOpen) return;
+    tracker.current.rearm();
+    autoFailures.current = 0;
+    let stopped = false;
+    let timer = 0;
+    const canvas = document.createElement("canvas");
+    const tick = async () => {
+      if (stopped) return;
+      const video = videoRef.current;
+      const state = liveState.current;
+      if (video && video.readyState >= 2 && video.videoWidth && !state.busy && !state.confirming && !document.hidden) {
+        const gray = previewGray(video, canvas);
+        if (gray) {
+          const look = lookAtFrame(gray, template);
+          const now = performance.now();
+          const { status, capture } = tracker.current.update(look, now);
+          if (status === "searching") autoFailures.current = 0;
+          if (status !== "ready" && status !== "holding") setWaitingSharp(false);
+          setLive((prev) => (prev.status === status && sameCorners(prev.corners, look.corners) ? prev : { status, corners: look.corners }));
+          if (capture && state.auto && !state.full && now >= nextTryAt.current) await state.capture();
+        }
+      }
+      if (!stopped) timer = window.setTimeout(tick, LIVE_INTERVAL_MS);
+    };
+    void tick();
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
+  }, [cameraOpen, template]);
 
   /**
    * The teacher says whose paper this is. With `unlinkEarlier`, a paper already given to this student is
@@ -1070,11 +1169,20 @@ export function BatchOMRScanner({
               </p>
               <p className="text-xs font-bold text-white/60">
                 {papers.length === 0
-                  ? "ضع الورقة داخل الإطار واضغط الزر"
+                  ? autoCapture
+                    ? "ضع الورقة في الإطار وثبّت الجوال، تُلتقط وحدها"
+                    : "ضع الورقة داخل الإطار واضغط الزر"
                   : analyzedCount < papers.length
                     ? `جارٍ قراءة ${formatCount(papers.length - analyzedCount)} في الخلفية`
                     : "تمت قراءة كل الأوراق"}
               </p>
+              <button
+                onClick={toggleAutoCapture}
+                aria-pressed={autoCapture}
+                className={`mt-1 rounded-full px-3 py-1 text-[11px] font-extrabold ${autoCapture ? "bg-emerald-500/90 text-white" : "bg-white/15 text-white/80"}`}
+              >
+                {autoCapture ? "التقاط تلقائي: يعمل" : "التقاط تلقائي: متوقف"}
+              </button>
             </div>
             <button
               onClick={processAll}
@@ -1092,6 +1200,27 @@ export function BatchOMRScanner({
               style={{ width: "min(100cqw, calc(100cqh / 1.414))", aspectRatio: "1 / 1.414" }}
             >
               <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" playsInline muted />
+              {/* Where the four corner squares are seen: green once the sheet is close and still. */}
+              {live.corners && !confirming && (
+                <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true">
+                  <polygon
+                    points={live.corners.map((p) => `${p.x},${p.y}`).join(" ")}
+                    fill={live.status === "ready" || live.status === "holding" ? "rgba(34,197,94,0.12)" : "none"}
+                    stroke={live.status === "ready" || live.status === "holding" ? "#22c55e" : live.status === "closer" ? "#f59e0b" : "#ffffff"}
+                    strokeWidth={3}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+              )}
+              {!confirming && !captureBusy && (
+                <div role="status" className="pointer-events-none absolute inset-x-0 top-3 flex justify-center px-3">
+                  <span className="rounded-full bg-black/60 px-3 py-1.5 text-center text-xs font-bold text-white">
+                    {waitingSharp && autoCapture && (live.status === "ready" || live.status === "holding")
+                      ? "الصورة غير واضحة بعد — ثبّت الجوال"
+                      : liveHint(live.status, autoCapture)}
+                  </span>
+                </div>
+              )}
               {captureFlash && <div className="pointer-events-none absolute inset-0 bg-white/50" />}
               <div className="pointer-events-none absolute inset-3">
                 <div className="absolute right-0 top-0 h-8 w-8 border-r-4 border-t-4 border-white" />
