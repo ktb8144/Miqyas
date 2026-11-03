@@ -33,6 +33,16 @@ export const CLEAN = 0.05;
 export const SHADE_STANDOUT = 0.05;
 /** A pixel is "dark" when it is below this fraction of the local paper brightness. */
 const DARK_RATIO = 0.68;
+/**
+ * A camera frame can wash pencil out (glare on graphite, a phone's video tone curve): a fully shaded
+ * bubble may then be only ~20% darker than the paper, while the empty ones stay under 5%. So inside
+ * the bubbles "dark" follows this sheet's own marks: MARK_SHARE of how dark its typical mark is,
+ * never less than MIN_DARKNESS below the paper and never more than the usual line (1 - DARK_RATIO).
+ * A sheet whose typical question has nothing at least MIN_MARK darker than the paper keeps the usual line.
+ */
+const MARK_SHARE = 0.5;
+const MIN_DARKNESS = 0.12;
+const MIN_MARK = 0.15;
 
 const DETECT_SIDE = 1000;
 /** Marker frames checked against the printed circles (a shaded bubble can pass for a corner square). */
@@ -183,8 +193,11 @@ function localWhite(at: Sampler, center: Point, radius: number) {
 
 type BubbleMeasure = { fill: number; shade: number };
 
-/** `fill`: share of the inside that is clearly dark. `shade`: average darkness, which still notices thin or blurred marks. */
-function measureBubble(at: Sampler, center: Point, radius: number): BubbleMeasure {
+/**
+ * `fill`: share of the inside at least `darkness` darker than the paper around it.
+ * `shade`: average darkness, which still notices thin or blurred marks.
+ */
+function measureBubble(at: Sampler, center: Point, radius: number, darkness = 1 - DARK_RATIO): BubbleMeasure {
   const white = localWhite(at, center, radius);
   let dark = 0;
   let shade = 0;
@@ -193,11 +206,27 @@ function measureBubble(at: Sampler, center: Point, radius: number): BubbleMeasur
     for (const p of ringPoints(center, radius * fraction, count)) {
       const value = at(p);
       total++;
-      if (value < white * DARK_RATIO) dark++;
+      if (value < white * (1 - darkness)) dark++;
       shade += Math.max(0, 1 - value / white);
     }
   }
   return { fill: dark / total, shade: shade / total };
+}
+
+/** How much darker than the paper most of a bubble's inside is: high for a shaded bubble, ~0 for a tick, a cross or a letter. */
+function coreDarkness(at: Sampler, center: Point, radius: number) {
+  const white = localWhite(at, center, radius);
+  const values = INNER_RINGS.flatMap(([fraction, count]) => ringPoints(center, radius * fraction, count).map((p) => 1 - at(p) / white));
+  return percentile(values, 0.5);
+}
+
+/** The "dark" line inside this sheet's bubbles, from how dark its typical mark is (see MARK_SHARE). */
+function sheetDarkness(at: Sampler, questions: Point[][], radius: number) {
+  if (!questions.length) return 1 - DARK_RATIO;
+  const marks = questions.map((bubbles) => Math.max(...bubbles.map((bubble) => coreDarkness(at, bubble, radius))));
+  const typical = percentile(marks, 0.5);
+  if (typical < MIN_MARK) return 1 - DARK_RATIO;
+  return Math.min(1 - DARK_RATIO, Math.max(MIN_DARKNESS, MARK_SHARE * typical));
 }
 
 /**
@@ -279,10 +308,19 @@ const LINED_UP_SHARE = 0.45;
 
 type Ring = (p: Point, radius: number) => number;
 
-function readGroup(at: Sampler, group: OmrChoiceGroup, radius: number, ring?: Ring, linedUpAbove = 0): GroupReading {
+function readGroup(at: Sampler, group: OmrChoiceGroup, radius: number, ring?: Ring, linedUpAbove = 0, darkness = 1 - DARK_RATIO): GroupReading {
   const r = group.radius ?? radius;
-  const measures = group.bubbles.map((bubble) => measureBubble(at, bubble, r));
-  const decided = decide(measures);
+  let measures = group.bubbles.map((bubble) => measureBubble(at, bubble, r));
+  let decided = decide(measures);
+  // Not settled with the usual line: try this sheet's own (lighter) line for its washed-out marks.
+  if (decided.decision !== "ok" && darkness < 1 - DARK_RATIO) {
+    const lighter = group.bubbles.map((bubble) => measureBubble(at, bubble, r, darkness));
+    const again = decide(lighter);
+    if (again.decision === "ok") {
+      measures = lighter;
+      decided = again;
+    }
+  }
   // A bubble whose circle did not line up was measured in the wrong place: it may hide a mark,
   // so neither "blank" nor an answer can be trusted — the teacher decides.
   const linedUp = !ring || group.bubbles.every((bubble) => ring(bubble, r) >= linedUpAbove);
@@ -408,7 +446,8 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
     if (mismatches === 1 || unsure > 0) warnings.push("تحقق أن هذه الورقة لهذا الاختبار.");
   }
 
-  const questions = template.questions.map((group, index) => readGroup(at, settled(group, fit.questions[index]), radius, ring, linedUpAbove));
+  const darkness = sheetDarkness(at, fit.questions, radius);
+  const questions = template.questions.map((group, index) => readGroup(at, settled(group, fit.questions[index]), radius, ring, linedUpAbove, darkness));
   const answers: Record<string, string> = {};
   questions.forEach((reading) => { answers[reading.key] = reading.value; });
 
@@ -420,8 +459,8 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
     const gridRadius = onesGroup.radius ?? radius;
     const gridRings = [...(fit.code?.ones ?? onesGroup.bubbles), ...(fit.code?.tens ?? tensGroup.bubbles)].map((b) => ring(b, gridRadius));
     const gridLinedUpAbove = Math.max(0.03, LINED_UP_SHARE * percentile(gridRings, 0.5));
-    const ones = readGroup(at, fit.code ? settled(onesGroup, fit.code.ones) : onesGroup, radius, ring, gridLinedUpAbove);
-    const tens = readGroup(at, fit.code ? settled(tensGroup, fit.code.tens) : tensGroup, radius, ring, gridLinedUpAbove);
+    const ones = readGroup(at, fit.code ? settled(onesGroup, fit.code.ones) : onesGroup, radius, ring, gridLinedUpAbove, darkness);
+    const tens = readGroup(at, fit.code ? settled(tensGroup, fit.code.tens) : tensGroup, radius, ring, gridLinedUpAbove, darkness);
     if (ones.decision === "ok" && (tens.decision === "ok" || tens.decision === "blank")) {
       const value = Number(tens.decision === "ok" ? tens.value : "0") * 10 + Number(ones.value);
       if (value > 0) {

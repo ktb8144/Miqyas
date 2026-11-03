@@ -49,6 +49,10 @@ const PRIOR_WEIGHT = 0.01;
 const MISFIT_MM = 2.5;
 /** Reach (mm) of the number grid's search around the correction near it. */
 const GRID_SEARCH = 4.5;
+/** Tilts tried for the number rows (mm per mm along the row): up to ~3.5 mm over the 50 mm ones row. */
+const GRID_TILTS = Array.from({ length: 13 }, (_, i) => (i - 6) * 0.0125);
+/** A tilted grid is used only when its circles line up at least this much (share) better than level. */
+const GRID_TILT_GAIN = 0.15;
 
 // ─── Sampling ────────────────────────────────────────────────────────────────
 
@@ -596,32 +600,37 @@ function settleNumberGrid(photo: Lookup, soft: Lookup, template: OmrTemplate, an
   });
   const all = rows.flatMap((row, k) => row.bubbles.map((b) => ({ p: b, r: radii[k] })));
   const centre = { x: all.reduce((sum, b) => sum + b.p.x, 0) / all.length, y: all.reduce((sum, b) => sum + b.p.y, 0) / all.length };
-  const score = (at: Lookup, dx: number, dy: number, fine: boolean) => {
+  // `tilt`: mm the rows rise per mm along them (paper bent in the hand turns the rows a little).
+  const score = (at: Lookup, dx: number, dy: number, tilt: number, fine: boolean) => {
     let on = 0;
-    for (const b of all) on += circleScore(at, b.p.x + dx, b.p.y + dy, b.r, fine);
+    for (const b of all) on += circleScore(at, b.p.x + dx, b.p.y + dy + tilt * (b.p.x - centre.x), b.r, fine);
     let off = 0;
-    for (const e of ends) off += Math.max(0, circleScore(at, e.p.x + dx, e.p.y + dy, e.r, fine) - 0.1);
+    for (const e of ends) off += Math.max(0, circleScore(at, e.p.x + dx, e.p.y + dy + tilt * (e.p.x - centre.x), e.r, fine) - 0.1);
     return on / all.length - (ends.length ? off / ends.length : 0);
   };
-  const scan = (at: Lookup, origin: Point, reach: number, step: number, fine: boolean): Point => {
+  const scan = (at: Lookup, origin: Point, reach: number, step: number, tilts: number[], fine: boolean) => {
     const n = Math.round(reach / step);
-    let best = { p: origin, value: -Infinity };
-    for (let j = -n; j <= n; j++) {
-      for (let i = -n; i <= n; i++) {
-        const x = origin.x + i * step;
-        const y = origin.y + j * step;
-        const value = score(at, x, y, fine);
-        if (value > best.value) best = { p: { x, y }, value };
+    let best = { p: origin, tilt: 0, value: -Infinity };
+    for (const tilt of tilts) {
+      for (let j = -n; j <= n; j++) {
+        for (let i = -n; i <= n; i++) {
+          const x = origin.x + i * step;
+          const y = origin.y + j * step;
+          const value = score(at, x, y, tilt, fine);
+          if (value > best.value) best = { p: { x, y }, tilt, value };
+        }
       }
     }
-    return best.p;
+    return best;
   };
   const gridGroup: OmrChoiceGroup = { key: "grid", options: [], bubbles: all.map((b) => b.p), radius: radii[0] };
   const reach = Math.min(GRID_SEARCH, ...Object.values(groupBox(gridGroup, template, GRID_SEARCH)));
-  const rough = scan(soft, scan(soft, warpAt(anchors, centre), reach, 1, false), 0.5, 0.5, false);
-  const offset = scan(photo, rough, 0.5, 0.25, true);
+  const rough = scan(soft, scan(soft, warpAt(anchors, centre), reach, 1, [0], false).p, 0.5, 0.5, [0], false).p;
+  const level = scan(photo, rough, 0.5, 0.25, [0], true);
+  const tilted = scan(photo, rough, 0.5, 0.25, GRID_TILTS, true);
+  const { p: offset, tilt } = tilted.value > level.value * (1 + GRID_TILT_GAIN) ? tilted : level;
   const settle = (row: OmrChoiceGroup, r: number) =>
-    row.bubbles.map((b) => settleAt(photo, { x: b.x + offset.x, y: b.y + offset.y }, r, 0.75, 0.75));
+    row.bubbles.map((b) => settleAt(photo, { x: b.x + offset.x, y: b.y + offset.y + tilt * (b.x - centre.x) }, r, 0.75, 0.75));
   const ones = settle(grid.ones, radii[0]);
   const tens = settle(grid.tens, radii[1]);
   // The grid also tells the correction near the top of the sheet (where the class QR is).
