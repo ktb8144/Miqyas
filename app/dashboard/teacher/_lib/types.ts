@@ -51,6 +51,8 @@ export type ClassReportData = {
   diagnosis: ClassDiagnosis;
   narrative: ReportNarrative;
   notice: string | null;
+  /** Which model wrote the narrative (null when it came from the fixed rules). */
+  ai?: { provider: "claude" | "gemini"; model: string; effort?: string } | null;
   generatedAt: string;
 };
 
