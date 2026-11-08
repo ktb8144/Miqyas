@@ -11,6 +11,7 @@ import {
   inviteOrCreateAuthUser,
 } from "@/lib/invite";
 import { normalizeJoinCode, provisionSchool } from "@/lib/schools";
+import { turnstileMessage, verifyTurnstile, visitorIp } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ const base = {
   acceptTerms: z.literal(true),
   /** Honeypot: real people never fill it. */
   website: z.string().max(0).optional(),
+  /** Cloudflare Turnstile token from the page (checked below when the secret key is set). */
+  turnstileToken: z.string().max(2048).optional(),
 };
 
 const schema = z.discriminatedUnion("type", [
@@ -64,6 +67,16 @@ export async function POST(req: NextRequest) {
   }
 
   const input = parsed.data;
+
+  // A person in a browser, not a script: checked before anything is looked up or created.
+  const human = await verifyTurnstile(input.turnstileToken, visitorIp(req.headers), "signup");
+  if (!human.ok) {
+    return NextResponse.json(
+      { success: false, error: turnstileMessage(human.reason) },
+      { status: human.reason === "unavailable" ? 503 : 403 }
+    );
+  }
+
   const db = getAdminClient();
   const email = input.email.toLowerCase();
   const phone = input.phone?.trim() ? normalizeSaudiMobile(input.phone) : null;
