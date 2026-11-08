@@ -74,7 +74,7 @@ export function TeachersTab({ d, account }: { d: PrincipalDashboardState; accoun
         />
       )}
 
-      {account?.joinCode && <JoinCodeCard joinCode={account.joinCode} schoolName={account.schoolName} />}
+      {account?.joinCode && <JoinCodeCard joinCode={account.joinCode} schoolName={account.schoolName} schoolGender={account.schoolGender} />}
 
       {inviteNotice && (
         <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm font-bold text-brand">
