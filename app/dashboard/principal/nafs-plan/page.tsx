@@ -7,6 +7,7 @@ import { BRAND } from "@/lib/brand";
 import { toEnglishDigits } from "@/lib/format";
 import type { NafsBaseline } from "@/lib/nafs/baseline";
 import { buildNafsPlan, type Priority } from "@/lib/nafs/plan";
+import { NafsDeepAnalysis } from "../_components/nafs-deep-analysis";
 
 const PRIORITY_STYLE: Record<Priority, string> = {
   "عاجلة": "bg-red-50 text-red-700",
@@ -82,6 +83,8 @@ export default function NafsPlanPage() {
                 {plan.previousYear ? ` مقارنة بـ ${toEnglishDigits(plan.previousYear)}` : ""}
               </p>
             </header>
+
+            <NafsDeepAnalysis />
 
             <section className="rounded-2xl bg-white p-6 print:p-0">
               <h2 className="mb-3 text-lg font-black">أولًا: ماذا تقول الأرقام</h2>

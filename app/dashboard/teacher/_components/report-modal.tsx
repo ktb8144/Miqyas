@@ -176,7 +176,7 @@ function ReportBody({ data }: { data: ClassReportData }) {
                     <td className="p-2.5 text-slate-600">
                       {s.misconception?.text
                         ?? (s.topWrong
-                          ? `س${toEnglishDigits(s.topWrong.question)}: ${s.topWrong.option === "blank" ? "بدون إجابة" : `${s.topWrong.option}${s.topWrong.value ? ` (${s.topWrong.value})` : ""}`} — ${toEnglishDigits(s.topWrong.share)}% من أخطائه`
+                          ? `س${toEnglishDigits(s.topWrong.question)}: ${s.topWrong.option === "blank" ? "بدون إجابة" : s.topWrong.option === "multiple" ? "أكثر من دائرة" : `${s.topWrong.option}${s.topWrong.value ? ` (${s.topWrong.value})` : ""}`} — ${toEnglishDigits(s.topWrong.share)}% من أخطائه`
                           : "—")}
                     </td>
                   </tr>
@@ -265,7 +265,7 @@ export function ReportModal({
             <div className="py-12 text-center">
               <div className="mx-auto mb-4 h-14 w-14 animate-spin rounded-full border-4 border-slate-200 border-t-brand" />
               <p className="font-bold text-slate-600">نحلل نتائج الفصل مهارةً مهارة...</p>
-              <p className="mt-1 text-sm text-slate-400">قد يستغرق ذلك بضع ثوانٍ</p>
+              <p className="mt-1 text-sm text-slate-400">التحليل المعمّق قد يستغرق دقيقة أو دقيقتين، أبقِ هذه النافذة مفتوحة</p>
             </div>
           )}
           {error && !loading && (

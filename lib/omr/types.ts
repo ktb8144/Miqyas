@@ -42,11 +42,33 @@ export type GrayImage = { width: number; height: number; data: Uint8Array };
 /** RGBA image as returned by canvas getImageData. */
 export type RgbaImage = { width: number; height: number; data: Uint8ClampedArray | Uint8Array };
 
-export type BubbleDecision = "ok" | "blank" | "multiple" | "uncertain";
+/**
+ * How a group of bubbles was settled:
+ *   ok        one bubble clearly shaded, the others clean
+ *   partial   one bubble half-shaded (or lightly shaded) and no other bubble marked → that answer counts
+ *   stray     one bubble shaded plus a light extra mark elsewhere (an erasure or smudge) → the shaded one counts
+ *   multiple  two or more bubbles marked → the question is wrong
+ *   blank     nothing marked → the question is wrong
+ *   uncertain the photo did not line up with the printed circles, so nothing can be measured → the teacher looks
+ */
+export type BubbleDecision = "ok" | "partial" | "stray" | "blank" | "multiple" | "uncertain";
+
+/**
+ * What is saved per answered question (student_question_results.mark_status), for reports and research:
+ * how the answer was shaded, or "manual" when the teacher set it in review.
+ */
+export type MarkStatus = "clear" | "partial" | "stray" | "multiple" | "blank" | "unclear" | "manual";
+export const MARK_STATUSES: MarkStatus[] = ["clear", "partial", "stray", "multiple", "blank", "unclear", "manual"];
+
+export function markStatusOf(decision: BubbleDecision): MarkStatus {
+  if (decision === "ok") return "clear";
+  if (decision === "uncertain") return "unclear";
+  return decision;
+}
 
 export type GroupReading = {
   key: string;
-  /** The chosen option, "blank", or "unclear" when a person must decide. */
+  /** The chosen option, "blank", "multiple", or "unclear" when the photo could not be measured. */
   value: string;
   decision: BubbleDecision;
   /** Share of each bubble's inside that is dark (0–1), in option order. */
@@ -63,7 +85,7 @@ export type OmrReading =
   | {
       ok: true;
       templateId: string;
-      /** q1…qN → "أ" | "ب" | "ج" | "د" | "blank" | "unclear" */
+      /** q1…qN → "أ" | "ب" | "ج" | "د" | "blank" | "multiple" | "unclear" */
       answers: Record<string, string>;
       questions: GroupReading[];
       /** "" when the number grid was left empty or could not be read with confidence. */

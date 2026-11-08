@@ -53,6 +53,7 @@ export function reportPayload(d: ClassDiagnosis) {
         الصحيح: q.correct,
         نسبة_الصواب: q.mastery,
         اختيارات_الطلاب: q.choices,
+        تظليل_جزئي_احتُسب: q.partialMarks,
         خطأ_مسجل_للخيار_الأكثر: q.recordedMisconception,
         ملاحظة_المعالجة: q.remediation,
       })),
@@ -66,6 +67,9 @@ export function reportPayload(d: ClassDiagnosis) {
       نسبة_من_اختاره: k.popularShare,
       نسبة_الصواب: k.mastery,
     })),
+    ملاحظات_التظليل: d.marks.recorded
+      ? { عدد_الإجابات_المسجلة: d.marks.recorded, فارغة: d.marks.blank, أكثر_من_دائرة_حُسبت_خطأ: d.marks.multiple, تظليل_جزئي_احتُسب: d.marks.partial, عدّلها_المعلم: d.marks.manual }
+      : null,
     ملاحظات_على_البيانات: d.gaps,
   };
 }
@@ -100,10 +104,89 @@ ${JSON.stringify(reportPayload(d))}
 - متوسطات الاختبارات المختلفة لا تقارن مباشرة لأنها تقيس مهارات مختلفة؛ عند الحديث عن التحسن أو التراجع اعتمد على إتقان المهارة نفسها (سابقًا ← آخر_قياس).
 - confidence: «عالية» فقط إذا تكرر خيار خاطئ واحد بوضوح في أكثر من سؤال أو وُجد خطأ مسجل يطابقه؛ «منخفضة» إذا قيست المهارة بسؤال واحد أو كانت الأخطاء موزعة.
 - إذا ورد سؤال في أسئلة_يُشك_في_مفتاحها فقد يكون مفتاح الإجابة نفسه خطأ: اذكر ذلك صراحة في likelyCause للمهارة المرتبطة، واجعل الثقة «منخفضة»، واجعل أول إجراء مراجعة المفتاح مع نص السؤال قبل أي معالجة.
+- في اختيارات_الطلاب: blank = لم يظلل شيئًا، multiple = ظلل أكثر من دائرة فحُسبت خطأ. هذان ليسا تصورًا خاطئًا عن المحتوى؛ لا تبنِ عليهما likelyCause إلا إذا كثرا (ضيق وقت أو تعليمات تظليل).
 - لا تخترع أرقامًا أو مهارات أو أسئلة غير موجودة في البيانات. إذا لم يكفِ شيء للحكم فقل ذلك.
 - لا تذكر أسماء طلاب، ولا تستخدم كلمات: ضعيف، فاشل، موهوب، غبي.
 - اجعل الإجراءات واقعية لحصة مدتها 45 دقيقة وفصل من 25-35 طالبًا.`;
 }
+
+// ─── Claude (deep analysis) ───────────────────────────────────────────────────
+
+/**
+ * Same report and rules as the Gemini prompt, split for Claude: fixed instructions (cached across
+ * classes) in the system prompt, the class's numbers in the user message. Claude also gets an
+ * explicit method, because it thinks before answering and uses that time best with a procedure.
+ */
+export const CLASS_REPORT_SYSTEM = `أنت مختص في التقويم التربوي للمرحلة الابتدائية في السعودية، وتعرف اختبارات نافس ومجالاتها وأخطاء الطلاب الشائعة في الرياضيات والقراءة والعلوم.
+ستصلك نتائج فصل في اختبارات دالة الأسبوعية، محسوبة مسبقًا بالكود. كل الأرقام صحيحة: لا تعد حسابها ولا تقدّرها، واستخدمها كما هي.
+
+مهمتك: تقرير قصير وعملي للمعلم بالعربية الفصحى البسيطة، في الحقول المطلوبة:
+- summary: فقرة من 2-4 جمل: أين يقف الفصل، وهل يتحسن، وأين المشكلة الأهم.
+- strengths: حتى 3 نقاط قوة، كل منها مهارة أتقنها الفصل مع سبب قصير.
+- priorities: حتى 3 أولويات من مهارات_التركيز فقط، واسم المهارة منسوخ حرفيًا كما ورد. لكل أولوية: why (لماذا هي أولوية، بالأرقام الواردة)، وlikelyCause (الخطأ المفاهيمي المرجّح)، وconfidence (عالية أو متوسطة أو منخفضة).
+- actions: حتى 4 إجراءات، كل منها مرتبط بأولوية: title قصير، وdetail خطوات الحصة القادمة، وtarget (الفصل كاملًا أو مجموعة صغيرة)، وduration (مثل: 10 دقائق).
+- nextCheck: كيف يتحقق المعلم أن المعالجة نجحت (سؤال خروج أو إعادة قياس).
+
+طريقة التحليل قبل الكتابة:
+1. لكل سؤال في مهارات_التركيز: حل السؤال بنفسك، ثم لكل خيار خاطئ اختاره عدد ملحوظ من الطلاب استنتج الخطوة الخاطئة المحددة التي توصل إلى قيمته بالضبط (مثال: إذا كان الصحيح 64 لسؤال 4 أُس 3 واختار كثيرون 12، فالطالب ضرب الأساس في الأس). إن لم توجد خطوة معقولة توصل إليه فقل إن السبب غير واضح.
+2. ابحث عن خطأ مفاهيمي واحد يفسّر أخطاء أكثر من سؤال أو أكثر من مهارة؛ هذا أهم ما يحتاجه المعلم.
+3. فرّق بين هذه الأسباب: تصور خاطئ مشترك (خيار خاطئ واحد يتكرر بوضوح)، أو فجوة في المتطلب السابق، أو تخمين وعدم فهم (أخطاء موزعة أو إجابات فارغة كثيرة)، أو مشكلة في السؤال نفسه أو صياغته.
+4. استفد من خطأ_مسجل وملاحظة_المعالجة إن وُجدا، لكن قدّم ما تدل عليه اختيارات الطلاب الفعلية إن خالفتهما.
+5. صمّم الإجراء ليعالج السبب الذي استنتجته تحديدًا، لا مراجعة عامة للمهارة.
+
+قواعد مهمة:
+- متوسطات الاختبارات المختلفة لا تقارن مباشرة لأنها تقيس مهارات مختلفة؛ عند الحديث عن التحسن أو التراجع اعتمد على إتقان المهارة نفسها (سابقًا ← آخر_قياس).
+- confidence: «عالية» فقط إذا تكرر خيار خاطئ واحد بوضوح في أكثر من سؤال أو وُجد خطأ مسجل يطابقه؛ «منخفضة» إذا قيست المهارة بسؤال واحد أو كانت الأخطاء موزعة.
+- إذا ورد سؤال في أسئلة_يُشك_في_مفتاحها فقد يكون مفتاح الإجابة نفسه خطأ: اذكر ذلك صراحة في likelyCause للمهارة المرتبطة، واجعل الثقة «منخفضة»، واجعل أول إجراء مراجعة المفتاح مع نص السؤال قبل أي معالجة.
+- في اختيارات_الطلاب: blank = لم يظلل شيئًا، وmultiple = ظلل أكثر من دائرة فحُسبت خطأ. هذان ليسا تصورًا خاطئًا عن المحتوى، فلا تستنتج منهما خطأً مفاهيميًا. لكن إن كثرا في أسئلة بعينها فقد يدلان على ضيق الوقت أو صعوبة السؤال أو الحاجة لتدريب على التظليل (انظر ملاحظات_التظليل). وتظليل_جزئي_احتُسب يعني أن الطالب ظلل الدائرة جزئيًا فاحتُسبت إجابته؛ كثرته في سؤال قد تدل على تردد.
+- لا تخترع أرقامًا أو مهارات أو أسئلة غير موجودة في البيانات. إذا لم يكفِ شيء للحكم فقل ذلك.
+- في الرياضيات اكتب الكسور العشرية بالفاصلة العربية (٫) لا بالنقطة.
+- لا تذكر أسماء طلاب، ولا تستخدم كلمات: ضعيف، فاشل، موهوب، غبي.
+- اجعل الإجراءات واقعية لحصة مدتها 45 دقيقة وفصل من 25-35 طالبًا.`;
+
+export function buildClassReportUserMessage(d: ClassDiagnosis) {
+  return `نتائج الفصل (محسوبة مسبقًا):\n${JSON.stringify(reportPayload(d))}`;
+}
+
+/** JSON schema for Claude's structured output. parseNarrative still checks every item against the data. */
+export const CLASS_REPORT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    summary: { type: "string" },
+    strengths: { type: "array", items: { type: "string" } },
+    priorities: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          skill: { type: "string" },
+          why: { type: "string" },
+          likelyCause: { type: "string" },
+          confidence: { type: "string", enum: CONFIDENCE },
+        },
+        required: ["skill", "why", "likelyCause", "confidence"],
+        additionalProperties: false,
+      },
+    },
+    actions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          detail: { type: "string" },
+          target: { type: "string" },
+          duration: { type: "string" },
+        },
+        required: ["title", "detail", "target", "duration"],
+        additionalProperties: false,
+      },
+    },
+    nextCheck: { type: "string" },
+  },
+  required: ["summary", "strengths", "priorities", "actions", "nextCheck"],
+  additionalProperties: false,
+} as const;
 
 // Items are checked one by one, so a single malformed item doesn't throw away the whole reply.
 const narrativeSchema = z.object({
@@ -178,7 +261,7 @@ function rulesCause(s: FocusSkill, d: ClassDiagnosis): { text: string; confidenc
   if (s.misconception && s.misconception.count >= 2) return { text: `الخطأ المسجّل الأكثر تكرارًا: ${s.misconception.text}.`, confidence: s.questionCount >= 2 ? "عالية" : "متوسطة" };
   if (s.topWrong && s.topWrong.share >= 40) {
     const value = s.topWrong.value ? ` (${s.topWrong.value})` : "";
-    const option = s.topWrong.option === "blank" ? "ترك السؤال دون إجابة" : `اختيار ${s.topWrong.option}${value}`;
+    const option = s.topWrong.option === "blank" ? "ترك السؤال دون إجابة" : s.topWrong.option === "multiple" ? "تظليل أكثر من دائرة" : `اختيار ${s.topWrong.option}${value}`;
     return { text: `في السؤال ${s.topWrong.question} تكرر ${option} في ${s.topWrong.share}% من الإجابات الخاطئة، وهذا يدل على تصور خاطئ مشترك يحتاج مراجعة.`, confidence: s.questionCount >= 2 ? "متوسطة" : "منخفضة" };
   }
   return { text: "الأخطاء موزعة على أكثر من خيار، فالسبب غير مؤكد ويحتاج سؤالًا تشخيصيًا قصيرًا.", confidence: "منخفضة" };

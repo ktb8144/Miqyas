@@ -16,6 +16,7 @@ const STATUS_STYLE: Record<SkillStatus, string> = {
 function optionLabel(value: string | null) {
   if (!value || value === "blank") return "بلا إجابة";
   if (value === "unclear") return "غير واضحة";
+  if (value === "multiple") return "أكثر من إجابة";
   return value;
 }
 
