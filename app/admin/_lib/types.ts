@@ -25,6 +25,7 @@ export type AdminSchool = {
   city: string;
   region?: string | null;
   type?: string;
+  stage?: string | null;
   principal: string;
   teachers: number;
   students: number;

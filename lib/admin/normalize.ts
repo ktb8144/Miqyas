@@ -32,6 +32,7 @@ export function normalizeSchool(row: Record<string, unknown>) {
     city: String(row.city ?? ""),
     region: row.region === null ? null : String(row.region ?? ""),
     type: String(row.type ?? ""),
+    stage: row.stage ? String(row.stage) : null,
     principal: row.principal ? String(row.principal) : "—",
     teachers: Number(row.teachers ?? 0),
     students: Number(row.students ?? 0),

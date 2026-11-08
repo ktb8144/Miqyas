@@ -5,6 +5,7 @@ import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthAlert, AuthCard, authButtonClass, authInputClass } from "@/components/auth/auth-card";
 import { Turnstile, TURNSTILE_SITE_KEY } from "@/components/auth/turnstile";
+import { SCHOOL_STAGES, TEACHER_STAGES } from "@/lib/stages";
 import { TRIAL_DAYS_LABEL } from "./trial-copy";
 
 type SignupType = "school" | "join" | "individual";
@@ -40,6 +41,7 @@ function SignupContent() {
     gender: "boys",
     joinCode: params.get("code") ?? "",
     subject: "",
+    stage: "",
     website: "",
   });
   const [acceptTerms, setAcceptTerms] = useState(false);
@@ -71,6 +73,7 @@ function SignupContent() {
         email: form.email,
         phone: form.phone || undefined,
         acceptTerms,
+        stage: form.stage,
         website: form.website,
         turnstileToken: captchaToken ?? undefined,
       };
@@ -163,8 +166,16 @@ function SignupContent() {
           </div>
         )}
 
-        {type === "school" && (
-          <div>
+        {type === "school" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="المرحلة">
+              <select required value={form.stage} onChange={set("stage")} className={authInputClass}>
+                <option value="">اختر المرحلة</option>
+                {SCHOOL_STAGES.map((stage) => (
+                  <option key={stage.value} value={stage.value}>{stage.label}</option>
+                ))}
+              </select>
+            </Field>
             <Field label="بنين أو بنات">
               <select value={form.gender} onChange={set("gender")} className={authInputClass}>
                 <option value="boys">بنين</option>
@@ -172,6 +183,15 @@ function SignupContent() {
               </select>
             </Field>
           </div>
+        ) : (
+          <Field label="المرحلة التي تدرّسها">
+            <select required value={form.stage} onChange={set("stage")} className={authInputClass}>
+              <option value="">اختر المرحلة</option>
+              {TEACHER_STAGES.map((stage) => (
+                <option key={stage.value} value={stage.value}>{stage.label}</option>
+              ))}
+            </select>
+          </Field>
         )}
 
         {type !== "school" && (
