@@ -17,8 +17,10 @@ import type {
  *   1. find the four corner squares,
  *   2. map the template onto the photo,
  *   3. measure how much of each bubble is shaded, and
- *   4. accept an answer only when one bubble is clearly shaded and the others clearly are not.
- * Anything in between is returned as "unclear" so the teacher decides — the reader never guesses.
+ *   4. settle every question by Dala's shading rules (see `decide`): one shaded bubble is the answer,
+ *      a half-shaded bubble counts when no other bubble is marked, two marked bubbles or none are wrong.
+ * Only when the photo does not line up with the printed circles is a question returned as "unclear"
+ * for the teacher: then nothing on it can be measured. The student-number grid stays strict.
  */
 
 /** A bubble counts as shaded above this share of dark inside, and as empty below EMPTY. */
@@ -31,6 +33,11 @@ export const SOFT_MARK = 0.2;
 export const CLEAN = 0.05;
 /** A bubble whose average darkness is this much above its row's typical bubble is never called blank. */
 export const SHADE_STANDOUT = 0.05;
+/**
+ * Next to a shaded bubble, a second bubble at least this marked is a real (half) answer, so the
+ * question has two answers ("multiple"); a lighter one is an erasure or smudge ("stray").
+ */
+export const SECOND_MARK = 0.35;
 /** A pixel is "dark" when it is below this fraction of the local paper brightness. */
 const DARK_RATIO = 0.68;
 /**
@@ -272,7 +279,12 @@ function rectFill(at: Sampler, x: number, y: number, w: number, h: number) {
 
 // ─── 3. Decisions ────────────────────────────────────────────────────────────
 
-export function decide(measures: BubbleMeasure[]): { index: number; decision: BubbleDecision } {
+/**
+ * Decides one group of bubbles. With `settleAll` (the answers), every case is settled by Dala's rules
+ * so no question waits for the teacher; without it (the student-number grid) anything short of a
+ * clear mark stays "uncertain".
+ */
+export function decide(measures: BubbleMeasure[], settleAll = false): { index: number; decision: BubbleDecision } {
   const order = measures.map((m, index) => ({ ...m, index })).sort((a, b) => b.fill - a.fill);
   const first = order[0];
   const second = order[1] ?? { fill: 0, shade: 0, index: -1 };
@@ -286,17 +298,31 @@ export function decide(measures: BubbleMeasure[]): { index: number; decision: Bu
   }
   if (first.fill >= FILLED && second.fill >= FILLED) return { index: -1, decision: "multiple" };
   if (first.fill >= FILLED && second.fill < EMPTY) return { index: first.index, decision: "ok" };
-  // A heavily shaded bubble next to a faint smudge (an erased answer) is still clear.
+  // A heavily shaded bubble next to a faint smudge (an erased answer) is still clear (recorded as "stray").
   if (first.fill >= 0.75 && second.fill <= 0.35 && first.fill - second.fill >= 0.45) {
-    return { index: first.index, decision: "ok" };
+    return { index: first.index, decision: settleAll ? "stray" : "ok" };
   }
   // A soft camera frame lightens pencil, so a shaded bubble measures well under FILLED; but then the
   // printed letters fade too, and every other bubble reads as clean paper. One bubble clearly marked
   // while all the others are clean is still a clear answer.
+  // For answers this is recorded as "partial": the lighter line below still turns a washed-out full mark into "ok".
   if (standsOut && first.fill >= SOFT_MARK && order.slice(1).every((o) => o.fill <= CLEAN) && first.fill - second.fill >= 0.18) {
-    return { index: first.index, decision: "ok" };
+    return { index: first.index, decision: settleAll ? "partial" : "ok" };
   }
-  return { index: -1, decision: "uncertain" };
+  if (!settleAll) return { index: -1, decision: "uncertain" };
+
+  // Dala's rules for answers: never ask the teacher about shading.
+  // One shaded bubble with a light mark elsewhere (erasure, smudge) → the shaded one; a real second mark → two answers.
+  if (first.fill >= FILLED) {
+    return second.fill >= SECOND_MARK ? { index: -1, decision: "multiple" } : { index: first.index, decision: "stray" };
+  }
+  // Half-shaded: counts when it is the only marked bubble; two half-shaded bubbles are two answers.
+  if (first.fill >= EMPTY) {
+    return second.fill >= EMPTY ? { index: -1, decision: "multiple" } : { index: first.index, decision: "partial" };
+  }
+  // Only light marks: one that clearly stands out from the rest is a (light) answer; otherwise nothing was chosen.
+  if (first.fill - second.fill >= 0.07 && (standsOut || first.fill >= FAINT)) return { index: first.index, decision: "partial" };
+  return second.fill >= FAINT ? { index: -1, decision: "multiple" } : { index: -1, decision: "blank" };
 }
 
 /**
@@ -308,14 +334,14 @@ const LINED_UP_SHARE = 0.45;
 
 type Ring = (p: Point, radius: number) => number;
 
-function readGroup(at: Sampler, group: OmrChoiceGroup, radius: number, ring?: Ring, linedUpAbove = 0, darkness = 1 - DARK_RATIO): GroupReading {
+function readGroup(at: Sampler, group: OmrChoiceGroup, radius: number, ring?: Ring, linedUpAbove = 0, darkness = 1 - DARK_RATIO, settleAll = false): GroupReading {
   const r = group.radius ?? radius;
   let measures = group.bubbles.map((bubble) => measureBubble(at, bubble, r));
-  let decided = decide(measures);
-  // Not settled with the usual line: try this sheet's own (lighter) line for its washed-out marks.
+  let decided = decide(measures, settleAll);
+  // Not clear with the usual line: try this sheet's own (lighter) line for its washed-out marks.
   if (decided.decision !== "ok" && darkness < 1 - DARK_RATIO) {
     const lighter = group.bubbles.map((bubble) => measureBubble(at, bubble, r, darkness));
-    const again = decide(lighter);
+    const again = decide(lighter, settleAll);
     if (again.decision === "ok") {
       measures = lighter;
       decided = again;
@@ -326,7 +352,7 @@ function readGroup(at: Sampler, group: OmrChoiceGroup, radius: number, ring?: Ri
   const linedUp = !ring || group.bubbles.every((bubble) => ring(bubble, r) >= linedUpAbove);
   const { index, decision } = linedUp || decided.decision === "multiple" ? decided : { index: -1, decision: "uncertain" as const };
   const fill = measures.map((m) => m.fill);
-  const value = decision === "ok" ? group.options[index] : decision === "blank" ? "blank" : "unclear";
+  const value = index >= 0 ? group.options[index] : decision === "blank" ? "blank" : decision === "multiple" ? "multiple" : "unclear";
   return { key: group.key, value, decision, fill: fill.map((f) => Math.round(f * 100) / 100) };
 }
 
@@ -447,7 +473,7 @@ export function readAnswerSheet(input: RgbaImage | GrayImage, template: OmrTempl
   }
 
   const darkness = sheetDarkness(at, fit.questions, radius);
-  const questions = template.questions.map((group, index) => readGroup(at, settled(group, fit.questions[index]), radius, ring, linedUpAbove, darkness));
+  const questions = template.questions.map((group, index) => readGroup(at, settled(group, fit.questions[index]), radius, ring, linedUpAbove, darkness, true));
   const answers: Record<string, string> = {};
   questions.forEach((reading) => { answers[reading.key] = reading.value; });
 

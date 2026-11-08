@@ -6,7 +6,7 @@ import { toPercent } from "@/lib/math";
 import { buildClassDiagnosis, REPORT_TEST_WINDOW, type ClassDiagnosis, type DiagnosisInput } from "./class-diagnosis";
 
 type ResultRow = { id: string; student_id: string; package_id: string; score: number | string | null; total: number | string | null; percentage: number | string | null; scanned_at: string | null; created_at: string };
-type AnswerRow = { id: string; student_package_result_id: string; student_id: string; package_question_id: string | null; selected_option: string | null; is_correct: boolean };
+type AnswerRow = { id: string; student_package_result_id: string; student_id: string; package_question_id: string | null; selected_option: string | null; is_correct: boolean; mark_status: string | null };
 type QuestionRow = {
   id: string;
   package_id: string;
@@ -92,7 +92,7 @@ export async function loadClassDiagnosis({ classId, schoolId, teacherId }: { cla
   for (const ids of chunk(windowResults.map((r) => r.id), 150)) {
     answers.push(...await fetchAllRows<AnswerRow>((from, to) => db
       .from("student_question_results")
-      .select("id, student_package_result_id, student_id, package_question_id, selected_option, is_correct")
+      .select("id, student_package_result_id, student_id, package_question_id, selected_option, is_correct, mark_status")
       .in("student_package_result_id", ids)
       .order("id")
       .range(from, to)));
@@ -129,6 +129,7 @@ export async function loadClassDiagnosis({ classId, schoolId, teacherId }: { cla
       questionId: a.package_question_id,
       selected: a.selected_option,
       isCorrect: Boolean(a.is_correct),
+      mark: a.mark_status ?? null,
     })),
     questions: questions.map((q) => ({
       id: q.id,

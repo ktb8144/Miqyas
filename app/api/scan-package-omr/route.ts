@@ -7,11 +7,13 @@ import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole } from "@/lib/auth";
 import type { AssessmentPackageRow, ClassPackageAssignmentRow } from "@/lib/db/rows";
 import { AI_READING_DISABLED_MESSAGE, AI_READING_ENABLED } from "@/lib/ai-reading";
+import { MARK_STATUSES, type MarkStatus } from "@/lib/omr/types";
 
 export const dynamic = "force-dynamic";
 
 const VALID_ANSWERS = new Set(["أ", "ب", "ج", "د"]);
-const VALID_EMPTY_ANSWERS = new Set(["blank", "unclear"]);
+// "multiple": more than one bubble shaded. Like "blank", it is simply wrong (Dala's shading rules).
+const VALID_EMPTY_ANSWERS = new Set(["blank", "multiple", "unclear"]);
 const DEBUG_SCAN =
   process.env.NODE_ENV !== "production" || process.env.DEBUG_SCAN === "true";
 
@@ -40,6 +42,9 @@ type GradedQuestion = {
   isCorrect: boolean;
   points: number;
   packageQuestion: PackageQuestionRow;
+  /** How the answer was shaded (from the device reader); null when unknown (typed or AI-read). */
+  markStatus: MarkStatus | null;
+  markFill: number[] | null;
 };
 
 type GradedResult = {
@@ -76,6 +81,10 @@ const scanSchema = z.object({
   mimeType: z.string().trim().min(1).default("image/jpeg"),
   scanMode: z.enum(["answer_sheet", "question_paper"]).optional().default("answer_sheet"),
   studentAnswers: z.record(z.string()).optional(),
+  /** How each answer was shaded, as read on the device (q1 → "clear" | "partial" | …). */
+  answerMarks: z.record(z.string()).optional(),
+  /** Share of each bubble that was shaded, per question (0–1). */
+  answerFills: z.record(z.array(z.number().min(0).max(1)).max(10)).optional(),
   save: z.boolean().optional().default(false),
   studentId: z.string().uuid().optional(),
 }).refine((value) => value.imageBase64 || value.studentAnswers, {
@@ -269,7 +278,26 @@ async function loadPackageQuestionsForAssignment(classPackageAssignmentId: strin
   };
 }
 
-function gradePackageAnswers(studentAnswers: Record<string, string>, questions: PackageQuestionRow[], studentName = ""): GradedResult {
+/** The shading record saved with an answer: the reader's, or what the saved value itself implies. */
+function markFor(selected: string, reported: string | undefined): MarkStatus | null {
+  if (reported && (MARK_STATUSES as string[]).includes(reported)) {
+    // The value wins if they disagree (e.g. a teacher's change sent without its "manual" record).
+    if (selected === "blank" && reported !== "blank") return "manual";
+    if (selected === "multiple" && reported !== "multiple") return "manual";
+    return reported as MarkStatus;
+  }
+  if (selected === "blank" || selected === "multiple") return selected;
+  if (selected === "unclear") return "unclear";
+  return null;
+}
+
+function gradePackageAnswers(
+  studentAnswers: Record<string, string>,
+  questions: PackageQuestionRow[],
+  studentName = "",
+  marks: Record<string, string> = {},
+  fills: Record<string, number[]> = {}
+): GradedResult {
   const answers: Record<string, string> = {};
   const weakSkills: GradedResult["weakSkills"] = [];
   const gradedQuestions: GradedQuestion[] = [];
@@ -301,6 +329,8 @@ function gradePackageAnswers(studentAnswers: Record<string, string>, questions: 
       isCorrect,
       points,
       packageQuestion: question,
+      markStatus: markFor(selectedOption, marks[qKey]),
+      markFill: Array.isArray(fills[qKey]) ? fills[qKey].map((f) => Math.round(f * 100) / 100) : null,
     });
   });
 
@@ -402,6 +432,8 @@ async function savePackageResult({
     is_correct: question.isCorrect,
     nafs_domain_id: question.packageQuestion.nafs_domain_id,
     skill_id: question.packageQuestion.skill_id,
+    mark_status: question.markStatus,
+    mark_fill: question.markFill,
   }));
 
   if (questionRows.length) {
@@ -556,7 +588,7 @@ export async function POST(req: NextRequest) {
 
     const studentName = typeof scanned.studentName === "string" ? scanned.studentName.trim() : "";
     const studentCode = typeof scanned.studentCode === "string" ? scanned.studentCode.trim() : "";
-    const graded = gradePackageAnswers(scanned, loaded.questions, studentName);
+    const graded = gradePackageAnswers(scanned, loaded.questions, studentName, body.answerMarks, body.answerFills);
 
     let saved: { resultId?: string } | undefined;
     if (body.save && body.studentId) {

@@ -176,7 +176,7 @@ function ReportBody({ data }: { data: ClassReportData }) {
                     <td className="p-2.5 text-slate-600">
                       {s.misconception?.text
                         ?? (s.topWrong
-                          ? `س${toEnglishDigits(s.topWrong.question)}: ${s.topWrong.option === "blank" ? "بدون إجابة" : `${s.topWrong.option}${s.topWrong.value ? ` (${s.topWrong.value})` : ""}`} — ${toEnglishDigits(s.topWrong.share)}% من أخطائه`
+                          ? `س${toEnglishDigits(s.topWrong.question)}: ${s.topWrong.option === "blank" ? "بدون إجابة" : s.topWrong.option === "multiple" ? "أكثر من دائرة" : `${s.topWrong.option}${s.topWrong.value ? ` (${s.topWrong.value})` : ""}`} — ${toEnglishDigits(s.topWrong.share)}% من أخطائه`
                           : "—")}
                     </td>
                   </tr>

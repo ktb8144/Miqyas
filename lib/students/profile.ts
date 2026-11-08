@@ -232,7 +232,7 @@ export async function buildStudentProfile(student: StudentRow): Promise<StudentP
 
     const pq = firstJoin(a.package_questions);
     if (!b.remediation && isRemediationAction(pq?.remediation_note)) b.remediation = pq!.remediation_note!.trim();
-    if (!a.is_correct && a.selected_option && !["blank", "unclear"].includes(a.selected_option)) {
+    if (!a.is_correct && a.selected_option && !["blank", "multiple", "unclear"].includes(a.selected_option)) {
       const current = b.wrongOptions.get(a.selected_option) ?? {
         count: 0,
         misconception: misconceptionForOption(pq?.misconceptions_json, a.selected_option),

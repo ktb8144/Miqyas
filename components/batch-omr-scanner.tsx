@@ -7,6 +7,7 @@ import type { PrintedQr } from "@/lib/omr/printed-qr";
 import { sheetQrModules } from "@/lib/omr/sheet-code";
 import { readPhoto, type ClassQrCheck, type PhotoReading } from "@/components/omr/read-photo";
 import { drawSheetFrame, grabSharpest, previewGray, readAutoCapture, writeAutoCapture } from "@/components/omr/live-camera";
+import { markStatusOf, type MarkStatus } from "@/lib/omr/types";
 import { AutoCaptureTracker, lookAtFrame, type LiveStatus } from "@/lib/omr/live";
 import type { Point } from "@/lib/omr/types";
 import { normalizeStudentCode, toEnglishDigits } from "@/lib/format";
@@ -38,6 +39,13 @@ const MISSING_ASSIGNMENT_ERROR = "لا يمكن بدء التصحيح بدون �
 const ARABIC_LETTERS = ["أ", "ب", "ج", "د"] as const;
 const BLANK = "blank";
 const UNCLEAR = "unclear";
+const MULTIPLE = "multiple";
+/** Shown beside a question in review, so the teacher sees how the reader applied the shading rules. */
+const MARK_NOTES: Partial<Record<MarkStatus, string>> = {
+  partial: "تظليل جزئي — احتُسب لأنه الوحيد",
+  stray: "علامة خفيفة بجانبه — احتُسبت الدائرة المظللة",
+  multiple: "أكثر من دائرة مظللة — يُحسب خطأ",
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +75,10 @@ interface ScanResult {
   imageBase64?: string;
   /** Questions the reader could not decide; the teacher must choose before saving. */
   unclear: string[];
+  /** How each answer was shaded (saved with the result for reports), "manual" once the teacher changes it. */
+  marks?: Record<string, MarkStatus>;
+  /** Share of each bubble that was shaded (0–1), per question, for later analysis. */
+  fills?: Record<string, number[]>;
   /** Close-ups of the unclear questions (and "code" for the student number). */
   crops?: Record<string, string>;
   warnings?: string[];
@@ -381,6 +393,8 @@ function PaperReviewModal({
             const isFlagged = flagged.has(qKey);
             const crop = result.crops?.[qKey];
             const decided = selected && selected !== UNCLEAR;
+            // The reader's note only while the answer is still the one it read.
+            const markNote = selected === result.answers[qKey] ? MARK_NOTES[result.marks?.[qKey] ?? "clear"] : undefined;
 
             return (
               <div key={qKey} className={isFlagged ? "rounded-xl border border-amber-200 bg-amber-50/60 p-2" : ""}>
@@ -424,6 +438,7 @@ function PaperReviewModal({
                     {decided ? "✓" : "؟"}
                   </span>
                 </div>
+                {markNote && <p className="mt-1 pr-9 text-[11px] font-bold text-slate-400">{markNote}</p>}
               </div>
             );
           })}
@@ -474,7 +489,7 @@ function PaperReviewModal({
                     const value = localAnswers[`q${q}`];
                     return (
                       <div key={q} className="rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-600">
-                        س{formatCount(q)}: {value === BLANK ? "فارغ" : value === UNCLEAR || !value ? "؟" : value}
+                        س{formatCount(q)}: {value === BLANK ? "فارغ" : value === MULTIPLE ? "متعدد" : value === UNCLEAR || !value ? "؟" : value}
                       </div>
                     );
                   })}
@@ -626,6 +641,12 @@ export function BatchOMRScanner({
       if (!reading.ok) throw new Error(reading.message);
       const graded = await gradeAnswers(reading.answers);
       const { studentCode, warnings, match } = assess(quick);
+      const marks: Record<string, MarkStatus> = {};
+      const fills: Record<string, number[]> = {};
+      reading.questions.forEach((group) => {
+        marks[group.key] = markStatusOf(group.decision);
+        fills[group.key] = group.fill;
+      });
       return {
         paperId, studentName: "", studentCode, editedName: "",
         matchedStudentId: match.matchedStudentId,
@@ -640,6 +661,8 @@ export function BatchOMRScanner({
         thumbBase64,
         imageBase64: keepBase64 ?? thumbBase64,
         unclear: unclearKeys(graded.answers),
+        marks,
+        fills,
         crops,
         warnings,
       };
@@ -1044,6 +1067,10 @@ export function BatchOMRScanner({
           r.paperId === paperId
             ? {
                 ...r,
+                // Whatever the teacher changed is now the teacher's decision, not the reader's.
+                marks: Object.fromEntries(
+                  Object.keys(answers).map((key) => [key, answers[key] !== r.answers[key] ? "manual" : r.marks?.[key] ?? "manual"])
+                ) as Record<string, MarkStatus>,
                 answers: graded.answers,
                 score: graded.score,
                 total: graded.total,

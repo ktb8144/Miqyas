@@ -445,7 +445,7 @@ export function useTeacherDashboard() {
   };
 
   const handlePackageScanComplete = async (
-    results: { editedName: string; studentName: string; answers: Record<string, string>; score: number; total: number; matchedStudentId?: string | null }[]
+    results: { editedName: string; studentName: string; answers: Record<string, string>; score: number; total: number; matchedStudentId?: string | null; marks?: Record<string, string>; fills?: Record<string, number[]> }[]
   ) => {
     if (!activePackageAssignment) return;
 
@@ -454,7 +454,7 @@ export function useTeacherDashboard() {
       throw new Error("لا يوجد طلاب في الفصل لحفظ نتائج التصحيح");
     }
 
-    const updates: Array<{ student: Student; result: { answers: Record<string, string>; score: number; total: number } }> = [];
+    const updates: Array<{ student: Student; result: { answers: Record<string, string>; score: number; total: number; marks?: Record<string, string>; fills?: Record<string, number[]> } }> = [];
 
     results.forEach((result) => {
       const student = result.matchedStudentId
@@ -480,6 +480,9 @@ export function useTeacherDashboard() {
             studentId: student.id,
             save: true,
             studentAnswers: result.answers,
+            // How each answer was shaded, kept with the result for reports and analysis.
+            answerMarks: result.marks,
+            answerFills: result.fills,
           }),
         });
         const json = await res.json().catch(() => ({}));

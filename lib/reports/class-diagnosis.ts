@@ -15,7 +15,15 @@ export type DiagnosisInput = {
   students: Array<{ id: string; name: string }>;
   tests: Array<{ packageId: string; title: string; week: number | null; date: string | null }>;
   results: Array<{ id: string; studentId: string; packageId: string; score: number; total: number; percentage: number; scannedAt: string | null }>;
-  answers: Array<{ resultId: string; studentId: string; questionId: string | null; selected: string | null; isCorrect: boolean }>;
+  answers: Array<{
+    resultId: string;
+    studentId: string;
+    questionId: string | null;
+    selected: string | null;
+    isCorrect: boolean;
+    /** How the answer was shaded on the sheet (student_question_results.mark_status), when recorded. */
+    mark?: string | null;
+  }>;
   questions: Array<{
     id: string;
     packageId: string;
@@ -65,8 +73,10 @@ export type FocusQuestion = {
   correct: string | null;
   attempts: number;
   mastery: number;
-  /** How many students chose each option ("blank" for no answer). */
+  /** How many students chose each option ("blank" for no answer, "multiple" for more than one shaded). */
   choices: Record<string, number>;
+  /** Answers on this question that were only half-shaded but counted (one bubble marked). */
+  partialMarks: number;
   recordedMisconception: string | null;
   remediation: string | null;
 };
@@ -103,8 +113,13 @@ export type ClassDiagnosis = {
   groups: Array<{ skill: string; students: Array<{ id: string; name: string }> }>;
   notTestedLatest: Array<{ id: string; name: string }>;
   keyChecks: KeyCheck[];
+  /** How the answers in the window were shaded; only answers saved with a shading record are counted. */
+  marks: { recorded: number; blank: number; multiple: number; partial: number; stray: number; manual: number };
   gaps: string[];
 };
+
+/** Saved answers that are not one of the options. */
+export const NON_OPTION_ANSWERS = new Set(["blank", "multiple", "unclear"]);
 
 const LEVELS: LevelName[] = ["متقدم", "متمكن", "أساسي", "دون الأساسي"];
 const UNKNOWN_SKILL = "مهارة غير محددة";
@@ -189,7 +204,8 @@ export function buildClassDiagnosis(input: DiagnosisInput): ClassDiagnosis {
     misconceptions: Map<string, number>;
   };
   const buckets = new Map<string, Bucket>();
-  const perQuestion = new Map<string, { attempts: number; correct: number; choices: Map<string, number> }>();
+  const perQuestion = new Map<string, { attempts: number; correct: number; choices: Map<string, number>; partial: number }>();
+  const marks = { recorded: 0, blank: 0, multiple: 0, partial: 0, stray: 0, manual: 0 };
   let answersWithoutQuestion = 0;
 
   input.answers.forEach((answer) => {
@@ -225,11 +241,17 @@ export function buildClassDiagnosis(input: DiagnosisInput): ClassDiagnosis {
     bucket.perTest.set(result.packageId, test);
     buckets.set(key, bucket);
 
-    const q = perQuestion.get(question.id) ?? { attempts: 0, correct: 0, choices: new Map() };
+    const q = perQuestion.get(question.id) ?? { attempts: 0, correct: 0, choices: new Map(), partial: 0 };
     q.attempts++;
     if (answer.isCorrect) q.correct++;
     q.choices.set(choice, (q.choices.get(choice) ?? 0) + 1);
+    if (answer.mark === "partial") q.partial++;
     perQuestion.set(question.id, q);
+
+    if (answer.mark) {
+      marks.recorded++;
+      if (answer.mark === "blank" || answer.mark === "multiple" || answer.mark === "partial" || answer.mark === "stray" || answer.mark === "manual") marks[answer.mark]++;
+    }
   });
 
   const skills: SkillStat[] = Array.from(buckets.values()).map((b) => {
@@ -243,7 +265,7 @@ export function buildClassDiagnosis(input: DiagnosisInput): ClassDiagnosis {
       topWrong = {
         question: question?.number ?? 0,
         option,
-        value: option === "blank" ? null : question?.options?.[option] ?? null,
+        value: NON_OPTION_ANSWERS.has(option) ? null : question?.options?.[option] ?? null,
         share: pct(topWrongEntry[1], wrongOnQuestion),
       };
     }
@@ -304,6 +326,7 @@ export function buildClassDiagnosis(input: DiagnosisInput): ClassDiagnosis {
           attempts: counts.attempts,
           mastery: pct(counts.correct, counts.attempts),
           choices: Object.fromEntries(counts.choices),
+          partialMarks: counts.partial,
           recordedMisconception: top ? misconceptionForOption(q.misconceptions, top[0]) : null,
           remediation: q.remediation?.trim() || null,
         };
@@ -329,7 +352,7 @@ export function buildClassDiagnosis(input: DiagnosisInput): ClassDiagnosis {
     const q = questionsById.get(questionId);
     if (!q?.correct || counts.attempts < 8) return;
     const mastery = pct(counts.correct, counts.attempts);
-    const popular = Array.from(counts.choices.entries()).filter(([option]) => option !== q.correct && option !== "blank").sort((x, y) => y[1] - x[1])[0];
+    const popular = Array.from(counts.choices.entries()).filter(([option]) => option !== q.correct && !NON_OPTION_ANSWERS.has(option)).sort((x, y) => y[1] - x[1])[0];
     if (!popular || mastery > 20) return;
     const popularShare = pct(popular[1], counts.attempts);
     if (popularShare < 60 || popularShare < mastery * 3) return;
@@ -367,6 +390,13 @@ export function buildClassDiagnosis(input: DiagnosisInput): ClassDiagnosis {
     gaps.push("أسئلة المهارات الأضعف بلا أخطاء شائعة مسجّلة، فالسبب المرجّح مستنتج من البدائل التي اختارها الطلاب.");
   }
   if (answersWithoutQuestion) gaps.push("بعض الإجابات لا ترتبط بسؤال محفوظ وتم تجاهلها.");
+  // How the sheets were shaded (recorded since the shading rules of Nov 2026).
+  if (marks.recorded) {
+    const share = (n: number) => pct(n, marks.recorded);
+    if (share(marks.multiple) >= 2) gaps.push(`ظلّل الطلاب أكثر من دائرة في ${marks.multiple} إجابة (${share(marks.multiple)}%) فحُسبت خطأ؛ قد يحتاج الفصل تدريبًا قصيرًا على طريقة التظليل.`);
+    if (share(marks.partial) >= 5) gaps.push(`${marks.partial} إجابة (${share(marks.partial)}%) ظُللت جزئيًا واحتُسبت؛ ذكّر الطلاب بتظليل الدائرة كاملة.`);
+    if (share(marks.blank) >= 5) gaps.push(`${marks.blank} إجابة (${share(marks.blank)}%) تُركت دون تظليل؛ قد يدل ذلك على ضيق الوقت أو صعوبة بعض الأسئلة.`);
+  }
 
   return {
     className: input.className,
@@ -382,6 +412,7 @@ export function buildClassDiagnosis(input: DiagnosisInput): ClassDiagnosis {
     groups,
     notTestedLatest,
     keyChecks,
+    marks,
     gaps,
   };
 }
