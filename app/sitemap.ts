@@ -15,6 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/signup",
     "/privacy",
     "/terms",
+    "/research",
   ].map((path) => ({
     url: new URL(path, SITE_URL).toString(),
   }));

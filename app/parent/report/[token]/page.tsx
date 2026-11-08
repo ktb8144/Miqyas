@@ -3,6 +3,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { toEnglishDigits } from "@/lib/format";
 import { loadParentReportData } from "@/lib/parent-report";
 import { levelColorByName } from "@/lib/levels";
+import { ParentResearchChoice } from "@/components/research/parent-research-choice";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,13 @@ export default async function ParentReportPage({ params }: { params: { token: st
   const student = data.student as unknown as {
     name: string;
     student_code: string | null;
+    research_opt_out?: boolean | null;
+    schools?: { research_consent?: boolean | null } | Array<{ research_consent?: boolean | null }> | null;
   };
+  const school = Array.isArray(student.schools) ? student.schools[0] : student.schools;
+  const optedOut = Boolean(student.research_opt_out);
+  // The research notice appears only where the school takes part (or to undo an earlier exclusion).
+  const showResearch = Boolean(school?.research_consent) || optedOut;
   const result = data.result;
   const weak = data.weakestSkill ?? {
     name: "مهارة تحتاج إلى تقوية",
@@ -80,6 +87,8 @@ export default async function ParentReportPage({ params }: { params: { token: st
           >
             ابدأ التدريب المجاني
           </Link>
+
+          {showResearch && <ParentResearchChoice token={token} initialOptedOut={optedOut} />}
         </div>
       </section>
     </main>

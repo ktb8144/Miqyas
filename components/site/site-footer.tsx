@@ -43,6 +43,7 @@ export function SiteFooter() {
         <div className="mb-3 flex justify-center gap-5">
           <Link href="/privacy" className="hover:text-brand">سياسة الخصوصية</Link>
           <Link href="/terms" className="hover:text-brand">شروط الاستخدام</Link>
+          <Link href="/research" className="hover:text-brand">البحث العلمي</Link>
         </div>
         © {BRAND.nameAr}. جميع الحقوق محفوظة.
       </div>

@@ -14,6 +14,7 @@ import { StudentsView } from "./_components/students-view";
 import { WeeklyPlansView } from "./_components/weekly-plans-view";
 import { useTeacherDashboard } from "./_lib/use-teacher-dashboard";
 import { PlanBanner, useAccountPlan } from "@/components/plan/plan-banner";
+import { ResearchConsentCard } from "@/components/research/research-consent-card";
 
 export default function TeacherDashboard() {
   const d = useTeacherDashboard();
@@ -106,6 +107,8 @@ export default function TeacherDashboard() {
             VIEW: CLASSES LIST
         ══════════════════════════════════════════════════════════════════════ */}
         {view === "classes" && !pageLoading && !pageError && <ClassesView d={d} />}
+        {/* Independent teachers decide research participation for their own account (hidden for others). */}
+        {view === "classes" && !pageLoading && !pageError && account?.plan?.kind === "individual" && <ResearchConsentCard />}
 
         {/* ══════════════════════════════════════════════════════════════════════
             VIEW: MIQYAS PACKAGES
