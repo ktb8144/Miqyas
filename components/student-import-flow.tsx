@@ -2,7 +2,7 @@
 import { useState, useRef } from "react";
 import { toEnglishDigits, cleanName, normalizeName } from "@/lib/format";
 import { COLORS } from "@/lib/theme";
-import { AI_READING_ENABLED } from "@/lib/ai-reading";
+import { NAME_PHOTO_ENABLED } from "@/lib/ai-reading";
 import { detectRoster, type RosterDetection } from "@/lib/import/roster";
 
 type Step =
@@ -287,7 +287,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
             className="hidden"
             onChange={(event) => void handleFile(event.target.files?.[0])}
           />
-          <div className={`grid gap-4 ${AI_READING_ENABLED ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          <div className={`grid gap-4 ${NAME_PHOTO_ENABLED ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={fileBusy}
@@ -306,7 +306,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
               </span>
             </button>
 
-            {AI_READING_ENABLED && (
+            {NAME_PHOTO_ENABLED && (
               <button
                 onClick={openCamera}
                 className="flex flex-col items-center gap-3 p-8 rounded-xl border-2 hover:shadow-md transition-all text-center border-gray-300"
@@ -458,7 +458,7 @@ export function StudentImportFlow({ onSave, initialNames = [] }: Props) {
                 {toEnglishDigits(editableNames.filter(n => n.trim()).length)} اسم
               </span>
             </div>
-            {AI_READING_ENABLED ? (
+            {NAME_PHOTO_ENABLED ? (
               <button
                 onClick={openCamera}
                 className="text-sm font-bold text-brand hover:opacity-80"

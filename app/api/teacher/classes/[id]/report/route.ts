@@ -54,6 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
           prompt: buildClassReportUserMessage(diagnosis),
           schema: CLASS_REPORT_JSON_SCHEMA,
           timeoutMs: CLAUDE_TIMEOUT_MS,
+          context: { schoolId, userId: auth.profile.id },
         });
         narrative = parseNarrative(reply.data, diagnosis);
         if (narrative) ai = { provider: "claude", model: reply.model, effort: reply.effort };

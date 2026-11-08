@@ -80,8 +80,15 @@ export async function POST(req: NextRequest) {
   const db = getAdminClient();
   const email = input.email.toLowerCase();
   const phone = input.phone?.trim() ? normalizeSaudiMobile(input.phone) : null;
+  // A school's principal is reached on WhatsApp, so the number is required for them.
+  if (input.type === "school" && !phone) {
+    return NextResponse.json({ success: false, error: "اكتب رقم جوال الواتساب بصيغة 05xxxxxxxx" }, { status: 400 });
+  }
   if (phone && !/^05\d{8}$/.test(phone)) {
-    return NextResponse.json({ success: false, error: "اكتب رقم الجوال بصيغة 05xxxxxxxx أو اتركه فارغًا" }, { status: 400 });
+    return NextResponse.json(
+      { success: false, error: input.type === "school" ? "اكتب رقم جوال الواتساب بصيغة 05xxxxxxxx" : "اكتب رقم الجوال بصيغة 05xxxxxxxx أو اتركه فارغًا" },
+      { status: 400 }
+    );
   }
 
   let createdSchoolId: string | null = null;

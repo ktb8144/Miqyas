@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
  */
 
 const BASELINE_SELECT = "year, grade, subject, overall_percent, mastery_percent, tested_count, absent_count, domains";
-const ANALYSIS_SELECT = "id, status, batch_id, analysis, error, model, created_at, updated_at";
+const ANALYSIS_SELECT = "id, status, batch_id, analysis, error, model, effort, created_by, created_at, updated_at";
 const NOT_READY = "التحليل المعمّق غير مفعّل بعد في قاعدة البيانات. تواصل مع فريق دالة.";
 
 type AnalysisRow = {
@@ -34,6 +34,8 @@ type AnalysisRow = {
   analysis: unknown;
   error: string | null;
   model: string | null;
+  effort: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -85,7 +87,11 @@ export async function GET(req: NextRequest) {
 
     // Collect a finished batch.
     if (row?.status === "pending" && row.batch_id && claudeConfigured()) {
-      const outcome = await readClaudeBatch(row.batch_id).catch((err) => {
+      const outcome = await readClaudeBatch(row.batch_id, {
+        task: "nafs_analysis",
+        effort: row.effort ?? undefined,
+        context: { schoolId, userId: row.created_by },
+      }).catch((err) => {
         console.error("nafs analysis batch check failed", err);
         return null;
       });
