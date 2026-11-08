@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthAlert, AuthCard, authButtonClass, authInputClass } from "@/components/auth/auth-card";
+import { Turnstile, TURNSTILE_SITE_KEY } from "@/components/auth/turnstile";
 import { TRIAL_DAYS_LABEL } from "./trial-copy";
 
 type SignupType = "school" | "join" | "individual";
@@ -45,6 +46,9 @@ function SignupContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState<string | null>(null);
+  // Cloudflare Turnstile: a fresh token for every try (each works once).
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
 
   const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((prev) => ({ ...prev, [key]: event.target.value }));
@@ -56,9 +60,20 @@ function SignupContent() {
       setError("يجب الموافقة على الشروط وسياسة الخصوصية");
       return;
     }
+    if (TURNSTILE_SITE_KEY && !captchaToken) {
+      setError("انتظر حتى يكتمل التحقق أسفل النموذج، ثم اضغط «إنشاء الحساب».");
+      return;
+    }
     setLoading(true);
     try {
-      const common = { name: form.name, email: form.email, phone: form.phone || undefined, acceptTerms, website: form.website };
+      const common = {
+        name: form.name,
+        email: form.email,
+        phone: form.phone || undefined,
+        acceptTerms,
+        website: form.website,
+        turnstileToken: captchaToken ?? undefined,
+      };
       const body =
         type === "school"
           ? { type, ...common, schoolName: form.schoolName, city: form.city, gender: form.gender }
@@ -75,6 +90,7 @@ function SignupContent() {
       setSent(json.message);
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذر إكمال التسجيل");
+      setCaptchaReset((n) => n + 1);
     } finally {
       setLoading(false);
     }
@@ -185,6 +201,8 @@ function SignupContent() {
             <Link href="/privacy" target="_blank" className="text-brand underline">سياسة الخصوصية</Link>
           </span>
         </label>
+
+        <Turnstile action="signup" onToken={setCaptchaToken} resetKey={captchaReset} />
 
         {error && <AuthAlert tone="error">{error}</AuthAlert>}
 
