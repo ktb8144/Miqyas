@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     const db = getAdminClient();
     const [plan, schoolRes] = await Promise.all([
       getSchoolPlan(db, auth.profile.school_id),
-      db.from("schools").select("join_code, name").eq("id", auth.profile.school_id).maybeSingle(),
+      db.from("schools").select("join_code, name, gender").eq("id", auth.profile.school_id).maybeSingle(),
     ]);
     return NextResponse.json({
       success: true,
@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
       // Only the principal shares the code with teachers.
       joinCode: auth.profile.role === "principal" ? schoolRes.data?.join_code ?? null : null,
       schoolName: schoolRes.data?.name ?? null,
+      schoolGender: schoolRes.data?.gender ?? null,
     });
   } catch (err) {
     console.error("account plan failed", err);

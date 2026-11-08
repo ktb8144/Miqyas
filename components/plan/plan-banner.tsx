@@ -17,7 +17,9 @@ type Plan = {
   blockedReason: string | null;
 };
 
-export type AccountPlan = { plan: Plan | null; joinCode: string | null; schoolName: string | null };
+export type SchoolGender = "boys" | "girls" | null;
+
+export type AccountPlan = { plan: Plan | null; joinCode: string | null; schoolName: string | null; schoolGender: SchoolGender };
 
 /** Loads the signed-in user's plan once (trial dates, papers used, join code). */
 export function useAccountPlan() {
@@ -27,7 +29,9 @@ export function useAccountPlan() {
     fetch("/api/account/plan", { cache: "no-store" })
       .then((res) => res.json())
       .then((json) => {
-        if (alive && json.success) setData({ plan: json.plan, joinCode: json.joinCode, schoolName: json.schoolName });
+        if (alive && json.success) {
+          setData({ plan: json.plan, joinCode: json.joinCode, schoolName: json.schoolName, schoolGender: json.schoolGender ?? null });
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -70,12 +74,60 @@ export function PlanBanner({ plan }: { plan: Plan | null | undefined }) {
   );
 }
 
+/**
+ * The message the principal sends to the school's WhatsApp group. Girls' schools are addressed
+ * in the feminine; boys' schools and older schools with no gender on record in the masculine.
+ * WhatsApp shows *text* in bold. The principal can still edit it in WhatsApp before sending.
+ */
+export function joinInviteMessage({
+  schoolName,
+  joinCode,
+  link,
+  gender,
+}: {
+  schoolName?: string | null;
+  joinCode: string;
+  link: string;
+  gender?: SchoolGender;
+}) {
+  const girls = gender === "girls";
+  const school = schoolName ? ` في «${schoolName}»` : "";
+  return [
+    "السلام عليكم ورحمة الله وبركاته",
+    girls ? `الزميلات الكريمات${school}،` : `الزملاء الكرام${school}،`,
+    "",
+    girls
+      ? "نأمل من المعلمات المكلّفات بمراجعة نافس التسجيل في منصة دالة من الرابط التالي:"
+      : "نأمل من المعلمين المكلّفين بمراجعة نافس التسجيل في منصة دالة من الرابط التالي:",
+    link,
+    "",
+    `رمز المدرسة: *${joinCode}*`,
+    "",
+    "التسجيل خلال دقيقتين:",
+    girls ? "1. افتحي الرابط واكتبي اسمك وبريدك الإلكتروني." : "1. افتح الرابط واكتب اسمك وبريدك الإلكتروني.",
+    girls
+      ? "2. افتحي رسالة التفعيل في بريدك (راجعي البريد غير المرغوب فيه إن لم تجديها)."
+      : "2. افتح رسالة التفعيل في بريدك (راجع البريد غير المرغوب فيه إن لم تجدها).",
+    girls ? "3. اختاري كلمة المرور، وتدخلين لوحتك مباشرة." : "3. اختر كلمة المرور، وتدخل لوحتك مباشرة.",
+    "",
+    "شاكرين تعاونكم.",
+  ].join("\n");
+}
+
 /** The principal's code for teachers to join the school, with copy and WhatsApp share. */
-export function JoinCodeCard({ joinCode, schoolName }: { joinCode: string; schoolName?: string | null }) {
+export function JoinCodeCard({
+  joinCode,
+  schoolName,
+  schoolGender,
+}: {
+  joinCode: string;
+  schoolName?: string | null;
+  schoolGender?: SchoolGender;
+}) {
   const [copied, setCopied] = useState(false);
   const origin = typeof window === "undefined" ? "https://www.dalaedu.com" : window.location.origin;
   const link = `${origin}/signup?type=join&code=${joinCode}`;
-  const message = `انضم إلى ${schoolName ? `«${schoolName}»` : "مدرستنا"} في دالة للاختبارات الأسبوعية.\nسجّل من هذا الرابط: ${link}\nرمز المدرسة: ${joinCode}`;
+  const message = joinInviteMessage({ schoolName, joinCode, link, gender: schoolGender });
 
   const copy = async () => {
     try {
@@ -92,10 +144,15 @@ export function JoinCodeCard({ joinCode, schoolName }: { joinCode: string; schoo
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-black text-brand-navy">رمز انضمام المعلمين</p>
-          <p className="text-xs font-bold text-slate-400">أرسله في قروب المعلمين؛ من يسجّل به ينضم لمدرستك مباشرة.</p>
+          <p className="text-xs font-bold text-slate-400">أرسل الرسالة في قروب المدرسة؛ من يسجّل بالرمز ينضم لمدرستك مباشرة.</p>
         </div>
         <span dir="ltr" className="rounded-xl bg-slate-50 px-4 py-2 text-xl font-black tracking-[0.3em] text-brand-navy">{joinCode}</span>
       </div>
+      <details className="mt-3 rounded-xl bg-slate-50 px-3 py-2">
+        <summary className="cursor-pointer text-xs font-extrabold text-brand">عرض نص الرسالة</summary>
+        <p className="mt-2 whitespace-pre-line break-words text-xs font-bold leading-6 text-slate-600">{message.replace(/\*/g, "")}</p>
+        <p className="mt-1 text-[11px] font-bold text-slate-400">يمكنك تعديل النص في واتساب قبل الإرسال.</p>
+      </details>
       <div className="mt-3 flex gap-2">
         <a
           href={`https://wa.me/?text=${encodeURIComponent(message)}`}

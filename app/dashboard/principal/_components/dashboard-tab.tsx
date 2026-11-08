@@ -57,7 +57,7 @@ export function DashboardTab({ d, account }: { d: PrincipalDashboardState; accou
             <li>3. يظهر اختبار الأسبوع للمعلم تلقائيًا: يطبعه، ويصحّحه بالجوال، وتصلك النتائج هنا.</li>
           </ol>
         </Card>
-        {account?.joinCode && <JoinCodeCard joinCode={account.joinCode} schoolName={account.schoolName} />}
+        {account?.joinCode && <JoinCodeCard joinCode={account.joinCode} schoolName={account.schoolName} schoolGender={account.schoolGender} />}
       </div>
     );
   }
