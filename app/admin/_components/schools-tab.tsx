@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { formatNumber, toEnglishDigits } from "@/lib/format";
 import { EmptyState, ErrorState, PageHeader, PrimaryButton, SearchBar } from "./ui";
 import type { AdminSchool } from "../_lib/types";
+import { stageLabel } from "@/lib/stages";
 
 export type SchoolStatus = "trial" | "active" | "suspended";
 
@@ -78,6 +79,7 @@ export function SchoolsTab({
               <tr className="border-b border-slate-100 bg-slate-50/70 text-slate-400">
                 <th className="px-5 py-4 text-right font-extrabold">المدرسة</th>
                 <th className="px-5 py-4 text-right font-extrabold">المدينة</th>
+                <th className="px-5 py-4 text-right font-extrabold">المرحلة</th>
                 <th className="px-5 py-4 text-right font-extrabold">المدير</th>
                 <th className="px-5 py-4 text-right font-extrabold">المعلمون</th>
                 <th className="px-5 py-4 text-right font-extrabold">الطلاب</th>
@@ -95,6 +97,7 @@ export function SchoolsTab({
                 <tr key={school.id} className="transition hover:bg-slate-50/70">
                   <td className="px-5 py-4 font-extrabold text-brand-navy">{school.name}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{school.city}</td>
+                  <td className="px-5 py-4 font-bold text-slate-500">{stageLabel(school.stage)}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{school.principal}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{school.teachers}</td>
                   <td className="px-5 py-4 font-bold text-slate-500">{formatNumber(school.students)}</td>
@@ -133,7 +136,7 @@ export function SchoolsTab({
               })}
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10">
+                  <td colSpan={9} className="px-5 py-10">
                     <EmptyState message={search ? "لا توجد مدارس مطابقة للبحث." : "لا توجد مدارس فعلية حتى الآن."} />
                   </td>
                 </tr>

@@ -2,6 +2,7 @@ import "server-only";
 import { randomInt } from "node:crypto";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { addDays, saudiToday } from "@/lib/test-schedule";
+import type { SchoolStage } from "@/lib/stages";
 
 type Db = ReturnType<typeof getAdminClient>;
 
@@ -49,6 +50,7 @@ export async function provisionSchool(
     type?: string;
     region?: string | null;
     gender?: "boys" | "girls" | null;
+    stage?: SchoolStage | null;
   }
 ) {
   const today = saudiToday();
@@ -64,6 +66,7 @@ export async function provisionSchool(
         type: input.type ?? (input.kind === "individual" ? "معلم مستقل" : "حكومية"),
         kind: input.kind,
         gender: input.gender ?? null,
+        stage: input.stage ?? null,
         join_code: input.kind === "school" ? generateJoinCode() : null,
         subscription_type: "trial",
         subscription_start: today,

@@ -12,6 +12,7 @@ import {
 } from "@/lib/invite";
 import { normalizeJoinCode, provisionSchool } from "@/lib/schools";
 import { turnstileMessage, verifyTurnstile, visitorIp } from "@/lib/turnstile";
+import { STAGE_VALUES } from "@/lib/stages";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ const base = {
   email: z.string().trim().email(),
   phone: z.string().trim().max(20).optional(),
   acceptTerms: z.literal(true),
+  /** The school's stage, or for a teacher the stage they teach. */
+  stage: z.enum(STAGE_VALUES),
   /** Honeypot: real people never fill it. */
   website: z.string().max(0).optional(),
   /** Cloudflare Turnstile token from the page (checked below when the secret key is set). */
@@ -60,8 +63,12 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     const missingTerms = parsed.error.issues.some((issue) => issue.path[0] === "acceptTerms");
+    const missingStage = parsed.error.issues.some((issue) => issue.path[0] === "stage");
     return NextResponse.json(
-      { success: false, error: missingTerms ? "يجب الموافقة على الشروط وسياسة الخصوصية" : "تحقق من البيانات المطلوبة" },
+      {
+        success: false,
+        error: missingTerms ? "يجب الموافقة على الشروط وسياسة الخصوصية" : missingStage ? "اختر المرحلة" : "تحقق من البيانات المطلوبة",
+      },
       { status: 400 }
     );
   }
@@ -147,12 +154,13 @@ export async function POST(req: NextRequest) {
         city: input.city,
         kind: "school",
         gender: input.gender,
+        stage: input.stage,
       });
       createdSchoolId = school.id;
       schoolId = school.id;
       role = "principal";
     } else {
-      const school = await provisionSchool(db, { name: input.schoolName, city: input.city, kind: "individual" });
+      const school = await provisionSchool(db, { name: input.schoolName, city: input.city, kind: "individual", stage: input.stage });
       createdSchoolId = school.id;
       schoolId = school.id;
       role = "teacher";
@@ -171,6 +179,7 @@ export async function POST(req: NextRequest) {
       school_id: schoolId,
       subject,
       phone,
+      stage: input.stage,
       status: "invited",
     });
     if (insertError) {
