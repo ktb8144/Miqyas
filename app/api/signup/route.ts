@@ -13,6 +13,7 @@ import {
 import { normalizeJoinCode, provisionSchool } from "@/lib/schools";
 import { turnstileMessage, verifyTurnstile, visitorIp } from "@/lib/turnstile";
 import { STAGE_VALUES } from "@/lib/stages";
+import { RESEARCH_CONSENT_VERSION } from "@/lib/research";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,8 @@ const base = {
   acceptTerms: z.literal(true),
   /** The school's stage, or for a teacher the stage they teach. */
   stage: z.enum(STAGE_VALUES),
+  /** Optional, separate research participation (school and independent teacher only; never required). */
+  researchConsent: z.boolean().optional(),
   /** Honeypot: real people never fill it. */
   website: z.string().max(0).optional(),
   /** Cloudflare Turnstile token from the page (checked below when the secret key is set). */
@@ -171,7 +174,7 @@ export async function POST(req: NextRequest) {
     const authUser = await inviteOrCreateAuthUser(email, input.name, role);
     if (authUser.created) createdAuthId = authUser.userId;
 
-    const { error: insertError } = await db.from("users").insert({
+    const { data: profileRow, error: insertError } = await db.from("users").insert({
       auth_id: authUser.userId,
       name: input.name,
       email,
@@ -181,7 +184,7 @@ export async function POST(req: NextRequest) {
       phone,
       stage: input.stage,
       status: "invited",
-    });
+    }).select("id").single();
     if (insertError) {
       const message = describeProfileInsertError(insertError);
       if (message) {
@@ -189,6 +192,18 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: message }, { status: 409 });
       }
       throw insertError;
+    }
+
+    // Research participation is optional: a failure here never blocks the account (the school simply stays out).
+    if (input.researchConsent === true && input.type !== "join" && createdSchoolId) {
+      const { error: consentError } = await db.rpc("set_research_consent", {
+        p_school: createdSchoolId,
+        p_user: profileRow?.id ?? null,
+        p_granted: true,
+        p_version: RESEARCH_CONSENT_VERSION,
+        p_source: "signup",
+      });
+      if (consentError) console.error("signup: research consent not saved", consentError);
     }
 
     return NextResponse.json({ success: true, message: SENT });

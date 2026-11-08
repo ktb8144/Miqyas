@@ -2,6 +2,7 @@ import {
   BarChart3,
   Building2,
   ClipboardList,
+  FlaskConical,
   LayoutDashboard,
   PackageCheck,
   Sparkles,
@@ -31,4 +32,5 @@ export const navItems = [
   { id: "trialRequests", label: "طلبات التجربة", icon: ClipboardList },
   { id: "reports", label: "التقارير", icon: BarChart3 },
   { id: "aiUsage", label: "استهلاك Claude", icon: Sparkles },
+  { id: "research", label: "البحث العلمي", icon: FlaskConical },
 ] satisfies { id: Tab; label: string; icon: typeof LayoutDashboard }[];

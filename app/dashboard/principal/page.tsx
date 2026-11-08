@@ -11,6 +11,7 @@ import { TABS } from "./_lib/tabs";
 import { TeachersTab } from "./_components/teachers-tab";
 import { usePrincipalDashboard } from "./_lib/use-principal-dashboard";
 import { PlanBanner, useAccountPlan } from "@/components/plan/plan-banner";
+import { ResearchConsentCard } from "@/components/research/research-consent-card";
 
 export default function PrincipalDashboard() {
   const d = usePrincipalDashboard();
@@ -89,6 +90,7 @@ export default function PrincipalDashboard() {
         )}
 
         {report && activeTab === 0 && <DashboardTab d={d} account={account} />}
+        {report && activeTab === 0 && <ResearchConsentCard className="mt-4 sm:mt-5" />}
 
         {report && activeTab === 1 && <TeachersTab d={d} account={account} />}
 

@@ -69,7 +69,7 @@ export async function loadParentReportData(token: string, eventType?: "open_repo
   const [studentResult, latestResult] = await Promise.all([
     db
       .from("students")
-      .select("id, name, student_code, school_id, class_id, classes(name, grade, subject), schools(name)")
+      .select("id, name, student_code, school_id, class_id, research_opt_out, classes(name, grade, subject), schools(name, research_consent)")
       .eq("id", tokenRow.student_id)
       .eq("school_id", tokenRow.school_id)
       .maybeSingle(),

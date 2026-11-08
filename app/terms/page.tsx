@@ -71,6 +71,12 @@ const sections: LegalSection[] = [
     ],
   },
   {
+    title: "البحث العلمي",
+    body: [
+      <>استخدام المنصة لا يتضمن الموافقة على البحث العلمي. المشاركة في البحث اختيارية ومنفصلة، يقررها قائد المدرسة ويمكنه سحبها في أي وقت، كما توضح صفحة <Link href="/research" className="text-brand underline">البحث العلمي</Link>.</>,
+    ],
+  },
+  {
     title: "إيقاف الحساب",
     body: ["يحق لنا إيقاف الحساب عند مخالفة هذه الشروط، مع الاحتفاظ ببياناته وإتاحة تصديرها أو حذفها عند الطلب."],
   },
@@ -92,7 +98,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="شروط الاستخدام"
-      updated="29 أكتوبر 2026"
+      updated="8 نوفمبر 2026"
       intro={`باستخدامك منصة ${BRAND.nameAr} فأنت توافق على هذه الشروط.`}
       sections={sections}
     />

@@ -45,6 +45,7 @@ function SignupContent() {
     website: "",
   });
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [researchConsent, setResearchConsent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState<string | null>(null);
@@ -79,10 +80,10 @@ function SignupContent() {
       };
       const body =
         type === "school"
-          ? { type, ...common, schoolName: form.schoolName, city: form.city, gender: form.gender }
+          ? { type, ...common, researchConsent, schoolName: form.schoolName, city: form.city, gender: form.gender }
           : type === "join"
             ? { type, ...common, joinCode: form.joinCode, subject: form.subject || undefined }
-            : { type, ...common, schoolName: form.schoolName, city: form.city, subject: form.subject || undefined };
+            : { type, ...common, researchConsent, schoolName: form.schoolName, city: form.city, subject: form.subject || undefined };
       const res = await fetch("/api/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,6 +233,18 @@ function SignupContent() {
             <Link href="/privacy" target="_blank" className="text-brand underline">سياسة الخصوصية</Link>
           </span>
         </label>
+
+        {type !== "join" && (
+          <label className="flex items-start gap-2 rounded-xl border border-slate-100 bg-slate-50 p-3 text-sm font-bold leading-7 text-slate-500">
+            <input type="checkbox" checked={researchConsent} onChange={(e) => setResearchConsent(e.target.checked)} className="mt-1.5 accent-brand" />
+            <span>
+              <span className="text-slate-400">(اختياري)</span>{" "}
+              {type === "school" ? "أوافق على استخدام نتائج مدرستي" : "أوافق على استخدام نتائج فصولي"} بعد تجهيلها في البحث العلمي التربوي.
+              لا يؤثر ذلك على استخدامك لدالة، ويمكنك سحب الموافقة في أي وقت.{" "}
+              <Link href="/research" target="_blank" className="text-brand underline">التفاصيل</Link>
+            </span>
+          </label>
+        )}
 
         <Turnstile action="signup" onToken={setCaptchaToken} resetKey={captchaReset} />
 
