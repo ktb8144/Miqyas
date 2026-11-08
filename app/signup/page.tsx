@@ -185,8 +185,19 @@ function SignupContent() {
           </Field>
         )}
 
-        <Field label="الجوال (اختياري)">
-          <input inputMode="tel" dir="ltr" value={form.phone} onChange={set("phone")} placeholder="05xxxxxxxx" className={`${authInputClass} text-right`} />
+        <Field
+          label={type === "school" ? "الجوال (واتساب)" : "الجوال (اختياري)"}
+          hint={type === "school" ? "نتواصل معك عليه عبر واتساب" : undefined}
+        >
+          <input
+            required={type === "school"}
+            inputMode="tel"
+            dir="ltr"
+            value={form.phone}
+            onChange={set("phone")}
+            placeholder="05xxxxxxxx"
+            className={`${authInputClass} text-right`}
+          />
         </Field>
 
         {/* Honeypot, hidden from people */}

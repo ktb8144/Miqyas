@@ -1,6 +1,6 @@
 
 
-export type Tab = "overview" | "schools" | "users" | "packages" | "trialRequests" | "reports";
+export type Tab = "overview" | "schools" | "users" | "packages" | "trialRequests" | "reports" | "aiUsage";
 export type ModalType = "school" | "user";
 
 export type OverviewData = {

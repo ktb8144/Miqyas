@@ -31,6 +31,7 @@ import {
 import { AnswerKeySheetModal } from "./_components/answer-key-sheet-modal";
 import { PackagesTab } from "./_components/packages-tab";
 import { ReportsTab } from "./_components/reports-tab";
+import { AiUsageTab } from "./_components/ai-usage-tab";
 import { SchoolsTab, schoolStatusOf, type SchoolStatus } from "./_components/schools-tab";
 import { TrialRequestsTab } from "./_components/trial-requests-tab";
 import { UsersTab } from "./_components/users-tab";
@@ -799,6 +800,7 @@ export default function AdminPage() {
             />
           )}
           {activeTab === "reports" && <ReportsTab />}
+          {activeTab === "aiUsage" && <AiUsageTab />}
         </main>
       </div>
     </div>

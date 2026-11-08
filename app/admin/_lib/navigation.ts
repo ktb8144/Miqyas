@@ -4,6 +4,7 @@ import {
   ClipboardList,
   LayoutDashboard,
   PackageCheck,
+  Sparkles,
   UsersRound,
 } from "lucide-react";
 import type { OverviewData, Tab } from "./types";
@@ -29,4 +30,5 @@ export const navItems = [
   { id: "packages", label: "حزم الاختبارات", icon: PackageCheck },
   { id: "trialRequests", label: "طلبات التجربة", icon: ClipboardList },
   { id: "reports", label: "التقارير", icon: BarChart3 },
+  { id: "aiUsage", label: "استهلاك Claude", icon: Sparkles },
 ] satisfies { id: Tab; label: string; icon: typeof LayoutDashboard }[];
