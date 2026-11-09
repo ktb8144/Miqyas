@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useState } from "react";
 import { BrandLogo } from "@/components/brand-logo";
 import { supabase } from "@/lib/supabase";
 import { DashboardTab } from "./_components/dashboard-tab";
@@ -7,6 +8,8 @@ import { ImpactTab } from "./_components/impact-tab";
 import { InviteTeacherModal } from "./_components/invite-teacher-modal";
 import { PeriodicReportsTab } from "./_components/periodic-reports-tab";
 import { NafsBaselineTab } from "./_components/nafs-baseline-tab";
+import { NafsOnboardingHero } from "./_components/nafs-onboarding-hero";
+import type { NafsReportResult } from "@/lib/nafs/report-upload";
 import { TABS } from "./_lib/tabs";
 import { TeachersTab } from "./_components/teachers-tab";
 import { usePrincipalDashboard } from "./_lib/use-principal-dashboard";
@@ -27,6 +30,9 @@ export default function PrincipalDashboard() {
     setInviteOpen,
     loadReport,
   } = d;
+  // A NAFS report read from the welcome card, waiting to be reviewed in «نافس السابق».
+  const [nafsReading, setNafsReading] = useState<NafsReportResult | null>(null);
+  const clearNafsReading = useCallback(() => setNafsReading(null), []);
 
   return (
     <div className="min-h-screen bg-[#f7fafc] text-brand-navy" dir="rtl">
@@ -89,6 +95,12 @@ export default function PrincipalDashboard() {
           </div>
         )}
 
+        {report && activeTab === 0 && (
+          <NafsOnboardingHero
+            onRead={(reading) => { setNafsReading(reading); setActiveTab(4); }}
+            onManual={() => setActiveTab(4)}
+          />
+        )}
         {report && activeTab === 0 && <DashboardTab d={d} account={account} />}
         {report && activeTab === 0 && <ResearchConsentCard className="mt-4 sm:mt-5" />}
 
@@ -98,7 +110,7 @@ export default function PrincipalDashboard() {
 
         {report && activeTab === 3 && <PeriodicReportsTab d={d} />}
 
-        {report && activeTab === 4 && <NafsBaselineTab />}
+        {report && activeTab === 4 && <NafsBaselineTab initialReading={nafsReading} onReadingConsumed={clearNafsReading} />}
       </main>
     </div>
   );
