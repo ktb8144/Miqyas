@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toEnglishDigits } from "@/lib/format";
-import { shrinkImage } from "@/lib/import/shrink-image";
+import { uploadNafsReport, type NafsReportResult } from "@/lib/nafs/report-upload";
 import {
   BASELINE_TEMPLATE_CSV,
   DOMAIN_SUGGESTIONS,
@@ -25,8 +25,6 @@ type FormRow = {
 
 const keyOf = (year: number, grade: number, subject: string) => `${year}|${grade}|${subject}`;
 const gradeName = (grade: number) => (grade === 3 ? "الثالث" : "السادس");
-// Keep in step with MAX_TOTAL_BYTES in app/api/principal/nafs-report/route.ts.
-const MAX_REPORT_BYTES = 4_200_000;
 const str = (value: number | null | undefined) => (value === null || value === undefined ? "" : String(value));
 
 function emptyRow(subject: NafsSubject): FormRow {
@@ -78,8 +76,17 @@ function toBaseline(year: number, grade: 3 | 6, subject: NafsSubject, row: FormR
   };
 }
 
-/** Principal enters (or imports) last year's NAFS results; Dala builds the situation report and plan from them. */
-export function NafsBaselineTab() {
+/**
+ * Principal enters (or imports) last year's NAFS results; Dala builds the situation report and plan from them.
+ * `initialReading` is a report already read elsewhere (the welcome card on the main tab), shown here for review.
+ */
+export function NafsBaselineTab({
+  initialReading = null,
+  onReadingConsumed,
+}: {
+  initialReading?: NafsReportResult | null;
+  onReadingConsumed?: () => void;
+} = {}) {
   const [forms, setForms] = useState<Record<string, FormRow>>({});
   const [savedYears, setSavedYears] = useState<number[]>([]);
   const [year, setYear] = useState(new Date().getFullYear() - 1);
@@ -91,6 +98,7 @@ export function NafsBaselineTab() {
   const [reading, setReading] = useState(false);
   // What the last report upload filled in: the principal reviews it before anything is saved.
   const [review, setReview] = useState<{ keys: string[]; warnings: string[] } | null>(null);
+  const [planReady, setPlanReady] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLInputElement>(null);
 
@@ -168,6 +176,26 @@ export function NafsBaselineTab() {
     }
   };
 
+  /** Puts what was read from a report into the form, unsaved, and opens the review panel. */
+  const applyReading = useCallback((reading: NafsReportResult) => {
+    if (!reading.baselines.length) return;
+    setForms((prev) => {
+      const next = { ...prev };
+      reading.baselines.forEach((b) => { next[keyOf(b.year, b.grade, b.subject)] = toForm(b); });
+      return next;
+    });
+    setYear(reading.baselines[0].year);
+    setGrade(reading.baselines[0].grade);
+    setPlanReady(false);
+    setReview({ keys: reading.baselines.map((b) => keyOf(b.year, b.grade, b.subject)), warnings: reading.warnings });
+  }, []);
+
+  useEffect(() => {
+    if (loading || !initialReading) return;
+    applyReading(initialReading);
+    onReadingConsumed?.();
+  }, [loading, initialReading, applyReading, onReadingConsumed]);
+
   /** Uploads the NAFS report (PDF or photos); the numbers fill the form for review, unsaved. */
   const readReport = async (list: FileList | null) => {
     const picked = Array.from(list ?? []);
@@ -176,22 +204,7 @@ export function NafsBaselineTab() {
     setMessage(null);
     setReading(true);
     try {
-      const files = await Promise.all(picked.map((file) => shrinkImage(file)));
-      if (files.reduce((sum, f) => sum + f.size, 0) > MAX_REPORT_BYTES) {
-        throw new Error("حجم الملف كبير. أرسل التقرير بحجم أصغر من 4 ميجابايت، أو صوّر صفحاته.");
-      }
-      const body = new FormData();
-      files.forEach((file) => body.append("files", file));
-      const res = await fetch("/api/principal/nafs-report", { method: "POST", body });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok || !json.success) throw new Error(json.error || "تعذرت قراءة التقرير");
-      const read = json.baselines as NafsBaseline[];
-      const next = { ...forms };
-      read.forEach((b) => { next[keyOf(b.year, b.grade, b.subject)] = toForm(b); });
-      setForms(next);
-      setYear(read[0].year);
-      setGrade(read[0].grade);
-      setReview({ keys: read.map((b) => keyOf(b.year, b.grade, b.subject)), warnings: (json.warnings as string[]) ?? [] });
+      applyReading(await uploadNafsReport(picked));
     } catch (err) {
       setMessage({ tone: "error", text: err instanceof Error ? err.message : "تعذرت قراءة التقرير" });
     } finally {
@@ -201,7 +214,10 @@ export function NafsBaselineTab() {
 
   const approveReview = async () => {
     if (!review) return;
-    if (await save(review.keys)) setReview(null);
+    if (await save(review.keys)) {
+      setReview(null);
+      setPlanReady(true);
+    }
   };
 
   const discardReview = async () => {
@@ -296,6 +312,23 @@ export function NafsBaselineTab() {
         <p role="status" className={`rounded-xl p-3 text-sm font-bold ${message.tone === "ok" ? "bg-teal-50 text-brand" : "bg-red-50 text-red-700"}`}>
           {message.text}
         </p>
+      )}
+
+      {planReady && !review && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-brand-navy p-4 text-white">
+          <div>
+            <p className="text-base font-black">تقرير الوضع وخطة التحسين جاهزان ✓</p>
+            <p className="text-xs font-bold text-white/70">أضعف المجالات وأولوياتها، والأهداف المقترحة، وخطة مربوطة بدورة دالة الأسبوعية.</p>
+          </div>
+          <a
+            href="/dashboard/principal/nafs-plan"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-xl bg-white px-4 py-2 text-sm font-extrabold text-brand-navy"
+          >
+            افتح التقرير والخطة
+          </a>
+        </div>
       )}
 
       {review && (
