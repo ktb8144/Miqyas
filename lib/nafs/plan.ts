@@ -124,15 +124,23 @@ export function buildNafsPlan(baselines: NafsBaseline[]): NafsPlan | null {
 
   // ── Findings (plain statements of what the numbers say) ────────────────────
   const findings: string[] = [];
-  const withChange = subjects.filter((s) => s.change !== null);
-  if (withChange.length && withChange.every((s) => (s.change ?? 0) < 0)) {
+  // Some reports (e.g. education-office analysis cards) give only the mastery rate, not an
+  // average score; the subject trend then follows the mastery rate.
+  const masteryChange = (s: SubjectStatus) =>
+    s.mastery !== null && s.previousMastery !== null ? round1(s.mastery - s.previousMastery) : null;
+  const trendOf = (s: SubjectStatus) => (s.overall !== null ? s.change : masteryChange(s));
+  const withChange = subjects.filter((s) => trendOf(s) !== null);
+  if (withChange.length && withChange.every((s) => (trendOf(s) ?? 0) < 0)) {
     findings.push(`تراجعت كل المواد المقيسة عن ${previousYear}، فالخطة تحتاج متابعة شهرية لا نهاية العام فقط.`);
   }
+  const trendText = (change: number | null) =>
+    change === null ? "" : change < 0 ? `، بتراجع ${Math.abs(change)} نقطة عن ${previousYear}` : change > 0 ? `، بتحسن ${change} نقطة عن ${previousYear}` : "، دون تغير";
   subjects.forEach((s) => {
     const label = `${s.subject} (الصف ${s.grade})`;
     if (s.overall !== null) {
-      const trend = s.change === null ? "" : s.change < 0 ? `، بتراجع ${Math.abs(s.change)} نقطة عن ${previousYear}` : s.change > 0 ? `، بتحسن ${s.change} نقطة عن ${previousYear}` : "، دون تغير";
-      findings.push(`${label}: ${s.overall}%${trend}.`);
+      findings.push(`${label}: ${s.overall}%${trendText(s.change)}.`);
+    } else if (s.mastery !== null) {
+      findings.push(`${label}: نسبة التمكن ${s.mastery}%${trendText(masteryChange(s))}.`);
     }
     const weakest = s.domains[0];
     if (weakest) findings.push(`أضعف مجال في ${label}: ${weakest.name} (${weakest.percent}%).`);

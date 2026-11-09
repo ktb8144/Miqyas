@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
-import { baselineSchema, fromRow, type NafsBaselineRow } from "@/lib/nafs/baseline";
+import { baselineSchema } from "@/lib/nafs/baseline";
+import { selectBaselines, upsertBaselines } from "@/lib/nafs/baseline-db";
+import { claudeConfigured } from "@/lib/claude";
 
 export const dynamic = "force-dynamic";
-
-const SELECT = "year, grade, subject, overall_percent, mastery_percent, tested_count, absent_count, domains";
 
 function missingTable(error: { code?: string; message?: string } | null) {
   return Boolean(error && (error.code === "42P01" || error.code === "PGRST205" || /nafs_baselines/.test(error.message ?? "")));
@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
   if (!schoolId) return NextResponse.json({ success: false, error: "حسابك غير مرتبط بمدرسة" }, { status: 400 });
 
   const db = getAdminClient();
-  const [{ data, error }, { data: school }] = await Promise.all([
-    db.from("nafs_baselines").select(SELECT).eq("school_id", schoolId).order("year", { ascending: false }),
+  const [{ baselines, error }, { data: school }] = await Promise.all([
+    selectBaselines(db, schoolId),
     db.from("schools").select("name").eq("id", schoolId).maybeSingle(),
   ]);
   if (error) {
@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     success: true,
     schoolName: (school as { name?: string | null } | null)?.name ?? "",
-    baselines: ((data ?? []) as NafsBaselineRow[]).map(fromRow),
+    baselines,
+    // Whether the page can offer "upload the NAFS report (PDF or photo)".
+    reportReaderEnabled: claudeConfigured(),
   });
 }
 
@@ -52,23 +54,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ success: false, error: "تحقق من القيم: النسب بين 0 و100، والأعداد صحيحة" }, { status: 400 });
   }
 
-  const rows = parsed.data.baselines.map((b) => ({
-    school_id: schoolId,
-    year: b.year,
-    grade: b.grade,
-    subject: b.subject,
-    overall_percent: b.overallPercent,
-    mastery_percent: b.masteryPercent,
-    tested_count: b.testedCount,
-    absent_count: b.absentCount,
-    domains: b.domains,
-    created_by: auth.profile.id,
-    updated_at: new Date().toISOString(),
-  }));
-
-  const { error } = await getAdminClient()
-    .from("nafs_baselines")
-    .upsert(rows, { onConflict: "school_id,year,grade,subject" });
+  const error = await upsertBaselines(getAdminClient(), schoolId, auth.profile.id, parsed.data.baselines);
   if (error) {
     if (missingTable(error)) return NextResponse.json({ success: false, error: NOT_READY }, { status: 503 });
     console.error("nafs baseline save failed", error);

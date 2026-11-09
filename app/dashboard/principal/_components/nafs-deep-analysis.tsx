@@ -93,7 +93,14 @@ export function NafsDeepAnalysis() {
     }
   }
 
-  if (status === "disabled" || status === "loading") return null;
+  if (status === "loading") return null;
+  if (status === "disabled") {
+    return (
+      <p className="rounded-2xl border border-slate-100 bg-white p-4 text-sm font-bold text-slate-500 print:hidden">
+        التحليل المعمّق بالذكاء الاصطناعي غير مفعّل حاليًا لهذه المنصة. التقرير والخطة أدناه مبنيان على قواعد ثابتة ويعملان كاملين.
+      </p>
+    );
+  }
 
   return (
     <section className="rounded-2xl border-2 border-teal-100 bg-white p-6 print:border-0 print:p-0">

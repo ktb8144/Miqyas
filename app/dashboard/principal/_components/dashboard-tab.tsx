@@ -50,11 +50,17 @@ export function DashboardTab({ d, account }: { d: PrincipalDashboardState; accou
   if (report.teachers.length === 0) {
     return (
       <div className="space-y-4">
-        <Card title="ابدأ في ثلاث خطوات">
+        <Card title="ابدأ في أربع خطوات">
           <ol className="space-y-3 text-sm font-bold leading-7 text-slate-600">
             <li>1. أرسل رمز المدرسة لمعلميك في قروب الواتساب ليسجّلوا وينضموا مباشرة.</li>
             <li>2. ارفع كشف الطلاب من نور («المعلمون» ← «استيراد الطلاب من نور») واختر معلم كل مادة، أو يضيف كل معلم فصوله من لوحته.</li>
             <li>3. يظهر اختبار الأسبوع للمعلم تلقائيًا: يطبعه، ويصحّحه بالجوال، وتصلك النتائج هنا.</li>
+            <li>
+              4. ارفع تقرير نافس السابق (PDF أو صور)، وتبني لك دالة تقرير الوضع وخطة التحسين.{" "}
+              <button onClick={() => setActiveTab(4)} className="font-extrabold text-brand underline underline-offset-4">
+                رفع التقرير
+              </button>
+            </li>
           </ol>
         </Card>
         {account?.joinCode && <JoinCodeCard joinCode={account.joinCode} schoolName={account.schoolName} schoolGender={account.schoolGender} />}

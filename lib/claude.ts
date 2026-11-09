@@ -24,7 +24,7 @@ import { getAdminClient } from "@/lib/supabase-admin";
  */
 
 export type ClaudeEffort = "low" | "medium" | "high" | "xhigh" | "max";
-export type ClaudeTask = "class_report" | "nafs_analysis" | "student_names";
+export type ClaudeTask = "class_report" | "nafs_analysis" | "student_names" | "nafs_report";
 
 const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
@@ -37,6 +37,8 @@ const DEFAULT_EFFORT: Record<ClaudeTask, ClaudeEffort> = {
   nafs_analysis: "max",
   // Reading names off a photo needs eyes, not deep thought, and the teacher is waiting.
   student_names: "low",
+  // Reading a NAFS report: mostly eyes, plus some thought to map each number to the right field.
+  nafs_report: "medium",
 };
 
 const envKey = (task: ClaudeTask) => task.toUpperCase();
@@ -162,6 +164,8 @@ type JsonRequest = {
   maxTokens?: number;
   /** Photos sent before the prompt (base64, e.g. image/jpeg). */
   images?: Array<{ mediaType: string; data: string }>;
+  /** PDF files sent before the photos and the prompt (base64). */
+  documents?: Array<{ data: string }>;
   /** Who the call is for, for the usage log. */
   context?: UsageContext;
 };
@@ -179,11 +183,12 @@ function headers(key: string) {
 }
 
 /** The Messages API body shared by live calls and batches. */
-function messageParams({ task, system, prompt, schema, maxTokens = 32000, images }: JsonRequest) {
+function messageParams({ task, system, prompt, schema, maxTokens = 32000, images, documents }: JsonRequest) {
   const effort = claudeEffort(task);
-  const content = images?.length
+  const content = images?.length || documents?.length
     ? [
-        ...images.map((image) => ({ type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } })),
+        ...(documents ?? []).map((doc) => ({ type: "document", source: { type: "base64", media_type: "application/pdf", data: doc.data } })),
+        ...(images ?? []).map((image) => ({ type: "image", source: { type: "base64", media_type: image.mediaType, data: image.data } })),
         { type: "text", text: prompt },
       ]
     : prompt;

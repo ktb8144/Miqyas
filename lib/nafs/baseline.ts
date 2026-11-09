@@ -37,6 +37,8 @@ export const baselineSchema = z.object({
   testedCount: z.number().int().min(0).max(5000).nullable(),
   absentCount: z.number().int().min(0).max(5000).nullable(),
   domains: z.array(z.object({ name: z.string().trim().min(1).max(80), percent })).max(12),
+  /** Share of students at each performance level, highest level first, named as in the report. */
+  levels: z.array(z.object({ name: z.string().trim().min(1).max(40), percent })).max(6).default([]),
 });
 
 export type NafsBaseline = z.infer<typeof baselineSchema>;
@@ -50,7 +52,17 @@ export type NafsBaselineRow = {
   tested_count: number | null;
   absent_count: number | null;
   domains: unknown;
+  /** Missing until the levels migration is applied. */
+  levels?: unknown;
 };
+
+function namedPercents(value: unknown) {
+  return Array.isArray(value)
+    ? (value as Array<{ name?: unknown; percent?: unknown }>)
+        .map((d) => ({ name: String(d.name ?? "").trim(), percent: Number(d.percent) }))
+        .filter((d) => d.name && Number.isFinite(d.percent))
+    : [];
+}
 
 function toNumber(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === "") return null;
@@ -59,11 +71,7 @@ function toNumber(value: number | string | null | undefined) {
 }
 
 export function fromRow(row: NafsBaselineRow): NafsBaseline {
-  const domains = Array.isArray(row.domains)
-    ? (row.domains as Array<{ name?: unknown; percent?: unknown }>)
-        .map((d) => ({ name: String(d.name ?? "").trim(), percent: Number(d.percent) }))
-        .filter((d) => d.name && Number.isFinite(d.percent))
-    : [];
+  const domains = namedPercents(row.domains);
   return {
     year: row.year,
     grade: row.grade === 3 ? 3 : 6,
@@ -73,6 +81,7 @@ export function fromRow(row: NafsBaselineRow): NafsBaseline {
     testedCount: row.tested_count,
     absentCount: row.absent_count,
     domains,
+    levels: namedPercents(row.levels),
   };
 }
 
@@ -100,7 +109,7 @@ export function baselinesFromTable(rows: string[][]): NafsBaseline[] {
 
     const key = `${year}|${grade}|${subject}`;
     const entry = map.get(key) ?? {
-      year, grade: grade as 3 | 6, subject, overallPercent: null, masteryPercent: null, testedCount: null, absentCount: null, domains: [],
+      year, grade: grade as 3 | 6, subject, overallPercent: null, masteryPercent: null, testedCount: null, absentCount: null, domains: [], levels: [],
     };
     if (/الإجمالي|الاجمالي|المتوسط/.test(domain)) entry.overallPercent = value;
     else if (/التمكن/.test(domain)) entry.masteryPercent = value;

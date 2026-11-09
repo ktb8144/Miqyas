@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminClient } from "@/lib/supabase-admin";
 import { requireUserRole, authErrorResponse } from "@/lib/auth";
-import { fromRow, type NafsBaselineRow } from "@/lib/nafs/baseline";
+import { selectBaselines } from "@/lib/nafs/baseline-db";
 import { buildNafsPlan } from "@/lib/nafs/plan";
 import { claudeConfigured, claudeFailureNotice, createClaudeBatch, readClaudeBatch, ClaudeError } from "@/lib/claude";
 import {
@@ -23,7 +23,6 @@ export const dynamic = "force-dynamic";
  * Claude runs with effort "max" in the Message Batches API, so no request has to stay open.
  */
 
-const BASELINE_SELECT = "year, grade, subject, overall_percent, mastery_percent, tested_count, absent_count, domains";
 const ANALYSIS_SELECT = "id, status, batch_id, analysis, error, model, effort, created_by, created_at, updated_at";
 const NOT_READY = "التحليل المعمّق غير مفعّل بعد في قاعدة البيانات. تواصل مع فريق دالة.";
 
@@ -46,9 +45,8 @@ function missingTable(error: { code?: string; message?: string } | null) {
 
 async function loadSchool(schoolId: string) {
   const db = getAdminClient();
-  const { data, error } = await db.from("nafs_baselines").select(BASELINE_SELECT).eq("school_id", schoolId);
+  const { baselines, error } = await selectBaselines(db, schoolId);
   if (error) throw error;
-  const baselines = ((data ?? []) as NafsBaselineRow[]).map(fromRow);
   const plan = buildNafsPlan(baselines);
   return { db, baselines, plan, hash: plan ? nafsInputHash(baselines) : null };
 }
