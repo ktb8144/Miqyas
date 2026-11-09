@@ -10,6 +10,7 @@ import { toEnglishDigits } from "@/lib/format";
 export type NafsReportReading = { isReport: boolean; baselines: NafsBaseline[]; warnings: string[] };
 
 const MAX_WARNINGS = 8;
+const MISSING_MARKER = /(^|[^\d.])-\s?1(?!\d|\.\d)/;
 
 function number(value: unknown): number | null {
   const n = typeof value === "number" ? value : typeof value === "string" ? Number(toEnglishDigits(value).replace(/[%\s]/g, "").replace("٫", ".")) : NaN;
@@ -70,7 +71,8 @@ export function parseNafsReport(raw: unknown): NafsReportReading {
   const data = (raw ?? {}) as { isNafsReport?: unknown; results?: unknown; warnings?: unknown };
   const warnings = (Array.isArray(data.warnings) ? data.warnings : [])
     .map((w) => String(w ?? "").replace(/\s+/g, " ").trim().slice(0, 200))
-    .filter(Boolean);
+    // "-1" is our internal "not in the report" marker; the empty field already says that.
+    .filter((w) => w && !MISSING_MARKER.test(w));
   if (data.isNafsReport === false) return { isReport: false, baselines: [], warnings: [] };
 
   const byKey = new Map<string, NafsBaseline>();
